@@ -1,0 +1,324 @@
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:uuid/uuid.dart';
+
+import '../core/activity.dart';
+
+String sourceName(String source) {
+  final raw = source.split(':').last;
+  if (source.startsWith('windows:')) {
+    return raw.replaceFirst(RegExp(r'\.exe$'), '');
+  }
+  if (source.startsWith('android:')) return raw.split('.').last;
+  return raw;
+}
+
+class RuleEditor extends StatefulWidget {
+  const RuleEditor({super.key, required this.sources, this.rule});
+  final Set<String> sources;
+  final ActivityRule? rule;
+  @override
+  State<RuleEditor> createState() => _RuleEditorState();
+}
+
+class _RuleEditorState extends State<RuleEditor> {
+  final _form = GlobalKey<FormState>();
+  late final TextEditingController _name;
+  late final TextEditingController _minutes;
+  final _manual = TextEditingController();
+  late final Set<String> _selected;
+  late bool _focus;
+  late bool _budget;
+  late bool _scheduled;
+  late TimeOfDay _from;
+  late TimeOfDay _until;
+  late Set<int> _days;
+  String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    final rule = widget.rule;
+    _name = TextEditingController(text: rule?.name);
+    _minutes = TextEditingController(text: '${rule?.dailyMinutes ?? 30}');
+    _selected = {...?rule?.sources};
+    _focus = rule?.focusBlock ?? true;
+    _budget = rule?.dailyMinutes != null;
+    final schedule = rule?.schedules.firstOrNull;
+    _scheduled = schedule != null;
+    _from = TimeOfDay(
+      hour: (schedule?.startMinute ?? 540) ~/ 60,
+      minute: (schedule?.startMinute ?? 540) % 60,
+    );
+    _until = TimeOfDay(
+      hour: (schedule?.endMinute ?? 1020) ~/ 60,
+      minute: (schedule?.endMinute ?? 1020) % 60,
+    );
+    _days = {...?schedule?.weekdays};
+    if (_days.isEmpty) _days = {1, 2, 3, 4, 5};
+  }
+
+  @override
+  void dispose() {
+    _name.dispose();
+    _minutes.dispose();
+    _manual.dispose();
+    super.dispose();
+  }
+
+  void _save() {
+    if (!_form.currentState!.validate()) return;
+    try {
+      final extra = _manual.text
+          .split(RegExp(r'[\n,]'))
+          .map((s) => s.trim())
+          .where((s) => s.isNotEmpty);
+      final sources = {..._selected, ...extra};
+      if (sources.any(
+        (s) => !RegExp(r'^(windows|android|web):[^\s/:]+$').hasMatch(s),
+      )) {
+        throw ArgumentError(
+          'Use source identifiers such as windows:chrome.exe or android:com.google.android.youtube.',
+        );
+      }
+      final rule = ActivityRule(
+        id: widget.rule?.id ?? const Uuid().v4(),
+        name: _name.text.trim(),
+        sources: sources,
+        focusBlock: _focus,
+        dailyMinutes: _budget ? int.parse(_minutes.text) : null,
+        schedules: _scheduled
+            ? [
+                ScheduleWindow(
+                  weekdays: _days,
+                  startMinute: _from.hour * 60 + _from.minute,
+                  endMinute: _until.hour * 60 + _until.minute,
+                ),
+              ]
+            : [],
+      );
+      Navigator.pop(context, rule);
+    } catch (error) {
+      setState(() => _error = error.toString());
+    }
+  }
+
+  Future<void> _pickTime(bool start) async {
+    final value = await showTimePicker(
+      context: context,
+      initialTime: start ? _from : _until,
+    );
+    if (value != null && mounted) {
+      setState(() {
+        if (start) {
+          _from = value;
+        } else {
+          _until = value;
+        }
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final sources = {...widget.sources, ...?widget.rule?.sources}.toList()
+      ..sort();
+    return Dialog(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 540),
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: Form(
+            key: _form,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  widget.rule == null ? 'Create an activity' : 'Edit activity',
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Link apps across devices to give them one shared budget.',
+                ),
+                const SizedBox(height: 24),
+                TextFormField(
+                  controller: _name,
+                  autofocus: true,
+                  decoration: const InputDecoration(
+                    labelText: 'Activity name',
+                    hintText: 'e.g. YouTube',
+                  ),
+                  validator: (v) => v == null || v.trim().isEmpty
+                      ? 'Name this activity'
+                      : null,
+                ),
+                const SizedBox(height: 20),
+                const Text(
+                  'APPS IN THIS ACTIVITY',
+                  style: TextStyle(fontSize: 11, letterSpacing: 1.5),
+                ),
+                const SizedBox(height: 8),
+                if (sources.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      'No apps observed yet. Enable tracking and open an app, or enter a source below.',
+                    ),
+                  ),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxHeight: 180),
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: [
+                      for (final source in sources)
+                        CheckboxListTile(
+                          dense: true,
+                          contentPadding: EdgeInsets.zero,
+                          title: Text(sourceName(source)),
+                          subtitle: Text(
+                            source,
+                            style: const TextStyle(fontSize: 11),
+                          ),
+                          value: _selected.contains(source),
+                          onChanged: (value) => setState(() {
+                            if (value ?? false) {
+                              _selected.add(source);
+                            } else {
+                              _selected.remove(source);
+                            }
+                          }),
+                        ),
+                    ],
+                  ),
+                ),
+                ExpansionTile(
+                  tilePadding: EdgeInsets.zero,
+                  title: const Text(
+                    'Enter a source identifier',
+                    style: TextStyle(fontSize: 13),
+                  ),
+                  children: [
+                    TextField(
+                      controller: _manual,
+                      maxLines: 2,
+                      decoration: const InputDecoration(
+                        hintText: 'android:com.google.android.youtube\nweb:youtube.com',
+                        helperText: 'One per line. Website integration is not connected yet.',
+                      ),
+                    ),
+                  ],
+                ),
+                const Divider(height: 32),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Block during focus'),
+                  value: _focus,
+                  onChanged: (v) => setState(() => _focus = v),
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Daily shared budget'),
+                  subtitle: const Text(
+                    'Overlapping use of this activity counts once.',
+                  ),
+                  value: _budget,
+                  onChanged: (v) => setState(() => _budget = v),
+                ),
+                if (_budget)
+                  TextFormField(
+                    controller: _minutes,
+                    keyboardType: TextInputType.number,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                    decoration: const InputDecoration(
+                      labelText: 'Minutes per day',
+                    ),
+                    validator: (v) =>
+                        (int.tryParse(v ?? '') ?? 0) < 1 ||
+                            (int.tryParse(v ?? '') ?? 0) > 1440
+                        ? 'Choose 1 to 1440 minutes'
+                        : null,
+                  ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: const Text('Recurring restriction'),
+                  value: _scheduled,
+                  onChanged: (v) => setState(() => _scheduled = v),
+                ),
+                if (_scheduled) ...[
+                  Wrap(
+                    spacing: 4,
+                    children: [
+                      for (var day = 1; day <= 7; day++)
+                        FilterChip(
+                          label: Text(
+                            ['M', 'T', 'W', 'T', 'F', 'S', 'S'][day - 1],
+                          ),
+                          selected: _days.contains(day),
+                          onSelected: (v) => setState(() {
+                            if (v) {
+                              _days.add(day);
+                            } else {
+                              _days.remove(day);
+                            }
+                          }),
+                        ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => _pickTime(true),
+                          child: Text('From ${_from.format(context)}'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: OutlinedButton(
+                          onPressed: () => _pickTime(false),
+                          child: Text('Until ${_until.format(context)}'),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const Text(
+                    'Uses your account timezone. Overnight windows are supported.',
+                    style: TextStyle(fontSize: 12),
+                  ),
+                ],
+                if (_error != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 16),
+                    child: Text(
+                      _error!,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+                  ),
+                const SizedBox(height: 24),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Cancel'),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: _save,
+                      child: const Text('Save activity'),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
