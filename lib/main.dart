@@ -14,6 +14,7 @@ import 'data/cloud_sync.dart';
 import 'data/local_store.dart';
 import 'platform/desktop_lifecycle.dart';
 import 'platform/native_tracker.dart';
+import 'ui/appearance.dart';
 
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -72,7 +73,8 @@ Future<void> main(List<String> args) async {
   } catch (error) {
     runApp(
       MaterialApp(
-        theme: ThemeData.dark(),
+        theme: lockinTheme(Brightness.light),
+        darkTheme: lockinTheme(Brightness.dark),
         home: Scaffold(
           body: Center(
             child: Padding(

@@ -35,6 +35,10 @@ class AppController extends ChangeNotifier {
   List<ActivityRule> rules = [];
   FocusSession? session;
   List<FocusSession> history = [];
+  int _focusMinutes = 25;
+  int _breakMinutes = 5;
+  int preferredMinutes(SessionPhase phase) =>
+      phase == SessionPhase.focus ? _focusMinutes : _breakMinutes;
   bool trackingEnabled = false;
   bool accessGranted = false;
   String? trackingError;
@@ -54,6 +58,16 @@ class AppController extends ChangeNotifier {
     ); // Invalid persisted zones must not silently reset days.
     await store.saveSetting('timezone', timezone);
     trackingEnabled = await store.setting('tracking_enabled') == 'true';
+    _focusMinutes =
+        (int.tryParse(await store.setting('preset_focus') ?? '') ?? 25).clamp(
+          1,
+          1440,
+        );
+    _breakMinutes =
+        (int.tryParse(await store.setting('preset_rest') ?? '') ?? 5).clamp(
+          1,
+          1440,
+        );
     rules = await store.rules();
     final active = await store.setting('active_session');
     if (active != null) {
@@ -141,7 +155,7 @@ class AppController extends ChangeNotifier {
       end: started.add(duration),
       label: phase == SessionPhase.focus ? 'Deep work' : 'Take a breath',
     );
-    await _saveSession(next);
+    await _saveSession(next, presetMinutes: duration.inMinutes.clamp(1, 1440));
   }
 
   Future<void> endSession() async {
@@ -152,14 +166,24 @@ class AppController extends ChangeNotifier {
     await _saveSession(active.finish(now));
   }
 
-  Future<void> _saveSession(FocusSession next) async {
+  Future<void> _saveSession(FocusSession next, {int? presetMinutes}) async {
     await store.transaction(() async {
+      if (presetMinutes != null) {
+        await store.saveSetting('preset_${next.phase.name}', '$presetMinutes');
+      }
       await store.saveSetting('active_session', jsonEncode(next.toJson()));
       await store.customStatement(
         'INSERT INTO sessions(id,value) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET value=excluded.value',
         [next.id, jsonEncode(next.toJson())],
       );
     });
+    if (presetMinutes != null) {
+      if (next.phase == SessionPhase.focus) {
+        _focusMinutes = presetMinutes;
+      } else {
+        _breakMinutes = presetMinutes;
+      }
+    }
     session = next;
     history = [...history.where((s) => s.id != next.id), next];
     _changed();

@@ -25,7 +25,7 @@ class _DurationDialogState extends State<DurationDialog> {
 
   @override
   Widget build(BuildContext context) => AlertDialog(
-    title: const Text('Your own pace'),
+    title: const Text('Custom duration'),
     content: Form(
       key: _form,
       child: TextFormField(

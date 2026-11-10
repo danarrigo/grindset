@@ -74,22 +74,20 @@ class _CloudPanelState extends State<CloudPanel> {
   Widget build(BuildContext context) {
     final cloud = widget.cloud;
     final user = cloud?.client.auth.currentUser;
+    final colors = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text(
-          'Account & cloud',
-          style: TextStyle(fontSize: 19, fontWeight: FontWeight.w600),
-        ),
+        Text('Account & cloud', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 12),
         if (cloud == null) ...[
           const Text(
             'Cloud sync is not configured. Your timers and history still work locally.',
           ),
           const SizedBox(height: 8),
-          const SelectableText(
+          SelectableText(
             'Add your public Supabase configuration and apply the migration. See README.md for setup.',
-            style: TextStyle(fontSize: 13, color: Color(0xFF94A3AD)),
+            style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
           ),
         ] else if (user == null) ...[
           const Text('Sign in on each device to synchronize usage intervals.'),
@@ -167,9 +165,9 @@ class _CloudPanelState extends State<CloudPanel> {
             ),
         ],
         const SizedBox(height: 16),
-        const Text(
-          'Checkpoint limitation: usage sync is manual. Shared session, rule and account-timezone sync are not connected yet.',
-          style: TextStyle(fontSize: 12, color: Color(0xFFE6BD78)),
+        Text(
+          'Usage sync is manual. Shared sessions, rules and account-timezone sync are not connected yet.',
+          style: TextStyle(fontSize: 12, color: colors.tertiary, height: 1.6),
         ),
         if (_busy)
           const Padding(

@@ -16,6 +16,16 @@ Approved scope: a personal Windows + Android focus product, potentially commerci
 - Sync activity identifiers and timestamped intervals. Do not collect page titles, full URLs, screenshots, or keystrokes. Windows executable paths remain local.
 - Per-user database isolation from day one. No service-role/admin secrets in clients. No billing or public release in this milestone. Android store acceptance requires separate policy review.
 
+## Interface direction
+
+- Apple-style native-app restraint: neutral surfaces, clear typography, subtle dividers, and system light/dark appearance. Use the licensed Inter font, not proprietary Apple fonts.
+- The home screen prioritizes one **Lock in** action. Start immediately with the selected duration and current focus rules; do not show a setup form on every start. Remember focus/break durations independently, including when a session ends early.
+- Keep the same basic focus composition across desktop and mobile. Adapt navigation and spacing to the available room, rather than turning desktop into a different dashboard.
+- Show focused time today and the closest daily activity limit as secondary information. Do not invent a global remaining allowance by summing unrelated limits.
+- No motivational slogans, neon accents, decorative cards, or timer rings. Show a plain countdown only while running or completing a session.
+- Keep tracking failures and unfinished enforcement explicit. Use a concise timer-only status and accessible build details, not a misleading live badge.
+- Maintain readable contrast, adequate mobile tap targets, and usable forms with the keyboard open.
+
 ## Verification
 
 Exercise user-visible timer and rule flows, interval-union budget accounting, timezone/day boundaries, persistence/restart behavior, and native permission/tracking/blocking interfaces. Native background behavior must be verified on Windows and a physical Android device, not inferred from unit tests or a dashboard demo.

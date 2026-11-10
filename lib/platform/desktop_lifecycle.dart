@@ -33,12 +33,16 @@ class DesktopLifecycle with WindowListener, TrayListener {
     windowManager.addListener(this);
     await windowManager.setPreventClose(true);
     await windowManager.waitUntilReadyToShow(
-      const WindowOptions(
-        size: Size(1200, 820),
-        minimumSize: Size(800, 620),
+      WindowOptions(
+        size: const Size(1100, 780),
+        minimumSize: const Size(800, 620),
         center: true,
         title: 'Lockin',
-        backgroundColor: Color(0xFF0C1116),
+        backgroundColor:
+            WidgetsBinding.instance.platformDispatcher.platformBrightness ==
+                Brightness.dark
+            ? const Color(0xFF111113)
+            : const Color(0xFFF7F7F9),
       ),
       () async {
         if (background) {

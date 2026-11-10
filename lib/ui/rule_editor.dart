@@ -156,8 +156,8 @@ class _RuleEditorState extends State<RuleEditor> {
                 ),
                 const SizedBox(height: 20),
                 const Text(
-                  'APPS IN THIS ACTIVITY',
-                  style: TextStyle(fontSize: 11, letterSpacing: 1.5),
+                  'Apps in this activity',
+                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 8),
                 if (sources.isEmpty)
@@ -253,8 +253,17 @@ class _RuleEditorState extends State<RuleEditor> {
                       for (var day = 1; day <= 7; day++)
                         FilterChip(
                           label: Text(
-                            ['M', 'T', 'W', 'T', 'F', 'S', 'S'][day - 1],
+                            [
+                              'Mon',
+                              'Tue',
+                              'Wed',
+                              'Thu',
+                              'Fri',
+                              'Sat',
+                              'Sun',
+                            ][day - 1],
                           ),
+                          showCheckmark: false,
                           selected: _days.contains(day),
                           onSelected: (v) => setState(() {
                             if (v) {
