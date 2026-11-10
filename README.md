@@ -33,7 +33,7 @@ No claim of continuous background enforcement is justified until these paths pas
 
 ## Development
 
-Use **Flutter stable 3.47.9 / Dart 3.13.7** to reproduce the checked-in UI goldens. The temporary WSL SDK used for this checkpoint is `/tmp/lockin-tooling/flutter`; it is not a permanent global installation.
+Use **Flutter stable 3.47.9 / Dart 3.13.7** to reproduce the checked-in UI goldens. This session's WSL SDK is installed persistently at `~/.local/share/lockin/flutter`, not under `/tmp`. To use it in your current shell, run `export PATH="$HOME/.local/share/lockin/flutter/bin:$PATH"`. Windows builds still require a separate Windows-side Flutter installation.
 
 ```sh
 flutter pub get

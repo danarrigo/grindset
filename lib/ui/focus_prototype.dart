@@ -1,4 +1,5 @@
-// THROWAWAY: three structurally different Focus screens on /?variant=A|B|C.
+// THROWAWAY: Focus-screen directions on /?variant=A|B|C|D.
+// The minimal D direction can hide prototype chrome with &clean=1.
 // Preview only. In-memory timer state; no database, auth, tracking or blocking.
 // Keep this entrypoint on the design branch, not the production main branch.
 import 'dart:async';
@@ -23,7 +24,7 @@ class _FocusPrototype extends StatefulWidget {
 }
 
 class _PrototypeState extends State<_FocusPrototype> {
-  static const _names = ['Clock', 'Focus settings', 'Control panel'];
+  static const _names = ['Clock', 'Focus settings', 'Control panel', 'Minimal'];
   static const _tabs = ['Focus', 'Activity', 'Rules', 'Devices', 'Settings'];
   static const _icons = [
     CupertinoIcons.scope,
@@ -33,6 +34,7 @@ class _PrototypeState extends State<_FocusPrototype> {
     CupertinoIcons.gear_alt,
   ];
   late String _variant;
+  late bool _clean;
   late BuildContext _viewContext;
   int _minutes = 25;
   bool _break = false;
@@ -44,8 +46,9 @@ class _PrototypeState extends State<_FocusPrototype> {
   Color get _ink => _light ? const Color(0xFF1C1C1E) : Colors.white;
   Color get _secondary =>
       _light ? const Color(0xFF737379) : const Color(0xFFA7A7AD);
-  Color get _accent =>
-      _variant == 'A' ? const Color(0xFFFF9F0A) : const Color(0xFF007AFF);
+  Color get _accent => ['A', 'D'].contains(_variant)
+      ? const Color(0xFFFF9F0A)
+      : const Color(0xFF007AFF);
   String get _mode => _break ? 'Break' : 'Focus';
   String get _action => _running
       ? 'End session'
@@ -55,6 +58,7 @@ class _PrototypeState extends State<_FocusPrototype> {
   Map<String, Object?> get _state => {
     'variant': _variant,
     'direction': _names[_index],
+    'clean_preview': _clean,
     'minutes': _minutes,
     'phase': _break ? 'break' : 'focus',
     'running': _running,
@@ -73,8 +77,9 @@ class _PrototypeState extends State<_FocusPrototype> {
   @override
   void initState() {
     super.initState();
-    final requested = Uri.base.queryParameters['variant'] ?? 'B';
-    _variant = ['A', 'B', 'C'].contains(requested) ? requested : 'B';
+    final requested = Uri.base.queryParameters['variant'] ?? 'D';
+    _variant = ['A', 'B', 'C', 'D'].contains(requested) ? requested : 'D';
+    _clean = Uri.base.queryParameters['clean'] == '1';
     _ticker = Timer.periodic(const Duration(seconds: 1), (_) {
       if (_end != null) {
         setState(() {
@@ -114,9 +119,16 @@ class _PrototypeState extends State<_FocusPrototype> {
 
   void _trace() => debugPrint('FOCUS PROTOTYPE ${jsonEncode(_state)}');
   void _cycle(int change) {
-    setState(() => _variant = String.fromCharCode(65 + (_index + change) % 3));
+    setState(
+      () => _variant = String.fromCharCode(
+        65 + (_index + change) % _names.length,
+      ),
+    );
     SystemNavigator.routeInformationUpdated(
-      uri: Uri(path: '/', queryParameters: {'variant': _variant}),
+      uri: Uri(
+        path: '/',
+        queryParameters: {...Uri.base.queryParameters, 'variant': _variant},
+      ),
       replace: true,
     );
     _trace();
@@ -242,10 +254,11 @@ class _PrototypeState extends State<_FocusPrototype> {
                   child: switch (_variant) {
                     'A' => _clockDirection(),
                     'B' => _focusDirection(),
+                    'D' => _minimalDirection(),
                     _ => _controlDirection(),
                   },
                 ),
-                _switcher(),
+                if (!_clean) _switcher(),
               ],
             ),
           );
@@ -390,6 +403,164 @@ class _PrototypeState extends State<_FocusPrototype> {
       ),
     ),
   );
+
+  // D: one compact utility. Time, one action, and a menu. No dashboard chrome.
+  Widget _minimalDirection() => LayoutBuilder(
+    builder: (context, box) {
+      final compactWindow = box.maxWidth >= 620;
+      final panel = ColoredBox(
+        color: const Color(0xFF09090A),
+        child: SafeArea(
+          minimum: const EdgeInsets.all(24),
+          child: Column(
+            children: [
+              Row(
+                children: [
+                  const Expanded(
+                    child: Text(
+                      'Lockin',
+                      style: TextStyle(
+                        color: Color(0xFFE5E5EA),
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -.4,
+                      ),
+                    ),
+                  ),
+                  _round(
+                    CupertinoIcons.ellipsis,
+                    _minimalMenu,
+                    size: 44,
+                    fill: const Color(0xFF1C1C1E),
+                  ),
+                ],
+              ),
+              Expanded(
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Semantics(
+                        label: _running ? 'Time remaining' : 'Session duration',
+                        child: FittedBox(
+                          fit: BoxFit.scaleDown,
+                          child: Text(
+                            _clock,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 88,
+                              fontWeight: FontWeight.w200,
+                              letterSpacing: -3,
+                              fontFeatures: [FontFeature.tabularFigures()],
+                            ),
+                          ),
+                        ),
+                      ),
+                      const SizedBox(height: 42),
+                      _round(
+                        _running
+                            ? CupertinoIcons.stop_fill
+                            : CupertinoIcons.play_fill,
+                        _toggle,
+                        size: 84,
+                        fill: _running
+                            ? const Color(0xFF2C2C2E)
+                            : const Color(0xFF073B1D),
+                        ink: _running ? Colors.white : const Color(0xFF30D158),
+                      ),
+                      const SizedBox(height: 13),
+                      Text(
+                        _action,
+                        style: TextStyle(
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500,
+                          color: _running
+                              ? const Color(0xFFBFBFC6)
+                              : const Color(0xFF30D158),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const Text(
+                'Timer preview',
+                style: TextStyle(color: Color(0xFF8E8E93), fontSize: 11),
+              ),
+            ],
+          ),
+        ),
+      );
+      if (!compactWindow) return panel;
+      return ColoredBox(
+        color: const Color(0xFFDEDEE3),
+        child: Center(
+          child: Container(
+            width: 400,
+            height: 560,
+            margin: const EdgeInsets.all(32),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(22),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: .17),
+                  blurRadius: 44,
+                  offset: const Offset(0, 18),
+                ),
+              ],
+            ),
+            child: ClipRRect(
+              borderRadius: BorderRadius.circular(22),
+              child: panel,
+            ),
+          ),
+        ),
+      );
+    },
+  );
+
+  void _minimalMenu() {
+    showCupertinoModalPopup<void>(
+      context: _viewContext,
+      builder: (context) => CupertinoActionSheet(
+        title: const Text('Lockin'),
+        actions: [
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(context);
+              _duration();
+            },
+            child: Text('Duration · $_minutes min'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(context);
+              _phase(!_break);
+            },
+            child: Text(_break ? 'Switch to focus' : 'Take a 5-minute break'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(context);
+              _details('Activity and settings');
+            },
+            child: const Text('Activity & settings'),
+          ),
+          CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(context);
+              _details();
+            },
+            child: const Text('About this preview'),
+          ),
+        ],
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
+  }
 
   // A: Clock's high-contrast working surface, large numerals, circular actions,
   // real controls and flat rows. No website masthead or giant CTA rectangle.
