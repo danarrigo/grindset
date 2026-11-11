@@ -1,7 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
-ThemeData lockinTheme(Brightness brightness) {
+ThemeData lockinTheme(Brightness brightness, {Color? accent}) {
   final dark = brightness == Brightness.dark;
   final background = dark ? const Color(0xFF111113) : const Color(0xFFF7F7F9);
   final ink = dark ? const Color(0xFFF5F5F7) : const Color(0xFF1D1D1F);
@@ -11,8 +11,12 @@ ThemeData lockinTheme(Brightness brightness) {
         seedColor: const Color(0xFF0066CC),
         brightness: brightness,
       ).copyWith(
-        primary: dark ? const Color(0xFF74B3FF) : const Color(0xFF0066CC),
-        onPrimary: dark ? const Color(0xFF002C59) : Colors.white,
+        primary:
+            accent ??
+            (dark ? const Color(0xFF74B3FF) : const Color(0xFF0066CC)),
+        onPrimary: accent != null
+            ? Colors.black
+            : (dark ? const Color(0xFF002C59) : Colors.white),
         surface: dark ? const Color(0xFF1C1C1E) : Colors.white,
         onSurface: ink,
         onSurfaceVariant: secondary,
@@ -76,6 +80,11 @@ ThemeData lockinTheme(Brightness brightness) {
       primaryColor: colors.primary,
       textTheme: CupertinoTextThemeData(
         textStyle: TextStyle(fontFamily: 'Inter', fontSize: 14, color: ink),
+        actionTextStyle: TextStyle(
+          fontFamily: 'Inter',
+          fontSize: 17,
+          color: colors.primary,
+        ),
         tabLabelTextStyle: const TextStyle(
           fontFamily: 'Inter',
           fontSize: 12,

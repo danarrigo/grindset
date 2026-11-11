@@ -140,6 +140,19 @@ class AppController extends ChangeNotifier {
     );
   }
 
+  Future<void> setPreferredMinutes(SessionPhase phase, int minutes) async {
+    if (minutes < 1 || minutes > 1440) {
+      throw ArgumentError('Choose 1 to 1440 minutes.');
+    }
+    await store.saveSetting('preset_${phase.name}', '$minutes');
+    if (phase == SessionPhase.focus) {
+      _focusMinutes = minutes;
+    } else {
+      _breakMinutes = minutes;
+    }
+    _changed();
+  }
+
   Future<void> startSession(Duration duration, SessionPhase phase) async {
     if (duration <= Duration.zero || duration > const Duration(days: 1)) {
       throw ArgumentError('Choose a duration between one second and 24 hours.');

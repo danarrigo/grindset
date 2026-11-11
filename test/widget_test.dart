@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -19,6 +21,10 @@ void main() {
     await (FontLoader(
       'MaterialIcons',
     )..addFont(rootBundle.load('fonts/MaterialIcons-Regular.otf'))).load();
+    await (FontLoader('packages/cupertino_icons/CupertinoIcons')..addFont(
+          rootBundle.load('packages/cupertino_icons/assets/CupertinoIcons.ttf'),
+        ))
+        .load();
   });
 
   void viewport(WidgetTester tester, Size size) {
@@ -45,10 +51,21 @@ void main() {
     return (controller, store);
   }
 
-  Future<void> customDuration(WidgetTester tester, String minutes) async {
-    await tester.tap(find.byKey(const ValueKey('duration-picker')));
+  Future<void> navigate(WidgetTester tester, int page) async {
+    final destination = find.byKey(ValueKey('nav-$page'));
+    if (destination.evaluate().isEmpty) {
+      await tester.tap(find.byTooltip('More options'));
+      await tester.pumpAndSettle();
+    }
+    await tester.ensureVisible(destination);
+    await tester.tap(destination);
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Custom duration...'));
+  }
+
+  Future<void> customDuration(WidgetTester tester, String minutes) async {
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.textContaining('Duration ·'));
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField), minutes);
     await tester.tap(find.text('Set duration'));
@@ -61,15 +78,15 @@ void main() {
     final (controller, _) = await open();
     viewport(tester, const Size(1200, 900));
     await tester.pumpWidget(LockinApp(controller: controller));
-    expect(find.widgetWithText(FilledButton, 'Lock in'), findsOneWidget);
+    expect(find.text('25:00'), findsOneWidget);
+    expect(find.text('Lock in'), findsOneWidget);
+    expect(find.byTooltip('More options'), findsOneWidget);
+    expect(find.byType(CupertinoTabBar), findsNothing);
     expect(find.byType(CircularProgressIndicator), findsNothing);
-    expect(
-      find.text('25:00'),
-      findsNothing,
-      reason: 'The idle screen is action-first, not a giant stopwatch',
-    );
-    expect(find.text('Focused today'), findsOneWidget);
-    expect(find.text('Daily limits'), findsOneWidget);
+    expect(find.text('Focused today'), findsNothing);
+    expect(find.text('Daily limits'), findsNothing);
+    expect(find.text('Activity'), findsNothing);
+    expect(find.text('Rules'), findsNothing);
     await tester.tap(find.text('Lock in'));
     await tester.pumpAndSettle();
     expect(controller.session?.focusing(controller.now), isTrue);
@@ -78,28 +95,81 @@ void main() {
     expect(find.text('25:00'), findsOneWidget);
   });
 
-  testWidgets('a restored session keeps its deadline after the UI closes', (
+  testWidgets(
+    'countdown does not lose a second or show zero before its deadline',
+    (tester) async {
+      var now = DateTime.utc(2026, 11, 10, 10);
+      final (controller, _) = await open(clock: () => now);
+      viewport(tester, const Size(390, 844));
+      await tester.pumpWidget(LockinApp(controller: controller));
+      await tester.tap(find.text('Lock in'));
+      await tester.pumpAndSettle();
+      now = now.add(const Duration(milliseconds: 1));
+      await controller.refresh();
+      await tester.pumpAndSettle();
+      expect(find.text('25:00'), findsOneWidget);
+      now = controller.session!.end.subtract(const Duration(milliseconds: 1));
+      await controller.refresh();
+      await tester.pumpAndSettle();
+      expect(find.text('0:01'), findsOneWidget);
+      expect(find.text('Session complete'), findsNothing);
+      now = controller.session!.end;
+      await controller.refresh();
+      await tester.pumpAndSettle();
+      expect(find.text('0:00'), findsOneWidget);
+      expect(find.text('Session complete'), findsOneWidget);
+    },
+  );
+
+  testWidgets('a custom session survives closing and reopening SQLite', (
     tester,
   ) async {
+    final directory = Directory.systemTemp.createTempSync('lockin-focus-');
+    addTearDown(() => directory.delete(recursive: true));
+    final file = File('${directory.path}/lockin.sqlite');
     var now = DateTime.utc(2026, 11, 10, 10);
-    final (controller, store) = await open(clock: () => now);
-    viewport(tester, const Size(1200, 900));
-    await tester.pumpWidget(LockinApp(controller: controller));
-    await tester.tap(find.text('Lock in'));
-    await tester.pumpAndSettle();
-    await tester.pumpWidget(const SizedBox.shrink());
+    viewport(tester, const Size(400, 560));
+    // Drift starts its isolate in the factory, so construction needs real time too.
+    await tester.runAsync(() async {
+      final firstStore = LocalStore.file(file);
+      final first = AppController(
+        store: firstStore,
+        tracker: NativeTracker(),
+        clock: () => now,
+      );
+      try {
+        await first.initialize(poll: false);
+        await first.setPreferredMinutes(SessionPhase.rest, 8);
+        await first.startSession(
+          const Duration(minutes: 37),
+          SessionPhase.focus,
+        );
+      } finally {
+        first.dispose();
+        await firstStore.close();
+      }
+    });
     now = now.add(const Duration(minutes: 20));
-    final restored = AppController(
-      store: store,
-      tracker: NativeTracker(),
-      clock: () => now,
-    );
-    addTearDown(restored.dispose);
-    await restored.initialize(poll: false);
+    final restored = (await tester.runAsync(() async {
+      final store = LocalStore.file(file);
+      final controller = AppController(
+        store: store,
+        tracker: NativeTracker(),
+        clock: () => now,
+      );
+      addTearDown(() async {
+        controller.dispose();
+        await store.close();
+      });
+      await controller.initialize(poll: false);
+      return controller;
+    }))!;
     await tester.pumpWidget(LockinApp(controller: restored));
     await tester.pumpAndSettle();
-    expect(find.text('5:00'), findsOneWidget);
+    expect(find.text('17:00'), findsOneWidget);
     expect(find.text('End session'), findsOneWidget);
+    expect(restored.preferredMinutes(SessionPhase.focus), 37);
+    expect(restored.preferredMinutes(SessionPhase.rest), 8);
     expect(tester.takeException(), isNull);
   });
 
@@ -114,7 +184,7 @@ void main() {
       await tester.enterText(find.byType(TextFormField), '37');
       await tester.tap(find.text('Set duration'));
       await tester.pumpAndSettle();
-      expect(find.text('37 min'), findsOneWidget);
+      expect(find.text('37:00'), findsOneWidget);
       await tester.tap(find.text('Lock in'));
       await tester.pumpAndSettle();
       expect(
@@ -151,7 +221,179 @@ void main() {
       await restored.initialize(poll: false);
       await tester.pumpWidget(LockinApp(controller: restored));
       await tester.pumpAndSettle();
-      expect(find.text('37 min'), findsOneWidget);
+      await tester.tap(find.byTooltip('More options'));
+      await tester.pumpAndSettle();
+      expect(find.text('Duration · 37 min'), findsOneWidget);
+    },
+  );
+
+  testWidgets('activity shows real focus time without stopping the timer', (
+    tester,
+  ) async {
+    var now = DateTime.utc(2026, 11, 10, 10);
+    final (controller, _) = await open(clock: () => now);
+    viewport(tester, const Size(390, 844));
+    await tester.pumpWidget(LockinApp(controller: controller));
+    await tester.tap(find.text('Lock in'));
+    await tester.pumpAndSettle();
+    final sessionId = controller.session!.id;
+    now = now.add(const Duration(minutes: 7));
+    await controller.refresh();
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Duration ·'), findsNothing);
+    expect(find.text('Switch to break · 5 min'), findsNothing);
+    await tester.tap(find.text('Cancel'));
+    await tester.pumpAndSettle();
+    await navigate(tester, 1);
+    expect(find.text('Focused today'), findsOneWidget);
+    expect(find.text('7 min'), findsOneWidget);
+    await navigate(tester, 0);
+    expect(find.text('18:00'), findsOneWidget);
+    expect(find.text('Focused today'), findsNothing);
+    expect(controller.session!.id, sessionId);
+  });
+
+  testWidgets('duration choices are remembered without starting a session', (
+    tester,
+  ) async {
+    final (controller, store) = await open();
+    viewport(tester, const Size(390, 844));
+    await tester.pumpWidget(LockinApp(controller: controller));
+    await customDuration(tester, '37');
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Switch to break · 5 min'));
+    await tester.pumpAndSettle();
+    await customDuration(tester, '8');
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Switch to focus'));
+    await tester.pumpAndSettle();
+    expect(find.text('37:00'), findsOneWidget);
+    expect(controller.session, isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+    final restored = AppController(store: store, tracker: NativeTracker());
+    addTearDown(restored.dispose);
+    await restored.initialize(poll: false);
+    await tester.pumpWidget(LockinApp(controller: restored));
+    await tester.pumpAndSettle();
+    expect(find.text('37:00'), findsOneWidget);
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    expect(find.text('Switch to break · 8 min'), findsOneWidget);
+    expect(restored.session, isNull);
+  });
+
+  testWidgets('focus and break keep independent durations through the menu', (
+    tester,
+  ) async {
+    var now = DateTime.utc(2026, 11, 10, 10);
+    final (controller, _) = await open(clock: () => now);
+    viewport(tester, const Size(390, 844));
+    await tester.pumpWidget(LockinApp(controller: controller));
+    await customDuration(tester, '37');
+    await tester.tap(find.text('Lock in'));
+    await tester.pumpAndSettle();
+    now = now.add(const Duration(minutes: 1));
+    await tester.tap(find.text('End session'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('End session').last);
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Switch to break · 5 min'));
+    await tester.pumpAndSettle();
+    expect(find.text('5:00'), findsOneWidget);
+    await customDuration(tester, '8');
+    await tester.tap(find.text('Start break'));
+    await tester.pumpAndSettle();
+    expect(find.text('8:00'), findsOneWidget);
+    expect(find.text('End break'), findsOneWidget);
+    now = now.add(const Duration(minutes: 1));
+    await tester.tap(find.text('End break'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('End session'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Switch to focus'));
+    await tester.pumpAndSettle();
+    expect(find.text('37:00'), findsOneWidget);
+    expect(controller.preferredMinutes(SessionPhase.focus), 37);
+    expect(controller.preferredMinutes(SessionPhase.rest), 8);
+    expect(controller.session!.running(now), isFalse);
+  });
+
+  testWidgets(
+    'Focus stays usable with a warning and doubled text on a short phone',
+    (tester) async {
+      final (controller, _) = await open();
+      viewport(tester, const Size(320, 480));
+      tester.platformDispatcher.textScaleFactorTestValue = 2;
+      addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+      await tester.pumpWidget(
+        LockinApp(
+          controller: controller,
+          startupWarning: 'Cloud setup failed. Local mode remains available.',
+        ),
+      );
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Cloud setup failed'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+      await tester.ensureVisible(find.text('Lock in'));
+      await tester.tap(find.text('Lock in'));
+      await tester.pumpAndSettle();
+      expect(controller.session!.focusing(controller.now), isTrue);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
+  testWidgets('duration can be changed on a phone with the keyboard open', (
+    tester,
+  ) async {
+    final (controller, _) = await open();
+    viewport(tester, const Size(320, 640));
+    await tester.pumpWidget(LockinApp(controller: controller));
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Duration · 25 min'));
+    await tester.pumpAndSettle();
+    tester.view.viewInsets = const FakeViewPadding(bottom: 280);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byType(TextFormField), '45');
+    await tester.ensureVisible(find.text('Set duration'));
+    await tester.tap(find.text('Set duration'));
+    await tester.pumpAndSettle();
+    expect(find.text('45:00'), findsOneWidget);
+    expect(controller.session, isNull);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets(
+    'blocking and the single-app override remain reachable on Focus',
+    (tester) async {
+      final (controller, _) = await open();
+      await controller.saveRule(
+        ActivityRule(
+          id: 'browser',
+          name: 'Browser',
+          sources: ['windows:chrome.exe'],
+          dailyMinutes: 1,
+        ),
+      );
+      controller.blockedSource = 'windows:chrome.exe';
+      controller.blockMessage = 'Daily budget reached.';
+      viewport(tester, const Size(390, 844));
+      await tester.pumpWidget(LockinApp(controller: controller));
+      expect(find.text('Daily budget reached.'), findsOneWidget);
+      await tester.tap(find.text('Allow this app for 5 minutes'));
+      await tester.pumpAndSettle();
+      expect(controller.blockedSource, isNull);
+      expect(controller.rules.single.dailyMinutes, 1);
+      expect(find.text('Lock in'), findsOneWidget);
+      expect(controller.session, isNull);
     },
   );
 
@@ -166,8 +408,7 @@ void main() {
     await tester.pumpAndSettle();
     expect(tester.takeException(), isNull);
     for (final index in [1, 2, 3, 4, 0]) {
-      await tester.tap(find.byKey(ValueKey('nav-$index')));
-      await tester.pumpAndSettle();
+      await navigate(tester, index);
       expect(
         tester.takeException(),
         isNull,
@@ -181,8 +422,13 @@ void main() {
     (tester) async {
       var now = DateTime.utc(2026, 11, 10, 10);
       final (controller, _) = await open(clock: () => now);
-      viewport(tester, const Size(1200, 900));
-      await tester.pumpWidget(LockinApp(controller: controller));
+      viewport(tester, const Size(390, 844));
+      await tester.pumpWidget(
+        RepaintBoundary(
+          key: const ValueKey('screen'),
+          child: LockinApp(controller: controller),
+        ),
+      );
       await tester.tap(find.text('Lock in'));
       await tester.pumpAndSettle();
       now = now.add(const Duration(minutes: 26));
@@ -190,14 +436,27 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('0:00'), findsOneWidget);
       expect(find.text('Session complete'), findsOneWidget);
-      await tester.tap(find.text('Break'));
+      await expectLater(
+        find.byKey(const ValueKey('screen')),
+        matchesGoldenFile('goldens/mobile-complete.png'),
+      );
+      await tester.tap(find.byTooltip('More options'));
       await tester.pumpAndSettle();
-      expect(find.text('5 min'), findsOneWidget);
+      await tester.tap(find.text('Switch to break · 5 min'));
+      await tester.pumpAndSettle();
+      expect(find.text('5:00'), findsOneWidget);
       expect(controller.session!.running(now), isFalse);
       await tester.tap(find.text('Start break'));
       await tester.pumpAndSettle();
       expect(find.text('5:00'), findsOneWidget);
       expect(controller.session!.phase, SessionPhase.rest);
+      await expectLater(
+        find.byKey(const ValueKey('screen')),
+        matchesGoldenFile('goldens/mobile-break.png'),
+      );
+      await expectLater(tester, meetsGuideline(textContrastGuideline));
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
     },
   );
 
@@ -207,8 +466,7 @@ void main() {
       final (controller, _) = await open();
       viewport(tester, const Size(390, 844));
       await tester.pumpWidget(LockinApp(controller: controller));
-      await tester.tap(find.byKey(const ValueKey('nav-2')));
-      await tester.pumpAndSettle();
+      await navigate(tester, 2);
       await tester.tap(find.text('Add activity'));
       await tester.pumpAndSettle();
       tester.view.viewInsets = const FakeViewPadding(bottom: 280);
@@ -235,68 +493,68 @@ void main() {
     },
   );
 
-  testWidgets(
-    'home shows the nearest real daily limit using merged device usage',
-    (tester) async {
-      final now = DateTime.utc(2026, 11, 10, 10, 20);
-      final (controller, store) = await open(clock: () => now);
-      await controller.saveRule(
-        ActivityRule(
-          id: 'youtube',
-          name: 'YouTube',
-          dailyMinutes: 30,
-          sources: ['web:youtube.com', 'android:youtube'],
-        ),
-      );
-      await controller.saveRule(
-        ActivityRule(
-          id: 'social',
-          name: 'Social',
-          dailyMinutes: 10,
-          sources: ['android:social'],
-        ),
-      );
-      for (final interval in [
-        UsageInterval(
-          id: 'pc',
-          deviceId: 'pc',
-          source: 'web:youtube.com',
-          start: DateTime.utc(2026, 11, 10, 10),
-          end: DateTime.utc(2026, 11, 10, 10, 10),
-        ),
-        UsageInterval(
-          id: 'phone',
-          deviceId: 'phone',
-          source: 'android:youtube',
-          start: DateTime.utc(2026, 11, 10, 10, 5),
-          end: DateTime.utc(2026, 11, 10, 10, 15),
-        ),
-        UsageInterval(
-          id: 'social',
-          deviceId: 'phone',
-          source: 'android:social',
-          start: DateTime.utc(2026, 11, 10, 9),
-          end: DateTime.utc(2026, 11, 10, 9, 8),
-        ),
-      ]) {
-        await store.putUsage(interval);
-      }
-      await controller.reloadUsage();
-      viewport(tester, const Size(390, 844));
-      await tester.pumpWidget(LockinApp(controller: controller));
-      await tester.pumpAndSettle();
-      expect(find.text('Closest limit'), findsOneWidget);
-      expect(find.text('2 min left'), findsOneWidget);
-      expect(find.text('Social'), findsOneWidget);
-      await controller.deleteRule('social');
-      await tester.pumpAndSettle();
-      expect(
-        find.text('15 min left'),
-        findsOneWidget,
-        reason: 'The overlapping YouTube minutes must count once',
-      );
-    },
-  );
+  testWidgets('rules show individual budgets using merged device usage', (
+    tester,
+  ) async {
+    final now = DateTime.utc(2026, 11, 10, 10, 20);
+    final (controller, store) = await open(clock: () => now);
+    await controller.saveRule(
+      ActivityRule(
+        id: 'youtube',
+        name: 'YouTube',
+        dailyMinutes: 30,
+        sources: ['web:youtube.com', 'android:youtube'],
+      ),
+    );
+    await controller.saveRule(
+      ActivityRule(
+        id: 'social',
+        name: 'Social',
+        dailyMinutes: 10,
+        sources: ['android:social'],
+      ),
+    );
+    for (final interval in [
+      UsageInterval(
+        id: 'pc',
+        deviceId: 'pc',
+        source: 'web:youtube.com',
+        start: DateTime.utc(2026, 11, 10, 10),
+        end: DateTime.utc(2026, 11, 10, 10, 10),
+      ),
+      UsageInterval(
+        id: 'phone',
+        deviceId: 'phone',
+        source: 'android:youtube',
+        start: DateTime.utc(2026, 11, 10, 10, 5),
+        end: DateTime.utc(2026, 11, 10, 10, 15),
+      ),
+      UsageInterval(
+        id: 'social',
+        deviceId: 'phone',
+        source: 'android:social',
+        start: DateTime.utc(2026, 11, 10, 9),
+        end: DateTime.utc(2026, 11, 10, 9, 8),
+      ),
+    ]) {
+      await store.putUsage(interval);
+    }
+    await controller.reloadUsage();
+    viewport(tester, const Size(390, 844));
+    await tester.pumpWidget(LockinApp(controller: controller));
+    await tester.pumpAndSettle();
+    expect(find.text('Social'), findsNothing);
+    await navigate(tester, 2);
+    expect(find.textContaining('8 min of 10 min today'), findsOneWidget);
+    expect(find.text('Social'), findsOneWidget);
+    await controller.deleteRule('social');
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('15 min of 30 min today'),
+      findsOneWidget,
+      reason: 'The overlapping YouTube minutes must count once',
+    );
+  });
 
   testWidgets('preview status keeps unfinished blocking and sync explicit', (
     tester,
@@ -304,11 +562,8 @@ void main() {
     final (controller, _) = await open();
     viewport(tester, const Size(390, 844));
     await tester.pumpWidget(LockinApp(controller: controller));
-    expect(
-      find.text('Timer only. App blocking is not connected yet.'),
-      findsOneWidget,
-    );
-    await tester.tap(find.text('Preview build'));
+    expect(find.text('Timer only · Preview build'), findsOneWidget);
+    await tester.tap(find.textContaining('Preview build'));
     await tester.pumpAndSettle();
     expect(find.byType(AlertDialog), findsOneWidget);
     expect(
@@ -318,14 +573,15 @@ void main() {
   });
 
   testWidgets(
-    'light and dark previews share the same desktop and mobile structure',
+    'approved Focus layout stays minimal and dark in either system appearance',
     (tester) async {
       final (controller, _) = await open();
       for (final (name, size, mode) in [
-        ('desktop', const Size(1200, 900), ThemeMode.light),
+        ('desktop', const Size(400, 560), ThemeMode.light),
         ('mobile', const Size(390, 844), ThemeMode.light),
-        ('desktop-dark', const Size(1200, 900), ThemeMode.dark),
+        ('desktop-dark', const Size(400, 560), ThemeMode.dark),
         ('mobile-dark', const Size(390, 844), ThemeMode.dark),
+        ('desktop-wide', const Size(1200, 900), ThemeMode.light),
       ]) {
         viewport(tester, size);
         await tester.pumpWidget(
@@ -336,24 +592,28 @@ void main() {
         );
         await tester.pumpAndSettle();
         expect(find.text('Lock in'), findsOneWidget);
-        expect(find.text('0 min'), findsOneWidget);
-        expect(find.text('None set'), findsOneWidget);
+        expect(find.text('25:00'), findsOneWidget);
+        expect(find.text('Focused today'), findsNothing);
+        expect(find.text('Activity'), findsNothing);
         expect(tester.takeException(), isNull);
-        if (name.startsWith('mobile')) {
-          expect(
-            tester
-                .getBottomRight(find.widgetWithText(FilledButton, 'Lock in'))
-                .dy,
-            lessThan(tester.getTopLeft(find.byType(CupertinoTabBar)).dy),
-          );
-        }
         await expectLater(
           find.byKey(const ValueKey('screen')),
           matchesGoldenFile('goldens/$name.png'),
         );
         await expectLater(tester, meetsGuideline(textContrastGuideline));
-        if (name.startsWith('mobile')) {
+        await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+        await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+        if (name == 'mobile') {
+          await tester.tap(find.byTooltip('More options'));
+          await tester.pumpAndSettle();
+          await expectLater(
+            find.byKey(const ValueKey('screen')),
+            matchesGoldenFile('goldens/mobile-menu.png'),
+          );
+          await expectLater(tester, meetsGuideline(textContrastGuideline));
           await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+          await tester.tap(find.text('Cancel'));
+          await tester.pumpAndSettle();
         }
       }
     },
@@ -370,7 +630,7 @@ void main() {
     );
     now = now.add(const Duration(minutes: 7));
     for (final (name, size) in [
-      ('desktop-focus', const Size(1200, 900)),
+      ('desktop-focus', const Size(400, 560)),
       ('mobile-focus', const Size(390, 844)),
     ]) {
       viewport(tester, size);
@@ -382,7 +642,8 @@ void main() {
       );
       await tester.pumpAndSettle();
       expect(find.text('18:00'), findsOneWidget);
-      expect(find.text('7 min'), findsOneWidget);
+      expect(find.text('7 min'), findsNothing);
+      expect(find.byTooltip('More options'), findsOneWidget);
       expect(find.byType(CircularProgressIndicator), findsNothing);
       expect(tester.takeException(), isNull);
       await expectLater(

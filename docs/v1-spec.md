@@ -18,11 +18,12 @@ Approved scope: a personal Windows + Android focus product, potentially commerci
 
 ## Interface direction
 
-- Apple-style native-app restraint: neutral surfaces, clear typography, subtle dividers, and system light/dark appearance. Use the licensed Inter font, not proprietary Apple fonts.
-- The home screen prioritizes one **Lock in** action. Start immediately with the selected duration and current focus rules; do not show a setup form on every start. Remember focus/break durations independently, including when a session ends early.
-- Keep the same basic focus composition across desktop and mobile. Adapt navigation and spacing to the available room, rather than turning desktop into a different dashboard.
-- Show focused time today and the closest daily activity limit as secondary information. Do not invent a global remaining allowance by summing unrelated limits.
-- No motivational slogans, neon accents, decorative cards, or timer rings. Show a plain countdown only while running or completing a session.
+- Approved direction: **D, Minimal** in the [isolated design comparison](https://github.com/danarrigo/lockin/tree/design/apple-focus-prototype/lib/ui/focus_prototype). Use licensed Inter and Flutter Cupertino Icons, not proprietary Apple fonts.
+- Focus shows only the time, one **Lock in** / end control and a small menu, plus quiet build status and genuine error/completion feedback. No dashboard metrics, presets, cards, sidebar, tab bar or prototype controls on this screen.
+- Start immediately with the selected duration and current focus rules; do not show a setup form on every start. Duration and focus/break selection belong in the menu and cannot alter a running session. Save duration choices immediately and remember focus/break durations independently, including without starting a session or when a session ends early. Each phase still starts manually; ending early still requires confirmation.
+- Use the same composition on phone and desktop. Focus stays dark regardless of system appearance, like the approved Clock-style utility. Windows opens as a compact real window, not a drawn window inside a dashboard. Secondary screens retain system light/dark appearance.
+- Keep Activity, Rules, Devices and Settings reachable through the Focus menu. Focused time today belongs in Activity; individual activity budgets belong in Rules. Do not invent a global remaining allowance by summing unrelated limits.
+- Show the selected duration while idle, the deadline-based countdown while running, and zero with a completion message when finished. Never display zero before the deadline. No slogans, decorative progress rings or fake live status.
 - Keep tracking failures and unfinished enforcement explicit. Use a concise timer-only status and accessible build details, not a misleading live badge.
 - Maintain readable contrast, adequate mobile tap targets, and usable forms with the keyboard open.
 

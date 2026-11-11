@@ -12,6 +12,7 @@ import 'data/cloud_sync.dart';
 import 'ui/appearance.dart';
 import 'ui/cloud_panel.dart';
 import 'ui/duration_dialog.dart';
+import 'ui/focus_screen.dart';
 import 'ui/rule_editor.dart';
 
 String durationLabel(Duration duration) {
@@ -20,15 +21,6 @@ String durationLabel(Duration duration) {
   return minutes % 60 == 0
       ? '${minutes ~/ 60} hr'
       : '${minutes ~/ 60} hr ${minutes % 60} min';
-}
-
-String _clockLabel(Duration duration) {
-  final seconds = duration.inSeconds;
-  final minutes = (seconds ~/ 60 % 60).toString().padLeft(2, '0');
-  final remainder = (seconds % 60).toString().padLeft(2, '0');
-  return seconds >= 3600
-      ? '${seconds ~/ 3600}:$minutes:$remainder'
-      : '${seconds ~/ 60}:$remainder';
 }
 
 class LockinApp extends StatelessWidget {
@@ -198,22 +190,27 @@ class _HomeState extends State<_Home> {
     if (yes == true && mounted) await _run(() => c.deleteRule(rule.id));
   }
 
-  Future<void> _customDuration() async {
+  Future<void> _customDuration(BuildContext dialogContext) async {
     final result = await showDialog<int>(
-      context: context,
+      context: dialogContext,
       builder: (_) => DurationDialog(initialMinutes: _minutes),
     );
     if (result != null && mounted) {
-      setState(() {
-        _minutes = result;
-        _configuringNext = true;
+      await _run(() async {
+        await c.setPreferredMinutes(_phase, result);
+        if (mounted) {
+          setState(() {
+            _minutes = result;
+            _configuringNext = true;
+          });
+        }
       });
     }
   }
 
-  Future<void> _endSession() async {
+  Future<void> _endSession(BuildContext dialogContext) async {
     final yes = await showDialog<bool>(
-      context: context,
+      context: dialogContext,
       builder: (context) => AlertDialog(
         title: const Text('End this session?'),
         content: const Text(
@@ -234,9 +231,9 @@ class _HomeState extends State<_Home> {
     if (yes == true && mounted) await _run(c.endSession);
   }
 
-  void _buildStatus() {
+  void _buildStatus([BuildContext? dialogContext]) {
     showDialog<void>(
-      context: context,
+      context: dialogContext ?? context,
       builder: (context) => AlertDialog(
         title: const Text('Preview build'),
         content: const SingleChildScrollView(
@@ -262,24 +259,12 @@ class _HomeState extends State<_Home> {
   String _time(DateTime instant) =>
       TimeOfDay.fromDateTime(tz.TZDateTime.from(instant, c.location))
           .format(context);
-  String get _today {
-    final local = tz.TZDateTime.from(c.now, c.location);
-    final weekday = [
-      'Monday',
-      'Tuesday',
-      'Wednesday',
-      'Thursday',
-      'Friday',
-      'Saturday',
-      'Sunday',
-    ][local.weekday - 1];
-    return '$weekday, ${local.day} ${_months[local.month - 1]}';
-  }
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: c,
     builder: (context, _) {
+      if (_page == 0) return _focusHome();
       final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
       final desktop =
           MediaQuery.sizeOf(context).width >= 760 * math.max(1, textScale);
@@ -317,13 +302,11 @@ class _HomeState extends State<_Home> {
                                 ),
                               ),
                               child: Column(
-                                mainAxisAlignment: _page == 0
-                                    ? MainAxisAlignment.center
-                                    : MainAxisAlignment.start,
+                                mainAxisAlignment: MainAxisAlignment.start,
                                 children: [
                                   ConstrainedBox(
-                                    constraints: BoxConstraints(
-                                      maxWidth: _page == 0 ? 430 : 760,
+                                    constraints: const BoxConstraints(
+                                      maxWidth: 760,
                                     ),
                                     child: Column(
                                       crossAxisAlignment:
@@ -338,7 +321,6 @@ class _HomeState extends State<_Home> {
                                           const SizedBox(height: 20),
                                         ],
                                         switch (_page) {
-                                          0 => _focus(),
                                           1 => _activity(),
                                           2 => _rules(),
                                           3 => _devices(),
@@ -367,7 +349,8 @@ class _HomeState extends State<_Home> {
                     ),
                   ],
                 ),
-                if (c.blockedSource != null) Positioned.fill(child: _blocked()),
+                if (c.blockedSource != null)
+                  Positioned.fill(child: _blocked(context)),
               ],
             ),
           ),
@@ -396,6 +379,39 @@ class _HomeState extends State<_Home> {
       );
     },
   );
+
+  Widget _focusHome() {
+    final theme = lockinTheme(
+      Brightness.dark,
+      accent: const Color(0xFFFF9F0A),
+    ).copyWith(scaffoldBackgroundColor: const Color(0xFF09090A));
+    return Theme(
+      data: theme,
+      child: CupertinoTheme(
+        data: MaterialBasedCupertinoThemeData(materialTheme: theme),
+        child: Builder(
+          builder: (context) => AnnotatedRegion<SystemUiOverlayStyle>(
+            value: SystemUiOverlayStyle.light.copyWith(
+              statusBarColor: Colors.transparent,
+              systemNavigationBarColor: const Color(0xFF09090A),
+              systemNavigationBarIconBrightness: Brightness.light,
+            ),
+            child: Scaffold(
+              body: SafeArea(
+                child: Stack(
+                  children: [
+                    _focus(context),
+                    if (c.blockedSource != null)
+                      Positioned.fill(child: _blocked(context)),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _toolbar(bool desktop) {
     final status = c.trackingError != null
@@ -500,285 +516,103 @@ class _HomeState extends State<_Home> {
     );
   }
 
-  Widget _focus() {
+  Widget _focus(BuildContext context) {
     final active = c.session;
-    final running = active?.running(c.now) ?? false;
+    final now = c.now;
+    final running = active?.running(now) ?? false;
     final completed =
-        active != null && !c.now.isBefore(active.end) && !_configuringNext;
+        active != null && !now.isBefore(active.end) && !_configuringNext;
     final phase = running ? active!.phase : _phase;
-    final limits =
-        c.rules
-            .where((r) => r.dailyMinutes != null)
-            .map(
-              (rule) => (
-                rule: rule,
-                remaining:
-                    Duration(minutes: rule.dailyMinutes!) - c.ruleUsage(rule),
-              ),
-            )
-            .toList()
-          ..sort((a, b) => a.remaining.compareTo(b.remaining));
-    final nearest = limits.firstOrNull;
-    final budgetValue = nearest == null
-        ? 'None set'
-        : nearest.remaining <= Duration.zero
-        ? 'Limit reached'
-        : nearest.remaining.inMinutes == 0
-        ? '<1 min left'
-        : '${durationLabel(nearest.remaining)} left';
-    final hint = !c.tracker.isWindows
-        ? 'Timer only. App blocking is not connected yet.'
-        : !c.trackingEnabled || !c.accessGranted
-        ? 'Enable tracking to apply Windows blocking rules.'
-        : 'Windows app blocking is experimental.';
+    final warnings = [widget.startupWarning, c.trackingError].nonNulls;
+    return FocusScreen(
+      remaining: completed
+          ? Duration.zero
+          : running
+          ? active!.remaining(now)
+          : Duration(minutes: _minutes),
+      running: running,
+      actionLabel: running
+          ? phase == SessionPhase.rest
+                ? 'End break'
+                : 'End session'
+          : phase == SessionPhase.focus
+          ? 'Lock in'
+          : 'Start break',
+      status: completed ? 'Session complete' : null,
+      warning: warnings.isEmpty ? null : warnings.join('\n\n'),
+      buildLabel: c.tracker.isWindows && c.trackingEnabled && c.accessGranted
+          ? 'Preview build'
+          : 'Timer only · Preview build',
+      onStatus: () => _buildStatus(context),
+      onMenu: _busy ? null : () => _focusMenu(context, running: running),
+      onAction: _busy
+          ? null
+          : running
+          ? () => _endSession(context)
+          : () => _run(() async {
+              await c.startSession(Duration(minutes: _minutes), _phase);
+              if (mounted) setState(() => _configuringNext = false);
+            }),
+    );
+  }
 
-    return Column(
-      children: [
-        Text(
-          completed
-              ? 'Session complete'
-              : phase == SessionPhase.focus
-              ? 'Focus'
-              : 'Break',
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.headlineLarge,
-        ),
-        const SizedBox(height: 12),
-        Text(
-          running ? 'Ends at ${_time(active!.end)}' : _today,
-          textAlign: TextAlign.center,
-          style: TextStyle(color: colors.onSurfaceVariant, fontSize: 13),
-        ),
-        const SizedBox(height: 30),
-        if (!running) ...[
-          ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 210),
-            child: CupertinoSlidingSegmentedControl<SessionPhase>(
-              groupValue: _phase,
-              backgroundColor: colors.surfaceContainerHighest,
-              thumbColor: colors.surface,
-              padding: const EdgeInsets.all(3),
-              children: {
-                for (final value in SessionPhase.values)
-                  value: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 12,
-                      vertical: 14,
-                    ),
-                    child: Text(
-                      value == SessionPhase.focus ? 'Focus' : 'Break',
-                      style: TextStyle(
-                        fontFamily: 'Inter',
-                        fontSize: 13,
-                        color: colors.onSurface,
-                        fontWeight: _phase == value
-                            ? FontWeight.w500
-                            : FontWeight.w400,
-                      ),
-                    ),
-                  ),
-              },
-              onValueChanged: (value) {
-                if (value != null) {
-                  setState(() {
-                    _phase = value;
-                    _minutes = c.preferredMinutes(value);
-                    _configuringNext = true;
-                  });
-                }
-              },
-            ),
-          ),
-          const SizedBox(height: 18),
-        ],
-        if (running || completed) ...[
-          Semantics(
-            label: 'Time remaining',
-            value: _clockLabel(
-              completed ? Duration.zero : active!.remaining(c.now),
-            ),
-            child: ExcludeSemantics(
-              child: FittedBox(
-                fit: BoxFit.scaleDown,
+  Future<void> _focusMenu(BuildContext context, {required bool running}) async {
+    final theme = CupertinoTheme.of(context);
+    const textStyle = TextStyle(fontFamily: 'Inter');
+    // Nonnegative choices use the existing page indices.
+    const duration = -1;
+    const phase = -2;
+    final choice = await showCupertinoModalPopup<int>(
+      context: context,
+      builder: (sheetContext) => CupertinoTheme(
+        data: theme,
+        child: CupertinoActionSheet(
+          title: const Text('Lockin', style: textStyle),
+          actions: [
+            if (!running) ...[
+              CupertinoActionSheetAction(
+                onPressed: () => Navigator.pop(sheetContext, duration),
+                child: Text('Duration · $_minutes min', style: textStyle),
+              ),
+              CupertinoActionSheetAction(
+                onPressed: () => Navigator.pop(sheetContext, phase),
                 child: Text(
-                  _clockLabel(
-                    completed ? Duration.zero : active.remaining(c.now),
-                  ),
-                  style: const TextStyle(
-                    fontSize: 76,
-                    fontWeight: FontWeight.w300,
-                    letterSpacing: -3,
-                    fontFeatures: [FontFeature.tabularFigures()],
-                  ),
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-        ],
-        if (!running) ...[_durationPicker(), const SizedBox(height: 18)],
-        ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 320),
-          child: SizedBox(
-            width: double.infinity,
-            height: 54,
-            child: running
-                ? OutlinedButton(
-                    onPressed: _busy ? null : _endSession,
-                    child: const Text('End session'),
-                  )
-                : FilledButton(
-                    onPressed: _busy
-                        ? null
-                        : () => _run(() async {
-                            await c.startSession(
-                              Duration(minutes: _minutes),
-                              _phase,
-                            );
-                            if (mounted) {
-                              setState(() => _configuringNext = false);
-                            }
-                          }),
-                    child: Text(
-                      _phase == SessionPhase.focus ? 'Lock in' : 'Start break',
-                      style: const TextStyle(fontSize: 16),
-                    ),
-                  ),
-          ),
-        ),
-        const SizedBox(height: 16),
-        Text(
-          hint,
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
-        const SizedBox(height: 38),
-        const Divider(),
-        const SizedBox(height: 24),
-        IntrinsicHeight(
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              Expanded(
-                child: _metric('Focused today', durationLabel(c.focusedToday)),
-              ),
-              VerticalDivider(
-                width: 28,
-                thickness: .5,
-                color: colors.outlineVariant,
-              ),
-              Expanded(
-                child: InkWell(
-                  onTap: () => setState(() => _page = 2),
-                  borderRadius: BorderRadius.circular(8),
-                  child: _metric(
-                    nearest == null ? 'Daily limits' : 'Closest limit',
-                    budgetValue,
-                    detail: nearest?.rule.name,
-                  ),
+                  _phase == SessionPhase.focus
+                      ? 'Switch to break · ${c.preferredMinutes(SessionPhase.rest)} min'
+                      : 'Switch to focus',
+                  style: textStyle,
                 ),
               ),
             ],
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _durationPicker() {
-    final presets = {
-      ...(_phase == SessionPhase.focus ? [25, 45, 60] : [5, 10, 15]),
-      _minutes,
-    }.toList()..sort();
-    return PopupMenuButton<int>(
-      key: const ValueKey('duration-picker'),
-      tooltip: 'Change duration',
-      initialValue: _minutes,
-      onSelected: (value) {
-        if (value == -1) {
-          _customDuration();
-        } else {
-          setState(() {
-            _minutes = value;
-            _configuringNext = true;
-          });
-        }
-      },
-      itemBuilder: (_) => [
-        for (final value in presets)
-          PopupMenuItem(
-            value: value,
-            child: Row(
-              children: [
-                Text('$value min'),
-                const SizedBox(width: 32),
-                if (value == _minutes)
-                  Icon(Icons.check_rounded, size: 18, color: colors.primary),
-              ],
-            ),
-          ),
-        const PopupMenuDivider(),
-        const PopupMenuItem(value: -1, child: Text('Custom duration...')),
-      ],
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              '$_minutes min',
-              style: const TextStyle(
-                fontSize: 21,
-                fontWeight: FontWeight.w500,
-                letterSpacing: -.5,
+            for (var i = 1; i < _pages.length; i++)
+              CupertinoActionSheetAction(
+                key: ValueKey('nav-$i'),
+                onPressed: () => Navigator.pop(sheetContext, i),
+                child: Text(_pages[i], style: textStyle),
               ),
-            ),
-            const SizedBox(width: 8),
-            Icon(
-              Icons.keyboard_arrow_down_rounded,
-              size: 19,
-              color: colors.onSurfaceVariant,
-            ),
           ],
+          cancelButton: CupertinoActionSheetAction(
+            onPressed: () => Navigator.pop(sheetContext),
+            child: const Text('Cancel', style: textStyle),
+          ),
         ),
       ),
     );
+    if (!mounted || !context.mounted || choice == null) return;
+    if (choice == duration) {
+      await _customDuration(context);
+    } else if (choice == phase) {
+      setState(() {
+        _phase = _phase == SessionPhase.focus
+            ? SessionPhase.rest
+            : SessionPhase.focus;
+        _minutes = c.preferredMinutes(_phase);
+        _configuringNext = true;
+      });
+    } else {
+      setState(() => _page = choice);
+    }
   }
-
-  Widget _metric(String label, String value, {String? detail}) => Padding(
-    padding: const EdgeInsets.symmetric(vertical: 6),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          label,
-          style: TextStyle(
-            fontSize: 13,
-            color: colors.onSurfaceVariant,
-            fontWeight: FontWeight.w500,
-          ),
-        ),
-        const SizedBox(height: 7),
-        Text(
-          value,
-          style: const TextStyle(
-            fontSize: 19,
-            fontWeight: FontWeight.w500,
-            letterSpacing: -.4,
-          ),
-        ),
-        if (detail != null) ...[
-          const SizedBox(height: 4),
-          Text(
-            detail,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
-          ),
-        ],
-      ],
-    ),
-  );
 
   Widget _heading(String title, {String? subtitle, Widget? action}) => Padding(
     padding: const EdgeInsets.only(bottom: 26),
@@ -829,20 +663,32 @@ class _HomeState extends State<_Home> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         _heading('Activity', subtitle: 'This device today · ${c.timezone}'),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Total usage',
-              style: TextStyle(color: colors.onSurfaceVariant),
+        for (final (label, value) in [
+          ('Total usage', c.deviceUsage(c.deviceId)),
+          ('Focused today', c.focusedToday),
+        ])
+          Padding(
+            padding: const EdgeInsets.only(bottom: 18),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    label,
+                    style: TextStyle(color: colors.onSurfaceVariant),
+                  ),
+                ),
+                const SizedBox(width: 16),
+                Flexible(
+                  child: Text(
+                    durationLabel(value),
+                    textAlign: TextAlign.end,
+                    style: Theme.of(context).textTheme.titleLarge,
+                  ),
+                ),
+              ],
             ),
-            Text(
-              durationLabel(c.deviceUsage(c.deviceId)),
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-          ],
-        ),
-        const SizedBox(height: 18),
+          ),
         const Divider(),
         if (totals.isEmpty)
           _empty(
@@ -1105,55 +951,58 @@ class _HomeState extends State<_Home> {
     ],
   );
 
-  Widget _blocked() => Material(
-    color: Theme.of(context).scaffoldBackgroundColor,
-    child: Center(
-      child: SingleChildScrollView(
-        padding: const EdgeInsets.all(28),
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 380),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.lock_outline_rounded,
-                size: 28,
-                color: colors.onSurfaceVariant,
-              ),
-              const SizedBox(height: 22),
-              Text(
-                '${sourceName(c.blockedSource!)} is restricted',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.headlineSmall,
-              ),
-              const SizedBox(height: 14),
-              Text(
-                c.blockMessage ?? 'An active rule is blocking this app.',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodyMedium,
-              ),
-              const SizedBox(height: 28),
-              FilledButton(
-                onPressed: c.dismissBlock,
-                child: const Text('Return to Lockin'),
-              ),
-              const SizedBox(height: 8),
-              TextButton(
-                onPressed: _busy ? null : () => _run(c.overrideBlock),
-                child: const Text('Allow this app for 5 minutes'),
-              ),
-              const SizedBox(height: 20),
-              Text(
-                'Tracking stays on. Other restrictions remain active.',
-                textAlign: TextAlign.center,
-                style: Theme.of(context).textTheme.bodySmall,
-              ),
-            ],
+  Widget _blocked(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return Material(
+      color: Theme.of(context).scaffoldBackgroundColor,
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(28),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 380),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.lock_outline_rounded,
+                  size: 28,
+                  color: colors.onSurfaceVariant,
+                ),
+                const SizedBox(height: 22),
+                Text(
+                  '${sourceName(c.blockedSource!)} is restricted',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.headlineSmall,
+                ),
+                const SizedBox(height: 14),
+                Text(
+                  c.blockMessage ?? 'An active rule is blocking this app.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodyMedium,
+                ),
+                const SizedBox(height: 28),
+                FilledButton(
+                  onPressed: c.dismissBlock,
+                  child: const Text('Return to Lockin'),
+                ),
+                const SizedBox(height: 8),
+                TextButton(
+                  onPressed: _busy ? null : () => _run(c.overrideBlock),
+                  child: const Text('Allow this app for 5 minutes'),
+                ),
+                const SizedBox(height: 20),
+                Text(
+                  'Tracking stays on. Other restrictions remain active.',
+                  textAlign: TextAlign.center,
+                  style: Theme.of(context).textTheme.bodySmall,
+                ),
+              ],
+            ),
           ),
         ),
       ),
-    ),
-  );
+    );
+  }
 
   Widget _empty(String title, String message) => Padding(
     padding: const EdgeInsets.symmetric(vertical: 46),
