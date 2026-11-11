@@ -16,6 +16,7 @@ import 'data/local_store.dart';
 import 'platform/desktop_lifecycle.dart';
 import 'platform/browser_bridge.dart';
 import 'platform/native_tracker.dart';
+import 'platform/completion_alerts.dart';
 import 'ui/appearance.dart';
 
 Future<void> main(List<String> args) async {
@@ -36,7 +37,13 @@ Future<void> main(List<String> args) async {
     final store = LocalStore.file(
       File(p.join(directory.path, 'lockin.sqlite')),
     );
-    final controller = AppController(store: store, tracker: NativeTracker());
+    final controller = AppController(
+      store: store,
+      tracker: NativeTracker(),
+      completionAlerts: Platform.isWindows || Platform.isAndroid
+          ? CompletionAlerts(android: Platform.isAndroid)
+          : null,
+    );
     final zone = (await FlutterTimezone.getLocalTimezone()).identifier;
     await controller.initialize(initialTimezone: zone);
     const url = String.fromEnvironment('SUPABASE_URL');

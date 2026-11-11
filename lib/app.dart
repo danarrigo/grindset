@@ -1001,6 +1001,50 @@ class _HomeState extends State<_Home> {
           ],
         ),
       ),
+      if (c.completionAlerts != null) ...[
+        const SizedBox(height: 18),
+        _Section(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: const Text('Completion notifications'),
+                value: c.completionAlertsEnabled,
+                onChanged: _busy
+                    ? null
+                    : (value) =>
+                          _run(() => c.setCompletionAlertsEnabled(value)),
+              ),
+              const Text(
+                'An OS-scheduled alert when your focus or break timer finishes. This does not enable activity tracking or start the next phase.',
+              ),
+              if (c.completionAlertsNotice != null) ...[
+                const SizedBox(height: 12),
+                Text(
+                  c.completionAlertsNotice!,
+                  style: TextStyle(color: colors.tertiary),
+                ),
+              ],
+              if (c.completionAlertsEnabled) ...[
+                const SizedBox(height: 12),
+                OutlinedButton(
+                  onPressed: _busy
+                      ? null
+                      : () => _run(() => c.setCompletionAlertsEnabled(true)),
+                  child: const Text('Review notification permission'),
+                ),
+              ],
+              const SizedBox(height: 12),
+              Text(
+                'Delivery depends on OS notification settings and battery restrictions. Android exact alarms need separate permission; otherwise alerts may arrive late.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+      ],
       if (c.tracker.isWindows && c.browserBridge != null) ...[
         const SizedBox(height: 18),
         _Section(

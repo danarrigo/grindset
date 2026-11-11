@@ -6,6 +6,9 @@ import android.content.Context
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.RippleDrawable
+import android.content.res.ColorStateList
 import android.os.PowerManager
 import android.view.Gravity
 import android.view.View
@@ -81,14 +84,21 @@ class AppBlockingService : AccessibilityService() {
         }
         content.addView(text("App restricted", 26f))
         content.addView(text(message, 16f))
-        content.addView(Button(this).apply {
-            text = "Go home"; typeface = font
-            setOnClickListener { hideBlock(); source = null; TrackingRuntime.dismissRequested(); performGlobalAction(GLOBAL_ACTION_HOME) }
-        })
-        content.addView(Button(this).apply {
-            text = "Allow this app for 5 minutes"; typeface = font
-            setOnClickListener { TrackingRuntime.overrideRequested() }
-        })
+        fun action(label: String, primary: Boolean, click: () -> Unit) = Button(this).apply {
+            text = label; typeface = font; textSize = 16f; isAllCaps = false
+            minHeight = (48 * density).toInt()
+            setPadding((16 * density).toInt(), (12 * density).toInt(), (16 * density).toInt(), (12 * density).toInt())
+            setTextColor(if (primary) Color.rgb(48, 209, 88) else Color.rgb(229, 229, 234))
+            backgroundTintList = null
+            background = RippleDrawable(ColorStateList.valueOf(Color.argb(40, 255, 255, 255)), GradientDrawable().apply {
+                cornerRadius = 12 * density
+                setColor(if (primary) Color.rgb(7, 59, 29) else Color.rgb(28, 28, 30))
+            }, null)
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = (8 * density).toInt() }
+            setOnClickListener { click() }
+        }
+        content.addView(action("Go home", false) { hideBlock(); source = null; TrackingRuntime.dismissRequested(); performGlobalAction(GLOBAL_ACTION_HOME) })
+        content.addView(action("Allow this app for 5 minutes", true) { TrackingRuntime.overrideRequested() })
         content.addView(text("Tracking stays on. Other restrictions remain active.", 13f))
         val params = WindowManager.LayoutParams(
             WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,

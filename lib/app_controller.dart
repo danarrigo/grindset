@@ -11,11 +11,13 @@ import 'data/local_store.dart';
 import 'data/shared_state.dart';
 import 'platform/native_tracker.dart';
 import 'platform/browser_bridge.dart';
+import 'platform/completion_alerts.dart';
 
 class AppController extends ChangeNotifier {
   AppController({
     required this.store,
     required this.tracker,
+    this.completionAlerts,
     DateTime Function()? clock,
   }) : _clock = clock ?? DateTime.now;
   final LocalStore store;
@@ -23,6 +25,11 @@ class AppController extends ChangeNotifier {
   final Map<String, int> _ruleRevisions = {};
   int ruleRevision(String id) => _ruleRevisions[id] ?? 0;
   final NativeTracker tracker;
+  final CompletionAlerts? completionAlerts;
+  bool completionAlertsEnabled = false;
+  String? completionAlertsNotice;
+  String? _alertKey;
+  int _alertGeneration = 0;
   BrowserBridge? browserBridge;
   ({String id, String source, DateTime start})? _webInterval;
   DateTime? _lastWebObservation;
@@ -128,6 +135,9 @@ class AppController extends ChangeNotifier {
         }
       };
     }
+    completionAlertsEnabled =
+        await store.setting('completion_alerts_enabled') == 'true';
+    await _updateCompletionAlerts();
     await _loadSharedRevisions();
     await reloadUsage();
     if (poll) {
@@ -174,7 +184,52 @@ class AppController extends ChangeNotifier {
           .toList();
       await _loadSharedRevisions();
     });
+    await _updateCompletionAlerts();
     await reloadUsage();
+  }
+
+  Future<void> setCompletionAlertsEnabled(bool enabled) async {
+    final alerts = completionAlerts;
+    if (alerts == null) {
+      throw StateError('Completion alerts require Windows or Android.');
+    }
+    await store.saveSetting('completion_alerts_enabled', '$enabled');
+    completionAlertsEnabled = enabled;
+    if (enabled) {
+      try {
+        await alerts.requestPermission();
+      } catch (error) {
+        completionAlertsNotice =
+            'Could not request notification permission: $error';
+        _changed();
+        return;
+      }
+    }
+    await _updateCompletionAlerts(force: true);
+  }
+
+  Future<void> _updateCompletionAlerts({bool force = false}) async {
+    final alerts = completionAlerts;
+    if (alerts == null) return;
+    final key =
+        '$completionAlertsEnabled:${session?.id}:${session?.end.microsecondsSinceEpoch}';
+    if (!force && key == _alertKey) return;
+    _alertKey = key;
+    final generation = ++_alertGeneration;
+    String? notice;
+    try {
+      notice = await alerts.synchronize(
+        enabled: completionAlertsEnabled,
+        session: session,
+      );
+    } catch (error) {
+      notice = 'Completion alerts are unavailable: $error';
+      _alertKey = null;
+    }
+    if (!_disposed && generation == _alertGeneration) {
+      completionAlertsNotice = notice;
+      _changed();
+    }
   }
 
   Duration deviceUsage(String id) => combinedUsage(
@@ -276,6 +331,7 @@ class AppController extends ChangeNotifier {
     history = [...history.where((s) => s.id != next.id), next];
     _changed();
     onSharedChange?.call();
+    await _updateCompletionAlerts();
   }
 
   Future<void> saveRule(ActivityRule rule, {int? baseRevision}) async {

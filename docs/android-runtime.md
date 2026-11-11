@@ -18,4 +18,10 @@ The existing Dart policy evaluates focus blocks, union-accounted daily budgets a
 
 ## Verification status
 
-Controller/SQLite tests cover repeated imports, checkpoint failure, native stop authority, policy decisions and source-specific overrides. Those tests mock the OS boundary. Native APK compilation and isolated emulator validation are in progress; physical-device and battery-management validation remain required. Do not advertise uninterrupted or store-approved enforcement from these tests.
+Controller/SQLite tests cover repeated imports, checkpoint failure, native stop authority, policy decisions and source-specific overrides. Those tests mock the OS boundary.
+
+The debug APK was installed on the isolated API 36.1 emulator. Actual UI checks verified Usage Access and notification consent, the visible foreground service, journal writes after closing/reopening the activity, a native focus-blocking overlay, a persisted source-specific override, and stopping tracking from the real notification. A screen-off check confirmed the Chrome interval ended at 12:33:12.739 UTC while the next import completed at 12:33:29.103 UTC, without adding the locked interval. Accessibility reported package-only window events with capabilities=0. This is emulator evidence, not physical-device or store approval.
+
+Do not use `uiautomator dump` to verify a live Accessibility overlay: its UiAutomation connection suppresses other accessibility services during the dump. Use the real screen and OS diagnostics instead.
+
+Reboot/process recovery, permission loss, completion-alert delivery, OEM battery management and physical-device validation remain outstanding. Do not advertise uninterrupted or store-approved enforcement.
