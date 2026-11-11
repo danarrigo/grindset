@@ -35,13 +35,21 @@ class AppBlockingService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
         if (!TrackingRuntime.enabled(this)) { source = null; hideBlock(); return }
         if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
-        if (overlay?.accessibilityWindowId == event.windowId) return
         val pkg = event.packageName?.toString() ?: return
+        // Overlay events are ours too. MainActivity explicitly clears this state
+        // on resume, without relying on hidden View/window-id APIs.
+        if (overlay != null && pkg == packageName) return
         val inputs = getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
         if (inputs.enabledInputMethodList.any { it.packageName == pkg }) return
         val home = packageManager.resolveActivity(android.content.Intent(android.content.Intent.ACTION_MAIN).addCategory(android.content.Intent.CATEGORY_HOME), 0)?.activityInfo?.packageName
         source = if (pkg == packageName || pkg == home || pkg in protectedPackages) null else "android:$pkg"
         if (source != blocked) hideBlock()
+    }
+
+    fun enteredLockin() {
+        source = null
+        hideBlock()
+        TrackingRuntime.dismissRequested()
     }
 
     fun foregroundSource(): String? {

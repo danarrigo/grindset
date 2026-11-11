@@ -16,6 +16,7 @@ class MainActivity : FlutterActivity() {
     override fun onResume() {
         super.onResume()
         TrackingRuntime.attach(this)
+        AppBlockingService.instance?.enteredLockin()
         TrackingRuntime.maybeStart(this, askNotifications = true)
     }
 
