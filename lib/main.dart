@@ -14,6 +14,7 @@ import 'core/activity.dart';
 import 'data/cloud_sync.dart';
 import 'data/local_store.dart';
 import 'platform/desktop_lifecycle.dart';
+import 'platform/browser_bridge.dart';
 import 'platform/native_tracker.dart';
 import 'ui/appearance.dart';
 
@@ -50,9 +51,24 @@ Future<void> main(List<String> args) async {
     }
     DesktopLifecycle? desktop;
     if (Platform.isWindows) {
+      final bridge = BrowserBridge(
+        store: store,
+        now: () => controller.now,
+        trackingEnabled: () => controller.trackingEnabled,
+        restrictions: controller.websiteRestrictions,
+        onOverride: controller.overrideSource,
+      );
+      try {
+        await bridge.start();
+        controller.browserBridge = bridge;
+      } catch (error) {
+        startupWarning =
+            'The browser extension bridge could not start. App tracking still works: $error';
+      }
       desktop = DesktopLifecycle(
         quit: () async {
           await cloud?.close();
+          await controller.browserBridge?.close();
           controller.dispose();
           await store.close();
           await desktop?.dispose();

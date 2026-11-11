@@ -28,15 +28,40 @@ class AndroidTrackingStatus {
   final String? error;
 }
 
+class WindowsActivityStatus {
+  const WindowsActivityStatus({
+    required this.current,
+    required this.idle,
+    required this.idleKnown,
+    required this.mediaAvailable,
+    required this.mediaPlaying,
+  });
+  factory WindowsActivityStatus.fromMap(Map<String, dynamic> value) =>
+      WindowsActivityStatus(
+        current: value['current'] == true,
+        idle: Duration(milliseconds: value['idleMs'] as int? ?? 0),
+        idleKnown: value['idleKnown'] == true,
+        mediaAvailable: value['mediaAvailable'] == true,
+        mediaPlaying: value['mediaPlaying'] == true,
+      );
+  final bool current;
+  final Duration idle;
+  final bool idleKnown;
+  final bool mediaAvailable;
+  final bool mediaPlaying;
+}
+
 class ForegroundApp {
-  const ForegroundApp(this.source, this.label);
+  const ForegroundApp(this.source, this.label, {this.processId = 0});
   final String source;
   final String label;
+  final int processId;
 }
 
 /// Platform access is deliberately separate from timers and rule accounting.
 class NativeTracker {
   static const channel = MethodChannel('app.lockin/usage');
+  static const windowsChannel = MethodChannel('app.lockin/windows');
   static final _closeDesktop = DynamicLibrary.open(
     'user32.dll',
   ).lookupFunction<Int32 Function(IntPtr), int Function(int)>('CloseDesktop');
@@ -81,6 +106,7 @@ class NativeTracker {
       return ForegroundApp(
         'windows:$name',
         name.replaceFirst(RegExp(r'\.exe$'), ''),
+        processId: pid.value,
       );
     } finally {
       if (process != 0) CloseHandle(process);
@@ -88,6 +114,14 @@ class NativeTracker {
       calloc.free(size);
       calloc.free(buffer);
     }
+  }
+
+  Future<WindowsActivityStatus> windowsActivity(int processId) async {
+    final value = await windowsChannel.invokeMapMethod<String, dynamic>(
+      'activityState',
+      {'pid': processId},
+    );
+    return WindowsActivityStatus.fromMap(value ?? {});
   }
 
   Future<AndroidTrackingStatus> initializeAndroidTracking(bool enabled) async {

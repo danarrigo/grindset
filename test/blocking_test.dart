@@ -17,6 +17,15 @@ class _ForegroundFixture extends NativeTracker {
   Future<bool> hasAccess() async => true;
   @override
   ForegroundApp? foreground() => ForegroundApp(source, source);
+  @override
+  Future<WindowsActivityStatus> windowsActivity(int processId) async =>
+      const WindowsActivityStatus(
+        current: true,
+        idle: Duration.zero,
+        idleKnown: true,
+        mediaAvailable: true,
+        mediaPlaying: false,
+      );
 }
 
 void main() {

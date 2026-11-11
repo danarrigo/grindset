@@ -184,6 +184,46 @@ class _HomeState extends State<_Home> {
     if (allowed == true && mounted) await _run(c.tracker.requestBlockingAccess);
   }
 
+  void _pairBrowser() {
+    final bridge = c.browserBridge;
+    if (bridge == null) return;
+    final code = bridge.beginPairing();
+    showDialog<void>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Pair browser extension'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              'Load the extension/ folder from this repo in Chrome or Edge using Developer Mode. Open its options and enter this code:',
+            ),
+            const SizedBox(height: 24),
+            SelectableText(
+              code,
+              style: const TextStyle(
+                fontSize: 32,
+                letterSpacing: 6,
+                fontFeatures: [FontFeature.tabularFigures()],
+              ),
+            ),
+            const SizedBox(height: 16),
+            const Text(
+              'Expires in 5 minutes. The extension sends host identifiers and playback state only, never complete URLs or page titles.',
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
+  }
+
   Future<void> _editRule([ActivityRule? rule]) async {
     final result = await showDialog<ActivityRule>(
       context: context,
@@ -272,7 +312,7 @@ class _HomeState extends State<_Home> {
             'Idle/media handling and crash recovery are unfinished.\n\n'
             'Android uses an opt-in foreground service and a persistent background journal. '
             'App blocking requires the separate Accessibility service. Both remain subject to Android stopping the process or permissions being revoked.\n\n'
-            'Website integration and shared session, rule and timezone sync are not connected. Usage sync is automatic while signed in.\n\n'
+            'Windows websites require the paired Chrome/Edge extension. Shared session, rule and timezone sync are not connected. Usage sync is automatic while signed in.\n\n'
             'No activity is invented for disconnected devices.',
           ),
         ),
@@ -958,6 +998,47 @@ class _HomeState extends State<_Home> {
           ],
         ),
       ),
+      if (c.tracker.isWindows && c.browserBridge != null) ...[
+        const SizedBox(height: 18),
+        _Section(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Browser extension',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Pair Chrome or Edge to track foreground website hosts and apply your website rules. No titles, paths, queries or complete URLs are sent.',
+              ),
+              const SizedBox(height: 14),
+              Wrap(
+                spacing: 12,
+                runSpacing: 8,
+                children: [
+                  OutlinedButton(
+                    onPressed: _busy ? null : _pairBrowser,
+                    child: const Text('Pair browser extension'),
+                  ),
+                  TextButton(
+                    onPressed: _busy
+                        ? null
+                        : () => _run(c.browserBridge!.disconnect),
+                    child: const Text('Disconnect browsers'),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'The native app and extension must remain connected for website blocking. Internet access is not required for local rules.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+      ],
       if (c.tracker.isAndroid) ...[
         const SizedBox(height: 18),
         _Section(
@@ -1038,7 +1119,7 @@ class _HomeState extends State<_Home> {
       ),
       const SizedBox(height: 24),
       _notice(
-        'Background operation and blocking are experimental and can be interrupted by the OS, force-stop or permission revocation. Browser integration and shared timer/rule sync are unfinished. Windows idle handling and crash recovery still need work.',
+        'Background operation and blocking are experimental and can be interrupted by the OS, force-stop or permission revocation. Website blocking needs the paired extension. Shared timer/rule sync and native release verification are unfinished.',
       ),
     ],
   );

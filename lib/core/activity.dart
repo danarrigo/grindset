@@ -2,6 +2,27 @@ import 'dart:convert';
 
 import 'package:timezone/timezone.dart' as tz;
 
+/// Host identifiers only. URL paths, queries and fragments are never accepted.
+String? websiteHost(String value) {
+  var host = value.toLowerCase();
+  if (host.endsWith('.')) host = host.substring(0, host.length - 1);
+  if (host.startsWith('www.')) host = host.substring(4);
+  if (host.isEmpty || host.length > 253) return null;
+  final label = RegExp(r'^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$');
+  return host.split('.').every(label.hasMatch) ? host : null;
+}
+
+bool matchesSource(String ruleSource, String observedSource) {
+  if (!ruleSource.startsWith('web:') || !observedSource.startsWith('web:')) {
+    return ruleSource == observedSource;
+  }
+  final rule = websiteHost(ruleSource.substring(4));
+  final observed = websiteHost(observedSource.substring(4));
+  return rule != null &&
+      observed != null &&
+      (observed == rule || observed.endsWith('.$rule'));
+}
+
 class UsageInterval {
   UsageInterval({
     required this.id,
@@ -189,7 +210,9 @@ String? blockingReason({
   if (rule.dailyMinutes != null) {
     final (start, end) = accountDay(now, location);
     final used = combinedUsage(
-      intervals.where((i) => rule.sources.contains(i.source)),
+      intervals.where(
+        (i) => rule.sources.any((source) => matchesSource(source, i.source)),
+      ),
       from: start,
       until: now.isBefore(end) ? now : end,
     );

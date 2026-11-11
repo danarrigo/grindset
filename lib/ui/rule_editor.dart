@@ -73,7 +73,16 @@ class _RuleEditorState extends State<RuleEditor> {
           .split(RegExp(r'[\n,]'))
           .map((s) => s.trim())
           .where((s) => s.isNotEmpty);
-      final sources = {..._selected, ...extra};
+      final sources = {..._selected, ...extra}.map((source) {
+        if (!source.startsWith('web:')) return source;
+        final host = websiteHost(source.substring(4));
+        if (host == null) {
+          throw ArgumentError(
+            'Use a website host such as web:youtube.com, without a URL path or wildcard.',
+          );
+        }
+        return 'web:$host';
+      }).toSet();
       if (sources.any(
         (s) => !RegExp(r'^(windows|android|web):[^\s/:]+$').hasMatch(s),
       )) {
@@ -205,7 +214,7 @@ class _RuleEditorState extends State<RuleEditor> {
                       maxLines: 2,
                       decoration: const InputDecoration(
                         hintText: 'android:com.google.android.youtube\nweb:youtube.com',
-                        helperText: 'One per line. Website integration is not connected yet.',
+                        helperText: 'One per line. Web hosts include subdomains and require the paired Windows extension.',
                       ),
                     ),
                   ],

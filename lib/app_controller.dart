@@ -9,6 +9,7 @@ import 'core/activity.dart';
 import 'core/focus_session.dart';
 import 'data/local_store.dart';
 import 'platform/native_tracker.dart';
+import 'platform/browser_bridge.dart';
 
 class AppController extends ChangeNotifier {
   AppController({
@@ -18,6 +19,9 @@ class AppController extends ChangeNotifier {
   }) : _clock = clock ?? DateTime.now;
   final LocalStore store;
   final NativeTracker tracker;
+  BrowserBridge? browserBridge;
+  ({String id, String source, DateTime start})? _webInterval;
+  DateTime? _lastWebObservation;
   final DateTime Function() _clock;
   final _uuid = const Uuid();
   Timer? _timer;
@@ -141,7 +145,9 @@ class AppController extends ChangeNotifier {
     until: now,
   );
   Duration ruleUsage(ActivityRule rule) => combinedUsage(
-    usage.where((i) => rule.sources.contains(i.source)),
+    usage.where(
+      (i) => rule.sources.any((source) => matchesSource(source, i.source)),
+    ),
     from: accountDay(now, location).$1,
     until: now,
   );
@@ -275,6 +281,8 @@ class AppController extends ChangeNotifier {
     trackingError = null;
     _openInterval = null;
     _previousObservation = null;
+    _webInterval = null;
+    _lastWebObservation = null;
     dismissBlock();
   }
 
@@ -290,7 +298,10 @@ class AppController extends ChangeNotifier {
 
   Future<void> overrideBlock() async {
     final source = blockedSource;
-    if (source == null) return;
+    if (source != null) await overrideSource(source);
+  }
+
+  Future<void> overrideSource(String source) async {
     final until = now.add(const Duration(minutes: 5));
     final next = {..._overrides, source: until};
     await store.saveSetting(
@@ -298,7 +309,10 @@ class AppController extends ChangeNotifier {
       jsonEncode(next.map((k, v) => MapEntry(k, v.toIso8601String()))),
     );
     _overrides[source] = until;
-    dismissBlock();
+    if (blockedSource != null && matchesSource(source, blockedSource!)) {
+      dismissBlock();
+    }
+    _changed();
   }
 
   void dismissBlock() {
@@ -332,7 +346,20 @@ class AppController extends ChangeNotifier {
           _previousObservation = null;
           if (blockedSource != null) dismissBlock();
         } else if (tracker.isWindows) {
-          final current = tracker.foreground();
+          var current = tracker.foreground();
+          if (current != null) {
+            final activity = await tracker.windowsActivity(current.processId);
+            if (!activity.current ||
+                (activity.idleKnown &&
+                    activity.mediaAvailable &&
+                    activity.idle >= const Duration(minutes: 3) &&
+                    !(browserBridge
+                            ?.observationFor(current.source)
+                            ?.mediaPlaying ??
+                        activity.mediaPlaying))) {
+              current = null;
+            }
+          }
           final observed = now;
           if (current == null || current.source == 'windows:lockin.exe') {
             _openInterval = null;
@@ -359,6 +386,7 @@ class AppController extends ChangeNotifier {
             }
             _checkBlock(current.source);
           }
+          await _recordBrowser(current, observed);
           _previousObservation = observed;
         } else {
           if (!backgroundTrackingRunning) {
@@ -407,6 +435,8 @@ class AppController extends ChangeNotifier {
       trackingError = null;
     } catch (error) {
       trackingError = 'Tracking interrupted: $error';
+      _webInterval = null;
+      _lastWebObservation = null;
       _openInterval = null;
       _previousObservation = null;
     } finally {
@@ -415,19 +445,117 @@ class AppController extends ChangeNotifier {
     }
   }
 
-  void _checkBlock(String source) {
+  Future<void> _recordBrowser(ForegroundApp? app, DateTime observed) async {
+    final snapshot = app == null
+        ? null
+        : browserBridge?.observationFor(app.source);
+    final native = _openInterval;
+    if (snapshot == null || native == null) {
+      _webInterval = null;
+      _lastWebObservation = null;
+      return;
+    }
+    final at = snapshot.observedAt.isAfter(observed)
+        ? observed
+        : snapshot.observedAt;
+    if (_webInterval?.source != snapshot.source) {
+      final previous = _webInterval;
+      if (previous != null &&
+          at.isAfter(previous.start) &&
+          _lastWebObservation != null &&
+          at.difference(_lastWebObservation!) <= const Duration(seconds: 12)) {
+        await store.putUsage(
+          UsageInterval(
+            id: previous.id,
+            deviceId: deviceId,
+            source: previous.source,
+            start: previous.start,
+            end: at,
+          ),
+        );
+      }
+      _webInterval = (
+        id: _uuid.v4(),
+        source: snapshot.source,
+        start: at.isAfter(native.start) ? at : native.start,
+      );
+      _lastWebObservation = null;
+    }
+    final open = _webInterval!;
+    if (at.isAfter(open.start) &&
+        (_lastWebObservation == null || at.isAfter(_lastWebObservation!))) {
+      await store.putUsage(
+        UsageInterval(
+          id: open.id,
+          deviceId: deviceId,
+          source: open.source,
+          start: open.start,
+          end: at,
+        ),
+      );
+    }
+    _lastWebObservation = at;
+  }
+
+  DateTime? _overrideUntil(String source) {
+    DateTime? latest;
+    for (final entry in _overrides.entries) {
+      if (matchesSource(entry.key, source) &&
+          (latest == null || entry.value.isAfter(latest))) {
+        latest = entry.value;
+      }
+    }
+    return latest;
+  }
+
+  Map<String, Object> websiteRestrictions() {
+    final blocked = <Map<String, String>>[];
+    for (final source
+        in rules
+            .expand((rule) => rule.sources)
+            .toSet()
+            .where((source) => source.startsWith('web:'))) {
+      final host = websiteHost(source.substring(4));
+      if (host == null) continue;
+      final reason = restrictionForSource('web:$host');
+      if (trackingEnabled && reason != null) {
+        blocked.add({'domain': host, 'reason': reason});
+      }
+    }
+    final allowed = _overrides.entries
+        .where(
+          (entry) => entry.key.startsWith('web:') && entry.value.isAfter(now),
+        )
+        .map((entry) => websiteHost(entry.key.substring(4)))
+        .nonNulls
+        .toList();
+    return {
+      'enabled': trackingEnabled,
+      'blocked': blocked,
+      'allowed': trackingEnabled ? allowed : <String>[],
+    };
+  }
+
+  String? restrictionForSource(String source) {
     String? reason;
-    for (final rule in rules.where((r) => r.sources.contains(source))) {
+    for (final rule in rules.where(
+      (r) => r.sources.any((candidate) => matchesSource(candidate, source)),
+    )) {
       reason = blockingReason(
         rule: rule,
         now: now,
         location: location,
         intervals: usage,
         focusing: session?.focusing(now) ?? false,
-        overrideUntil: _overrides[source],
+        overrideUntil: _overrideUntil(source),
       );
       if (reason != null) break;
     }
+    return reason;
+  }
+
+  void _checkBlock(String source) {
+    final reason = restrictionForSource(source);
     if (reason == null) {
       dismissBlock();
       return;
