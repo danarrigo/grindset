@@ -225,6 +225,7 @@ class _HomeState extends State<_Home> {
   }
 
   Future<void> _editRule([ActivityRule? rule]) async {
+    final baseRevision = rule == null ? 0 : c.ruleRevision(rule.id);
     final result = await showDialog<ActivityRule>(
       context: context,
       builder: (_) => RuleEditor(
@@ -235,7 +236,9 @@ class _HomeState extends State<_Home> {
         },
       ),
     );
-    if (result != null && mounted) await _run(() => c.saveRule(result));
+    if (result != null && mounted) {
+      await _run(() => c.saveRule(result, baseRevision: baseRevision));
+    }
   }
 
   Future<void> _deleteRule(ActivityRule rule) async {
@@ -309,10 +312,10 @@ class _HomeState extends State<_Home> {
           child: Text(
             'Timers, local storage and usage accounting are implemented.\n\n'
             'Windows foreground tracking and interruption-based blocking still need native device testing. '
-            'Idle/media handling and crash recovery are unfinished.\n\n'
+            'The idle/media probe needs native validation; crash recovery is unfinished.\n\n'
             'Android uses an opt-in foreground service and a persistent background journal. '
             'App blocking requires the separate Accessibility service. Both remain subject to Android stopping the process or permissions being revoked.\n\n'
-            'Windows websites require the paired Chrome/Edge extension. Shared session, rule and timezone sync are not connected. Usage sync is automatic while signed in.\n\n'
+            'Windows websites require the paired Chrome/Edge extension. Account state and confirmed usage sync automatically while signed in. Offline rule conflicts require review; the confirmed shared focus session wins.\n\n'
             'No activity is invented for disconnected devices.',
           ),
         ),
@@ -1083,7 +1086,7 @@ class _HomeState extends State<_Home> {
             Text('Timezone', style: Theme.of(context).textTheme.titleLarge),
             const SizedBox(height: 10),
             Text(
-              'Daily limits and schedules use this day boundary. Account-wide timezone sync is pending.',
+              'Daily limits and schedules use this account timezone. It synchronizes while signed in; offline changes reconcile on connection.',
               style: Theme.of(context).textTheme.bodySmall,
             ),
             const SizedBox(height: 16),
@@ -1119,7 +1122,7 @@ class _HomeState extends State<_Home> {
       ),
       const SizedBox(height: 24),
       _notice(
-        'Background operation and blocking are experimental and can be interrupted by the OS, force-stop or permission revocation. Website blocking needs the paired extension. Shared timer/rule sync and native release verification are unfinished.',
+        'Background operation and blocking are experimental and can be interrupted by the OS, force-stop or permission revocation. Website blocking needs the paired extension. Native release verification and live Supabase setup are still required.',
       ),
     ],
   );

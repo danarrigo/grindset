@@ -22,7 +22,16 @@ Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
   tzdata.initializeTimeZones();
   try {
-    final directory = await getApplicationSupportDirectory();
+    final dataArgument = args
+        .where((a) => a.startsWith('--data-dir='))
+        .firstOrNull;
+    final customDirectory = dataArgument?.substring('--data-dir='.length);
+    if (customDirectory != null && customDirectory.isEmpty) {
+      throw ArgumentError('The data directory must not be empty.');
+    }
+    final directory = customDirectory == null
+        ? await getApplicationSupportDirectory()
+        : Directory(customDirectory);
     await directory.create(recursive: true);
     final store = LocalStore.file(
       File(p.join(directory.path, 'lockin.sqlite')),
@@ -42,8 +51,9 @@ Future<void> main(List<String> args) async {
           deviceId: controller.deviceId,
           platform: Platform.isWindows ? 'Windows' : 'Android',
           since: () => accountDay(controller.now, controller.location).$1,
-          onDownloaded: controller.reloadUsage,
+          onDownloaded: controller.reloadSharedState,
         );
+        controller.onSharedChange = cloud.requestSync;
       } catch (error) {
         startupWarning =
             'Cloud setup failed; local mode remains available. $error';

@@ -14,7 +14,7 @@ class LocalStore extends GeneratedDatabase {
   factory LocalStore.memory() => LocalStore(NativeDatabase.memory());
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
   @override
   Iterable<TableInfo<Table, Object?>> get allTables => const [];
   @override
@@ -35,9 +35,26 @@ class LocalStore extends GeneratedDatabase {
       await customStatement(
         'CREATE TABLE sessions (id TEXT PRIMARY KEY, value TEXT NOT NULL)',
       );
+      await _createSharedTables();
       await customStatement('PRAGMA journal_mode=WAL');
     },
+    onUpgrade: (_, from, to) async {
+      if (from < 2) await _createSharedTables();
+    },
   );
+
+  Future<void> _createSharedTables() async {
+    await customStatement('''CREATE TABLE sync_entities (
+      kind TEXT NOT NULL, id TEXT NOT NULL, revision INTEGER NOT NULL,
+      value TEXT, PRIMARY KEY(kind,id))''');
+    await customStatement('''CREATE TABLE sync_outbox (
+      kind TEXT NOT NULL, id TEXT NOT NULL, mutation_id TEXT NOT NULL UNIQUE,
+      base_revision INTEGER NOT NULL, value TEXT, bootstrap INTEGER NOT NULL DEFAULT 0,
+      PRIMARY KEY(kind,id))''');
+    await customStatement('''CREATE TABLE sync_conflicts (
+      mutation_id TEXT PRIMARY KEY, kind TEXT NOT NULL, id TEXT NOT NULL,
+      value TEXT, remote_revision INTEGER NOT NULL)''');
+  }
 
   Future<String?> setting(String key) async {
     final row = await customSelect(

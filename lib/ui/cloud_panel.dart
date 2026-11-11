@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../app_controller.dart';
 import '../core/activity.dart';
 import '../data/cloud_sync.dart';
+import '../data/shared_state.dart';
 
 class CloudPanel extends StatefulWidget {
   const CloudPanel({
@@ -70,6 +71,76 @@ class _CloudPanelState extends State<CloudPanel> {
     _password.clear();
   });
 
+  String _describe(String kind, Map<String, dynamic>? value) {
+    if (value == null) return 'Deleted';
+    if (kind == 'setting') return 'Timezone: ${value['timezone']}';
+    final rule = ActivityRule.fromJson({...value, 'focus_block': false});
+    String time(int minute) =>
+        '${(minute ~/ 60).toString().padLeft(2, '0')}:${(minute % 60).toString().padLeft(2, '0')}';
+    const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    final schedules = rule.schedules
+        .map(
+          (s) =>
+              '${s.weekdays.map((d) => days[d - 1]).join(', ')} ${time(s.startMinute)}-${time(s.endMinute)}',
+        )
+        .join('\n');
+    return '${rule.name}\nSources: ${rule.sources.join(', ')}\nDaily budget: ${rule.dailyMinutes == null ? 'None' : '${rule.dailyMinutes} min'}\nSchedules: ${schedules.isEmpty ? 'None' : schedules}';
+  }
+
+  Future<void> _review(SharedConflict conflict) async {
+    final retry = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Review offline edit'),
+        content: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Another device changed this item. Confirmed state is currently in use. Applying your saved edit is an explicit replacement, and can conflict again if another edit arrives.',
+              ),
+              const SizedBox(height: 20),
+              Text('Confirmed', style: Theme.of(context).textTheme.titleMedium),
+              SelectableText(
+                _describe(conflict.change.kind, conflict.confirmedValue),
+              ),
+              const SizedBox(height: 20),
+              Text(
+                'Your saved edit',
+                style: Theme.of(context).textTheme.titleMedium,
+              ),
+              SelectableText(
+                _describe(conflict.change.kind, conflict.change.value),
+              ),
+            ],
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Keep confirmed'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Use saved edit'),
+          ),
+        ],
+      ),
+    );
+    if (retry == null || !mounted) return;
+    await _run(() async {
+      final cloud = widget.cloud!;
+      await cloud.resolveConflict(
+        conflict.change.mutationId,
+        retry: retry,
+        baseRevision: conflict.confirmedRevision,
+      );
+      await widget.controller.reloadSharedState();
+      if (retry) cloud.requestSync();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final cloud = widget.cloud;
@@ -91,7 +162,7 @@ class _CloudPanelState extends State<CloudPanel> {
           ),
         ] else if (user == null) ...[
           const Text(
-            'Sign in on each device to synchronize usage automatically.',
+            'Sign in on each device to synchronize account state and confirmed usage.',
           ),
           const SizedBox(height: 16),
           TextField(
@@ -146,9 +217,12 @@ class _CloudPanelState extends State<CloudPanel> {
                             widget.controller.location,
                           ).$1,
                         );
-                        await widget.controller.reloadUsage();
+                        await widget.controller.reloadSharedState();
                         if (mounted) {
-                          setState(() => _message = 'Usage synchronized.');
+                          setState(
+                            () => _message =
+                                'Account state and usage synchronized.',
+                          );
                         }
                       }),
                 icon: const Icon(Icons.sync_rounded),
@@ -162,20 +236,54 @@ class _CloudPanelState extends State<CloudPanel> {
           ),
           if (cloud.lastSync != null)
             Text(
-              'Last successful usage sync: ${cloud.lastSync!.toLocal()}',
+              'Last successful sync: ${cloud.lastSync!.toLocal()}',
               style: const TextStyle(fontSize: 12),
             ),
         ],
+        if (user != null && cloud != null) ...[
+          if (cloud.notice?.isNotEmpty ?? false) ...[
+            const SizedBox(height: 16),
+            Text(cloud.notice!),
+            TextButton(
+              onPressed: _busy ? null : () => _run(cloud.dismissNotice),
+              child: const Text('Dismiss'),
+            ),
+          ],
+          if (cloud.conflicts.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            Text(
+              'Saved offline edits (${cloud.conflicts.length})',
+              style: Theme.of(context).textTheme.titleMedium,
+            ),
+            for (final conflict in cloud.conflicts)
+              ListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text(
+                  conflict.change.kind == 'setting'
+                      ? 'Account timezone'
+                      : (conflict.change.value?['name'] as String? ??
+                            'Deleted activity'),
+                ),
+                subtitle: const Text(
+                  'Confirmed state is in use. Your edit is saved for review.',
+                ),
+                trailing: TextButton(
+                  onPressed: _busy ? null : () => _review(conflict),
+                  child: const Text('Review'),
+                ),
+              ),
+          ],
+        ],
         const SizedBox(height: 16),
         Text(
-          'Usage sync runs automatically while signed in, including background tracking. Offline uploads retry with backoff. Shared sessions, rules and account-timezone sync are not connected yet.',
+          'Rules, the shared timer, account timezone and confirmed usage synchronize while signed in. Focus blocklists and five-minute overrides stay device-local. Offline rule conflicts are saved for review; the confirmed shared timer wins. Background sync requires the tracking runtime.',
           style: TextStyle(fontSize: 12, color: colors.tertiary, height: 1.6),
         ),
         if (cloud?.lastError != null)
           Padding(
             padding: const EdgeInsets.only(top: 12),
             child: SelectableText(
-              'Usage sync needs attention: ${cloud!.lastError}. Last-confirmed data is kept locally.',
+              'Sync needs attention: ${cloud!.lastError}. Last-confirmed data is kept locally.',
             ),
           ),
         if (_busy || (cloud?.syncing ?? false))

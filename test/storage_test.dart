@@ -3,8 +3,51 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lockin/core/activity.dart';
 import 'package:lockin/data/local_store.dart';
+import 'package:lockin/data/shared_state.dart';
+import 'package:sqlite3/sqlite3.dart';
 
 void main() {
+  test('schema-one history migrates without a reset and retains a durable shared outbox', () async {
+    final directory = await Directory.systemTemp.createTemp(
+      'lockin-migration-',
+    );
+    addTearDown(() => directory.delete(recursive: true));
+    final file = File('${directory.path}/lockin.sqlite');
+    final old = sqlite3.open(file.path);
+    old.execute(
+      'CREATE TABLE settings(key TEXT PRIMARY KEY,value TEXT NOT NULL)',
+    );
+    old.execute(
+      'CREATE TABLE intervals(id TEXT PRIMARY KEY,device_id TEXT NOT NULL,source TEXT NOT NULL,start_ms INTEGER NOT NULL,end_ms INTEGER NOT NULL,dirty INTEGER NOT NULL DEFAULT 1,CHECK(end_ms>start_ms))',
+    );
+    old.execute('CREATE INDEX intervals_time ON intervals(end_ms,start_ms)');
+    old.execute(
+      'CREATE TABLE sessions(id TEXT PRIMARY KEY,value TEXT NOT NULL)',
+    );
+    old.execute("INSERT INTO settings VALUES('timezone','UTC')");
+    old.execute(
+      "INSERT INTO intervals VALUES('saved','desktop','web:example.com',1000,61000,1)",
+    );
+    old.execute('PRAGMA user_version=1');
+    old.close();
+    final migrated = LocalStore.file(file);
+    try {
+      expect(await migrated.setting('timezone'), 'UTC');
+      expect(combinedUsage(await migrated.usage()), const Duration(minutes: 1));
+      await SharedState(migrated)
+          .queue('setting', 'timezone', {'timezone': 'Asia/Tokyo'});
+    } finally {
+      await migrated.close();
+    }
+    final reopened = LocalStore.file(file);
+    addTearDown(reopened.close);
+    expect(
+      (await SharedState(reopened).pending()).single.value!['timezone'],
+      'Asia/Tokyo',
+    );
+    expect(combinedUsage(await reopened.usage()), const Duration(minutes: 1));
+  });
+
   test(
     'confirmed history survives closing and reopening the database file',
     () async {

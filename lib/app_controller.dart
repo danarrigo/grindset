@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 import 'core/activity.dart';
 import 'core/focus_session.dart';
 import 'data/local_store.dart';
+import 'data/shared_state.dart';
 import 'platform/native_tracker.dart';
 import 'platform/browser_bridge.dart';
 
@@ -18,6 +19,9 @@ class AppController extends ChangeNotifier {
     DateTime Function()? clock,
   }) : _clock = clock ?? DateTime.now;
   final LocalStore store;
+  late final sharedState = SharedState(store, clock: () => now);
+  final Map<String, int> _ruleRevisions = {};
+  int ruleRevision(String id) => _ruleRevisions[id] ?? 0;
   final NativeTracker tracker;
   BrowserBridge? browserBridge;
   ({String id, String source, DateTime start})? _webInterval;
@@ -52,6 +56,7 @@ class AppController extends ChangeNotifier {
   String? blockedSource;
   String? blockMessage;
   Future<void> Function()? showBlock;
+  VoidCallback? onSharedChange;
 
   Future<void> initialize({
     String initialTimezone = 'UTC',
@@ -123,6 +128,7 @@ class AppController extends ChangeNotifier {
         }
       };
     }
+    await _loadSharedRevisions();
     await reloadUsage();
     if (poll) {
       await refresh();
@@ -137,6 +143,38 @@ class AppController extends ChangeNotifier {
     final (start, _) = accountDay(now, location);
     usage = await store.usage(from: start);
     _changed();
+  }
+
+  Future<void> _loadSharedRevisions() async {
+    final rows = await store
+        .customSelect("SELECT id,revision FROM sync_entities WHERE kind='rule'")
+        .get();
+    _ruleRevisions.clear();
+    for (final row in rows) {
+      _ruleRevisions[row.read<String>('id')] = row.read<int>('revision');
+    }
+  }
+
+  Future<void> reloadSharedState() async {
+    await store.transaction(() async {
+      rules = await store.rules();
+      timezone = await store.setting('timezone') ?? timezone;
+      tz.getLocation(timezone);
+      final active = await store.setting('active_session');
+      session = active == null
+          ? null
+          : FocusSession.fromJson(jsonDecode(active) as Map<String, dynamic>);
+      final rows = await store.customSelect('SELECT value FROM sessions').get();
+      history = rows
+          .map(
+            (r) => FocusSession.fromJson(
+              jsonDecode(r.read<String>('value')) as Map<String, dynamic>,
+            ),
+          )
+          .toList();
+      await _loadSharedRevisions();
+    });
+    await reloadUsage();
   }
 
   Duration deviceUsage(String id) => combinedUsage(
@@ -220,6 +258,8 @@ class AppController extends ChangeNotifier {
         await store.saveSetting('preset_${next.phase.name}', '$presetMinutes');
       }
       await store.saveSetting('active_session', jsonEncode(next.toJson()));
+      await sharedState.queue('focus', 'active', next.toJson());
+      await sharedState.queue('session', next.id, next.toJson());
       await store.customStatement(
         'INSERT INTO sessions(id,value) VALUES (?,?) ON CONFLICT(id) DO UPDATE SET value=excluded.value',
         [next.id, jsonEncode(next.toJson())],
@@ -235,27 +275,50 @@ class AppController extends ChangeNotifier {
     session = next;
     history = [...history.where((s) => s.id != next.id), next];
     _changed();
+    onSharedChange?.call();
   }
 
-  Future<void> saveRule(ActivityRule rule) async {
-    final next = [...rules.where((r) => r.id != rule.id), rule];
-    await store.saveRules(next);
-    rules = next;
+  Future<void> saveRule(ActivityRule rule, {int? baseRevision}) async {
+    await store.transaction(() async {
+      final current = await store.rules();
+      final previous = current.where((r) => r.id == rule.id).firstOrNull;
+      await store.saveRules([...current.where((r) => r.id != rule.id), rule]);
+      await sharedState.rememberFocusFlag(rule);
+      if (previous == null ||
+          jsonEncode(SharedState.sharedRule(previous)) !=
+              jsonEncode(SharedState.sharedRule(rule))) {
+        await sharedState.queue(
+          'rule',
+          rule.id,
+          SharedState.sharedRule(rule),
+          baseRevision: baseRevision,
+        );
+      }
+    });
+    rules = await store.rules();
     _changed();
+    onSharedChange?.call();
   }
 
   Future<void> deleteRule(String id) async {
-    final next = rules.where((r) => r.id != id).toList();
-    await store.saveRules(next);
-    rules = next;
+    await store.transaction(() async {
+      await store.saveRules((await store.rules()).where((r) => r.id != id));
+      await sharedState.queue('rule', id, null, baseRevision: ruleRevision(id));
+    });
+    rules = await store.rules();
     _changed();
+    onSharedChange?.call();
   }
 
   Future<void> setTimezone(String value) async {
     tz.getLocation(value);
-    await store.saveSetting('timezone', value);
+    await store.transaction(() async {
+      await store.saveSetting('timezone', value);
+      await sharedState.queue('setting', 'timezone', {'timezone': value});
+    });
     timezone = value;
     await reloadUsage();
+    onSharedChange?.call();
   }
 
   Future<void> enableTracking() async {

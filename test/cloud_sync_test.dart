@@ -3,10 +3,16 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:drift/drift.dart' show driftRuntimeOptions;
 import 'package:lockin/core/activity.dart';
+import 'package:lockin/core/focus_session.dart';
+import 'package:lockin/app_controller.dart';
+import 'package:lockin/platform/native_tracker.dart';
+import 'package:lockin/data/shared_state.dart';
 import 'package:lockin/data/cloud_sync.dart';
 import 'package:lockin/data/local_store.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:timezone/data/latest_all.dart' as tzdata;
 
 const _owner = '11111111-1111-4111-8111-111111111111';
 const _other = '22222222-2222-4222-8222-222222222222';
@@ -15,6 +21,11 @@ class _CloudServer {
   late final HttpServer server;
   final rows = <Map<String, dynamic>>[];
   final uploaded = <Map<String, dynamic>>[];
+  final sharedRows = <Map<String, dynamic>>[];
+  final sharedUploads = <Map<String, dynamic>>[];
+  final receipts = <String, Map<String, dynamic>>{};
+  int sharedRevision = 0;
+  int sharedDownloads = 0;
   int uploads = 0;
   int downloads = 0;
   bool failUploads = false;
@@ -52,6 +63,64 @@ class _CloudServer {
         };
       } else if (path == '/auth/v1/logout') {
         request.response.statusCode = 204;
+      } else if (path == '/rest/v1/rpc/apply_shared_changes') {
+        final payload = jsonDecode(body) as Map;
+        expect(
+          payload['p_expected_owner'],
+          _owner,
+          reason: 'An account change must not rebind pending mutations.',
+        );
+        final changes = payload['p_changes'] as List;
+        final results = <Map<String, dynamic>>[];
+        for (final item in changes) {
+          final change = Map<String, dynamic>.from(item as Map);
+          final nonce = change['mutation_id'] as String;
+          if (receipts.containsKey(nonce)) {
+            results.add(receipts[nonce]!);
+            continue;
+          }
+          sharedUploads.add(change);
+          var current = sharedRows
+              .where(
+                (row) =>
+                    row['kind'] == change['kind'] && row['id'] == change['id'],
+              )
+              .firstOrNull;
+          final applied =
+              (current?['revision'] ?? 0) == change['base_revision'];
+          if (applied) {
+            sharedRows.remove(current);
+            current = {
+              'kind': change['kind'],
+              'id': change['id'],
+              'revision': ++sharedRevision,
+              'value': change['value'],
+            };
+            sharedRows.add(current);
+          }
+          final result = {
+            'mutation_id': nonce,
+            'applied': applied,
+            'record': current,
+          };
+          receipts[nonce] = result;
+          results.add(result);
+        }
+        response = results;
+      } else if (path == '/rest/v1/shared_state') {
+        sharedDownloads++;
+        final cursor = int.parse(
+          (request.uri.queryParameters['revision'] ?? 'gt.0').substring(3),
+        );
+        final ordered =
+            sharedRows.where((r) => (r['revision'] as int) > cursor).toList()
+              ..sort(
+                (a, b) =>
+                    (a['revision'] as int).compareTo(b['revision'] as int),
+              );
+        response = ordered
+            .take(int.parse(request.uri.queryParameters['limit'] ?? '500'))
+            .toList();
       } else if (path == '/rest/v1/usage_intervals' &&
           request.method == 'POST') {
         uploads++;
@@ -98,6 +167,7 @@ class _CloudServer {
 }
 
 void main() {
+  setUpAll(tzdata.initializeTimeZones);
   late _CloudServer server;
   late SupabaseClient client;
   late LocalStore store;
@@ -222,6 +292,163 @@ void main() {
       );
       expect(await store.usage(pendingOnly: true), isEmpty);
       expect(sync.lastError, isNull);
+    },
+  );
+
+  test('two devices share rules, timezone and timer without copying a focus blocklist', () async {
+    var clock = since.add(const Duration(hours: 10));
+    final desktop = AppController(
+      store: store,
+      tracker: NativeTracker(),
+      clock: () => clock,
+    );
+    await desktop.initialize(poll: false);
+    // These represent two devices with independent executors, not shared SQLite.
+    final warning = driftRuntimeOptions.dontWarnAboutMultipleDatabases;
+    driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+    addTearDown(
+      () => driftRuntimeOptions.dontWarnAboutMultipleDatabases = warning,
+    );
+    final phoneStore = LocalStore.memory();
+    final phone = AppController(
+      store: phoneStore,
+      tracker: NativeTracker(),
+      clock: () => clock,
+    );
+    final phoneSync = CloudSync(client: client, store: phoneStore);
+    addTearDown(() async {
+      desktop.dispose();
+      phone.dispose();
+      await phoneSync.close();
+      await phoneStore.close();
+    });
+    await desktop.saveRule(
+      ActivityRule(
+        id: 'video',
+        name: 'Video',
+        sources: ['web:example.com'],
+        dailyMinutes: 30,
+        focusBlock: true,
+      ),
+    );
+    await desktop.setTimezone('America/New_York');
+    await desktop.startSession(const Duration(minutes: 25), SessionPhase.focus);
+    await sync.synchronize(
+      deviceId: desktop.deviceId,
+      platform: 'Windows',
+      since: since,
+    );
+    await desktop.reloadSharedState();
+    await phone.initialize(initialTimezone: 'Asia/Tokyo', poll: false);
+    await phoneSync.synchronize(
+      deviceId: phone.deviceId,
+      platform: 'Android',
+      since: since,
+    );
+    await phone.reloadSharedState();
+    expect(phone.session!.id, desktop.session!.id);
+    expect(phone.timezone, 'America/New_York');
+    expect(phone.rules.single.name, 'Video');
+    expect(phone.rules.single.focusBlock, isFalse);
+    expect(desktop.rules.single.focusBlock, isTrue);
+    expect(phoneSync.conflicts, isEmpty);
+    clock = clock.add(const Duration(minutes: 5));
+    await phone.endSession();
+    await phoneSync.synchronize(
+      deviceId: phone.deviceId,
+      platform: 'Android',
+      since: since,
+    );
+    await sync.synchronize(
+      deviceId: desktop.deviceId,
+      platform: 'Windows',
+      since: since,
+    );
+    await desktop.reloadSharedState();
+    expect(desktop.session!.end, clock);
+    expect(desktop.focusedToday, const Duration(minutes: 5));
+  });
+
+  test(
+    'shared state downloads use revision keysets beyond the server row limit',
+    () async {
+      for (var i = 1; i <= 513; i++) {
+        server.sharedRows.add({
+          'kind': 'rule',
+          'id': 'r$i',
+          'revision': i,
+          'value': {
+            'id': 'r$i',
+            'name': 'Rule $i',
+            'sources': ['web:example.com'],
+            'daily_minutes': null,
+            'schedules': [],
+          },
+        });
+      }
+      server.sharedRevision = 513;
+      await sync.synchronize(
+        deviceId: 'desktop',
+        platform: 'Windows',
+        since: since,
+      );
+      expect(await store.rules(), hasLength(513));
+      expect(server.sharedDownloads, 2);
+      expect(await store.setting('shared_cursor'), '514');
+      await sync.synchronize(
+        deviceId: 'desktop',
+        platform: 'Windows',
+        since: since,
+      );
+      expect(server.sharedDownloads, 3);
+    },
+  );
+
+  test(
+    'a stale offline edit is preserved for explicit review across HTTP sync',
+    () async {
+      final shared = SharedState(store);
+      final value = {
+        'id': 'video',
+        'name': 'Offline edit',
+        'sources': ['web:example.com'],
+        'daily_minutes': 30,
+        'schedules': [],
+      };
+      server.sharedRows.add({
+        'kind': 'rule',
+        'id': 'video',
+        'revision': 1,
+        'value': {...value, 'name': 'Confirmed edit'},
+      });
+      server.sharedRevision = 1;
+      await shared.queue('rule', 'video', value);
+      await sync.synchronize(
+        deviceId: 'desktop',
+        platform: 'Windows',
+        since: since,
+      );
+      expect((await store.rules()).single.name, 'Confirmed edit');
+      final conflict = sync.conflicts.single;
+      expect(conflict.change.value!['name'], 'Offline edit');
+      expect(conflict.confirmedValue!['name'], 'Confirmed edit');
+      await sync.resolveConflict(
+        conflict.change.mutationId,
+        retry: true,
+        baseRevision: conflict.confirmedRevision,
+      );
+      await sync.synchronize(
+        deviceId: 'desktop',
+        platform: 'Windows',
+        since: since,
+      );
+      expect(sync.conflicts, isEmpty);
+      expect(
+        server.sharedRows.singleWhere(
+          (r) => r['kind'] == 'rule',
+        )['value']['name'],
+        'Offline edit',
+      );
     },
   );
 
