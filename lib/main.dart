@@ -10,6 +10,7 @@ import 'package:window_manager/window_manager.dart';
 
 import 'app.dart';
 import 'app_controller.dart';
+import 'core/activity.dart';
 import 'data/cloud_sync.dart';
 import 'data/local_store.dart';
 import 'platform/desktop_lifecycle.dart';
@@ -36,6 +37,12 @@ Future<void> main(List<String> args) async {
       try {
         await Supabase.initialize(url: url, publishableKey: key);
         cloud = CloudSync(client: Supabase.instance.client, store: store);
+        await cloud.startAutomatic(
+          deviceId: controller.deviceId,
+          platform: Platform.isWindows ? 'Windows' : 'Android',
+          since: () => accountDay(controller.now, controller.location).$1,
+          onDownloaded: controller.reloadUsage,
+        );
       } catch (error) {
         startupWarning =
             'Cloud setup failed; local mode remains available. $error';
@@ -45,6 +52,7 @@ Future<void> main(List<String> args) async {
     if (Platform.isWindows) {
       desktop = DesktopLifecycle(
         quit: () async {
+          await cloud?.close();
           controller.dispose();
           await store.close();
           await desktop?.dispose();

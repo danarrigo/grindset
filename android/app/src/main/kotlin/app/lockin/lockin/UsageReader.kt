@@ -1,6 +1,9 @@
 package app.lockin.lockin
 
 import android.app.AppOpsManager
+import android.app.KeyguardManager
+import android.os.PowerManager
+import android.os.UserManager
 import android.app.usage.UsageEvents
 import android.app.usage.UsageStatsManager
 import android.content.Context
@@ -20,27 +23,33 @@ object UsageReader {
         return mode == AppOpsManager.MODE_ALLOWED
     }
 
-    // Android records this history even when the Flutter activity is closed.
-    // Retention is controlled by Android; this is not a permanent background journal.
+    // The foreground service periodically commits these OS-confirmed intervals
+    // to the same durable SQLite journal used by the UI.
     fun read(context: Context, from: Long, requestedUntil: Long): List<Map<String, Any>> {
         check(hasAccess(context)) { "Enable Usage Access in Android Settings first" }
         val until = minOf(requestedUntil, System.currentTimeMillis())
         if (from >= until) return emptyList()
         val manager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
         // Seed foreground state before the requested window, without guessing.
-        val events = manager.queryEvents(maxOf(0L, from - 86_400_000L), until)
-            ?: return emptyList()
+        val user = context.getSystemService(Context.USER_SERVICE) as UserManager
+        check(user.isUserUnlocked) { "Unlock the device once before reading usage." }
+        val events = checkNotNull(manager.queryEvents(maxOf(0L, from - 86_400_000L), until)) {
+            "Android usage history is temporarily unavailable."
+        }
         val event = UsageEvents.Event()
         val records = mutableListOf<Map<String, Any>>()
         var foreground: String? = null
         var began = from
         var unlocked = true
+        var interactive = true
         fun close(at: Long) {
             val pkg = foreground
-            val start = maxOf(began, from)
+            // Keep the original resume timestamp: identity must not change at
+            // midnight or when the importer moves its query window forward.
+            val start = began
             val end = minOf(at, until)
             if (pkg != null && pkg != context.packageName &&
-                pkg != "com.android.systemui" && end > start) {
+                pkg != "com.android.systemui" && end > start && end > from) {
                 records.add(mapOf("source" to "android:$pkg", "start" to start, "end" to end))
             }
             foreground = null
@@ -50,7 +59,7 @@ object UsageReader {
             when (event.eventType) {
                 UsageEvents.Event.ACTIVITY_RESUMED -> {
                     close(event.timeStamp)
-                    if (unlocked) {
+                    if (unlocked && interactive) {
                         foreground = event.packageName
                         began = event.timeStamp
                     }
@@ -58,15 +67,23 @@ object UsageReader {
                 UsageEvents.Event.ACTIVITY_PAUSED -> {
                     if (event.packageName == foreground) close(event.timeStamp)
                 }
-                UsageEvents.Event.SCREEN_NON_INTERACTIVE, UsageEvents.Event.KEYGUARD_SHOWN -> {
+                UsageEvents.Event.SCREEN_NON_INTERACTIVE -> {
+                    close(event.timeStamp)
+                    interactive = false
+                }
+                UsageEvents.Event.KEYGUARD_SHOWN -> {
                     close(event.timeStamp)
                     unlocked = false
                 }
-                UsageEvents.Event.SCREEN_INTERACTIVE, UsageEvents.Event.KEYGUARD_HIDDEN -> unlocked = true
+                UsageEvents.Event.SCREEN_INTERACTIVE -> interactive = true
+                UsageEvents.Event.KEYGUARD_HIDDEN -> unlocked = true
                 UsageEvents.Event.DEVICE_SHUTDOWN -> close(event.timeStamp)
             }
         }
-        close(until)
+        val power = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+        val keyguard = context.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+        // Do not extend an open interval from stale events on a locked screen.
+        if (power.isInteractive && !keyguard.isKeyguardLocked) close(until)
         return records
     }
 }

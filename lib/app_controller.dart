@@ -41,6 +41,9 @@ class AppController extends ChangeNotifier {
       phase == SessionPhase.focus ? _focusMinutes : _breakMinutes;
   bool trackingEnabled = false;
   bool accessGranted = false;
+  bool backgroundTrackingRunning = false;
+  bool androidBlockingEnabled = false;
+  DateTime? _lastAndroidImport;
   String? trackingError;
   String? blockedSource;
   String? blockMessage;
@@ -89,6 +92,32 @@ class AppController extends ChangeNotifier {
         final until = DateTime.parse(value as String);
         if (until.isAfter(now)) _overrides[key] = until;
       });
+    }
+    _lastAndroidImport = DateTime.tryParse(
+      await store.setting('android_imported_until') ?? '',
+    );
+    if (tracker.isAndroid) {
+      tracker.bindAndroidActions(
+        onOverride: overrideBlock,
+        onDismiss: dismissBlock,
+        onStopped: () => disableTracking(notifyNative: false),
+      );
+      try {
+        await _adoptAndroidStatus(
+          await tracker.initializeAndroidTracking(trackingEnabled),
+        );
+      } catch (error) {
+        trackingError = 'Android background runtime unavailable: $error';
+      }
+      showBlock = () async {
+        final source = blockedSource;
+        if (source != null) {
+          await tracker.showAndroidBlock(
+            source,
+            blockMessage ?? 'An activity rule is active.',
+          );
+        }
+      };
     }
     await reloadUsage();
     if (poll) {
@@ -229,8 +258,34 @@ class AppController extends ChangeNotifier {
     }
     await store.saveSetting('tracking_enabled', 'true');
     trackingEnabled = true;
+    if (tracker.isAndroid) {
+      await _adoptAndroidStatus(await tracker.setAndroidTracking(true));
+    }
     await tracker.requestAccess();
     await refresh();
+  }
+
+  Future<void> disableTracking({bool notifyNative = true}) async {
+    if (tracker.isAndroid && notifyNative) {
+      await tracker.setAndroidTracking(false);
+    }
+    await store.saveSetting('tracking_enabled', 'false');
+    trackingEnabled = false;
+    backgroundTrackingRunning = false;
+    trackingError = null;
+    _openInterval = null;
+    _previousObservation = null;
+    dismissBlock();
+  }
+
+  Future<void> _adoptAndroidStatus(AndroidTrackingStatus status) async {
+    if (trackingEnabled != status.enabled) {
+      await store.saveSetting('tracking_enabled', '${status.enabled}');
+    }
+    trackingEnabled = status.enabled;
+    backgroundTrackingRunning = status.running;
+    androidBlockingEnabled = status.blockingEnabled;
+    if (!status.enabled && blockedSource != null) dismissBlock();
   }
 
   Future<void> overrideBlock() async {
@@ -247,6 +302,14 @@ class AppController extends ChangeNotifier {
   }
 
   void dismissBlock() {
+    if (tracker.isAndroid && blockedSource != null) {
+      unawaited(
+        tracker.hideAndroidBlock().catchError((Object error) {
+          trackingError = 'Could not dismiss Android blocking: $error';
+          _changed();
+        }),
+      );
+    }
     blockedSource = null;
     blockMessage = null;
     _changed();
@@ -256,11 +319,18 @@ class AppController extends ChangeNotifier {
     if (_refreshing || _disposed) return;
     _refreshing = true;
     try {
+      final tick = _ticks++;
+      AndroidTrackingStatus? android;
+      if (tracker.isAndroid) {
+        android = await tracker.androidStatus();
+        await _adoptAndroidStatus(android);
+      }
       if (trackingEnabled && tracker.supported) {
         accessGranted = await tracker.hasAccess();
         if (!accessGranted) {
           _openInterval = null;
           _previousObservation = null;
+          if (blockedSource != null) dismissBlock();
         } else if (tracker.isWindows) {
           final current = tracker.foreground();
           final observed = now;
@@ -290,20 +360,50 @@ class AppController extends ChangeNotifier {
             _checkBlock(current.source);
           }
           _previousObservation = observed;
-        } else if (_ticks % 15 == 0) {
-          final intervals = await tracker.androidHistory(
-            deviceId,
-            accountDay(now, location).$1,
-            now,
-          );
-          await store.transaction(() async {
-            for (final interval in intervals) {
-              await store.putUsage(interval);
-            }
-          });
+        } else {
+          if (!backgroundTrackingRunning) {
+            if (blockedSource != null) dismissBlock();
+            throw StateError(
+              android?.error ??
+                  'Background tracking is stopped. Open Lockin to restart it.',
+            );
+          }
+          if (tick % 15 == 0) {
+            final until = now;
+            final earliest = until.subtract(const Duration(days: 3));
+            var from =
+                _lastAndroidImport?.subtract(const Duration(days: 1)) ??
+                accountDay(until, location).$1;
+            if (from.isBefore(earliest)) from = earliest;
+            if (!from.isBefore(until)) from = accountDay(until, location).$1;
+            final intervals = await tracker.androidHistory(
+              deviceId,
+              from,
+              until,
+            );
+            await store.transaction(() async {
+              for (final interval in intervals) {
+                await store.putUsage(interval);
+              }
+              await store.saveSetting(
+                'android_imported_until',
+                until.toIso8601String(),
+              );
+            });
+            _lastAndroidImport = until;
+            await reloadUsage();
+          }
+          final source = androidBlockingEnabled
+              ? await tracker.androidForegroundSource()
+              : null;
+          if (source == null || !trackingEnabled) {
+            if (blockedSource != null) dismissBlock();
+          } else {
+            _checkBlock(source);
+          }
         }
       }
-      if (_ticks++ % 5 == 0) await reloadUsage();
+      if (tick % 5 == 0) await reloadUsage();
       trackingError = null;
     } catch (error) {
       trackingError = 'Tracking interrupted: $error';
@@ -353,6 +453,7 @@ class AppController extends ChangeNotifier {
   void dispose() {
     _disposed = true;
     _timer?.cancel();
+    if (tracker.isAndroid) NativeTracker.channel.setMethodCallHandler(null);
     super.dispose();
   }
 }

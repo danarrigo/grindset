@@ -90,7 +90,9 @@ class _CloudPanelState extends State<CloudPanel> {
             style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
           ),
         ] else if (user == null) ...[
-          const Text('Sign in on each device to synchronize usage intervals.'),
+          const Text(
+            'Sign in on each device to synchronize usage automatically.',
+          ),
           const SizedBox(height: 16),
           TextField(
             controller: _email,
@@ -131,7 +133,7 @@ class _CloudPanelState extends State<CloudPanel> {
             runSpacing: 8,
             children: [
               FilledButton.icon(
-                onPressed: _busy
+                onPressed: _busy || cloud.syncing
                     ? null
                     : () => _run(() async {
                         await cloud.synchronize(
@@ -150,7 +152,7 @@ class _CloudPanelState extends State<CloudPanel> {
                         }
                       }),
                 icon: const Icon(Icons.sync_rounded),
-                label: const Text('Sync usage'),
+                label: const Text('Sync now'),
               ),
               TextButton(
                 onPressed: _busy ? null : () => _run(cloud.client.auth.signOut),
@@ -166,10 +168,17 @@ class _CloudPanelState extends State<CloudPanel> {
         ],
         const SizedBox(height: 16),
         Text(
-          'Usage sync is manual. Shared sessions, rules and account-timezone sync are not connected yet.',
+          'Usage sync runs automatically while signed in, including background tracking. Offline uploads retry with backoff. Shared sessions, rules and account-timezone sync are not connected yet.',
           style: TextStyle(fontSize: 12, color: colors.tertiary, height: 1.6),
         ),
-        if (_busy)
+        if (cloud?.lastError != null)
+          Padding(
+            padding: const EdgeInsets.only(top: 12),
+            child: SelectableText(
+              'Usage sync needs attention: ${cloud!.lastError}. Last-confirmed data is kept locally.',
+            ),
+          ),
+        if (_busy || (cloud?.syncing ?? false))
           const Padding(
             padding: EdgeInsets.only(top: 12),
             child: LinearProgressIndicator(),

@@ -130,8 +130,9 @@ class _HomeState extends State<_Home> {
           child: Text(
             'Lockin reads foreground app identifiers and usage timestamps throughout the day. '
             'It does not read page titles, screenshots, keystrokes or window contents.\n\n'
-            'Windows will start Lockin at sign-in and keep it in the tray. Android requires Usage Access in Settings. '
-            'This permission does not enable Android app blocking.\n\n'
+            'Windows will start Lockin at sign-in and keep it in the tray. Android requires Usage Access and notifications, '
+            'then keeps a visible background service running when you close the UI. You can stop it from Settings or its notification. '
+            'App blocking requires a separate, optional Accessibility permission.\n\n'
             'History is stored locally. Cloud uploads require configured Supabase and sign-in.',
           ),
         ),
@@ -153,6 +154,34 @@ class _HomeState extends State<_Home> {
         await widget.enableStartup?.call();
       });
     }
+  }
+
+  Future<void> _enableAndroidBlocking() async {
+    final allowed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Enable app blocking?'),
+        content: const SingleChildScrollView(
+          child: Text(
+            'Lockin uses Accessibility only to identify the foreground app package and display a blocking screen when one of your rules applies. '
+            'It does not read screen contents, typed text, screenshots or keystrokes.\n\n'
+            'This is voluntary enforcement. You can disable Accessibility, stop tracking or uninstall Lockin at any time. Android Settings remains accessible.\n\n'
+            'After continuing, choose Lockin app blocking in Android Accessibility settings and enable it yourself.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Not now'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Continue to Settings'),
+          ),
+        ],
+      ),
+    );
+    if (allowed == true && mounted) await _run(c.tracker.requestBlockingAccess);
   }
 
   Future<void> _editRule([ActivityRule? rule]) async {
@@ -241,8 +270,9 @@ class _HomeState extends State<_Home> {
             'Timers, local storage and usage accounting are implemented.\n\n'
             'Windows foreground tracking and interruption-based blocking still need native device testing. '
             'Idle/media handling and crash recovery are unfinished.\n\n'
-            'Android imports OS usage history while open. Native blocking and a persistent background journal are not connected.\n\n'
-            'Website integration and shared session, rule and timezone sync are not connected. Usage sync is manual.\n\n'
+            'Android uses an opt-in foreground service and a persistent background journal. '
+            'App blocking requires the separate Accessibility service. Both remain subject to Android stopping the process or permissions being revoked.\n\n'
+            'Website integration and shared session, rule and timezone sync are not connected. Usage sync is automatic while signed in.\n\n'
             'No activity is invented for disconnected devices.',
           ),
         ),
@@ -262,7 +292,7 @@ class _HomeState extends State<_Home> {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: c,
+    listenable: Listenable.merge([c, if (widget.cloud != null) widget.cloud!]),
     builder: (context, _) {
       if (_page == 0) return _focusHome();
       final textScale = MediaQuery.textScalerOf(context).scale(14) / 14;
@@ -540,7 +570,11 @@ class _HomeState extends State<_Home> {
           : 'Start break',
       status: completed ? 'Session complete' : null,
       warning: warnings.isEmpty ? null : warnings.join('\n\n'),
-      buildLabel: c.tracker.isWindows && c.trackingEnabled && c.accessGranted
+      buildLabel:
+          c.trackingEnabled &&
+              c.accessGranted &&
+              (c.tracker.isWindows ||
+                  (c.backgroundTrackingRunning && c.androidBlockingEnabled))
           ? 'Preview build'
           : 'Timer only · Preview build',
       onStatus: () => _buildStatus(context),
@@ -738,8 +772,12 @@ class _HomeState extends State<_Home> {
           label: const Text('Add activity'),
         ),
       ),
-      if (!c.tracker.isWindows) ...[
-        _notice('Native app blocking is not connected on this platform yet.'),
+      if (!c.tracker.isWindows && !c.androidBlockingEnabled) ...[
+        _notice(
+          c.tracker.isAndroid
+              ? 'App blocking requires the optional Accessibility permission in Settings.'
+              : 'Native app blocking is not connected on this platform yet.',
+        ),
         const SizedBox(height: 20),
       ],
       if (c.rules.isEmpty)
@@ -881,17 +919,36 @@ class _HomeState extends State<_Home> {
                   ? 'Native tracking requires Windows or Android.'
                   : !c.trackingEnabled
                   ? 'Not enabled. No usage is being collected.'
-                  : c.accessGranted
-                  ? 'Usage access is available.'
-                  : 'Waiting for system permission.',
+                  : !c.accessGranted
+                  ? 'Waiting for system permission.'
+                  : c.tracker.isAndroid
+                  ? c.backgroundTrackingRunning
+                        ? 'Background service is running.'
+                        : 'Background service is stopped.'
+                  : 'Foreground activity tracking is enabled.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
             const SizedBox(height: 14),
-            OutlinedButton(
-              onPressed: _busy || !c.tracker.supported ? null : _enableTracking,
-              child: Text(
-                c.trackingEnabled ? 'Review permission' : 'Enable tracking',
-              ),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                OutlinedButton(
+                  onPressed: _busy || !c.tracker.supported
+                      ? null
+                      : _enableTracking,
+                  child: Text(
+                    c.trackingEnabled ? 'Review permission' : 'Enable tracking',
+                  ),
+                ),
+                if (c.trackingEnabled)
+                  TextButton(
+                    onPressed: _busy
+                        ? null
+                        : () => _run(() => c.disableTracking()),
+                    child: const Text('Stop tracking'),
+                  ),
+              ],
             ),
             const SizedBox(height: 12),
             Text(
@@ -901,6 +958,41 @@ class _HomeState extends State<_Home> {
           ],
         ),
       ),
+      if (c.tracker.isAndroid) ...[
+        const SizedBox(height: 18),
+        _Section(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'App blocking',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                c.androidBlockingEnabled
+                    ? 'Accessibility service is connected. Tracking must also be enabled for rules to apply.'
+                    : 'Not enabled. Usage Access alone cannot block apps.',
+              ),
+              const SizedBox(height: 14),
+              OutlinedButton(
+                onPressed: _busy ? null : _enableAndroidBlocking,
+                child: Text(
+                  c.androidBlockingEnabled
+                      ? 'Review Accessibility'
+                      : 'Enable app blocking',
+                ),
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Package identifiers only, never screen contents. This is voluntary and can be disabled in Android Settings.',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+          ),
+        ),
+      ],
       const SizedBox(height: 18),
       _Section(
         padding: const EdgeInsets.all(20),
@@ -946,7 +1038,7 @@ class _HomeState extends State<_Home> {
       ),
       const SizedBox(height: 24),
       _notice(
-        'This build is not ready for continuous background enforcement. Android blocking, persistent journaling, browser integration and shared timer/rule sync are unfinished. Windows idle handling and crash recovery need work.',
+        'Background operation and blocking are experimental and can be interrupted by the OS, force-stop or permission revocation. Browser integration and shared timer/rule sync are unfinished. Windows idle handling and crash recovery still need work.',
       ),
     ],
   );

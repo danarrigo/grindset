@@ -8,6 +8,26 @@ import 'package:win32/win32.dart';
 
 import '../core/activity.dart';
 
+class AndroidTrackingStatus {
+  const AndroidTrackingStatus({
+    required this.enabled,
+    required this.running,
+    required this.blockingEnabled,
+    this.error,
+  });
+  factory AndroidTrackingStatus.fromMap(Map<String, dynamic> value) =>
+      AndroidTrackingStatus(
+        enabled: value['enabled'] == true,
+        running: value['running'] == true,
+        blockingEnabled: value['blockingEnabled'] == true,
+        error: value['error'] as String?,
+      );
+  final bool enabled;
+  final bool running;
+  final bool blockingEnabled;
+  final String? error;
+}
+
 class ForegroundApp {
   const ForegroundApp(this.source, this.label);
   final String source;
@@ -69,6 +89,58 @@ class NativeTracker {
       calloc.free(buffer);
     }
   }
+
+  Future<AndroidTrackingStatus> initializeAndroidTracking(bool enabled) async {
+    final value = await channel.invokeMapMethod<String, dynamic>(
+      'initializeTracking',
+      {'enabled': enabled},
+    );
+    return AndroidTrackingStatus.fromMap(value ?? {});
+  }
+
+  Future<AndroidTrackingStatus> setAndroidTracking(bool enabled) async {
+    final value = await channel.invokeMapMethod<String, dynamic>(
+      'setTrackingEnabled',
+      {'enabled': enabled},
+    );
+    return AndroidTrackingStatus.fromMap(value ?? {});
+  }
+
+  Future<AndroidTrackingStatus> androidStatus() async {
+    final value = await channel.invokeMapMethod<String, dynamic>(
+      'trackingStatus',
+    );
+    return AndroidTrackingStatus.fromMap(value ?? {});
+  }
+
+  void bindAndroidActions({
+    required Future<void> Function() onOverride,
+    required void Function() onDismiss,
+    required Future<void> Function() onStopped,
+  }) {
+    channel.setMethodCallHandler((call) async {
+      switch (call.method) {
+        case 'overrideRequested':
+          await onOverride();
+        case 'dismissRequested':
+          onDismiss();
+        case 'trackingStopped':
+          await onStopped();
+        default:
+          throw MissingPluginException(
+            'Unknown Android callback: ${call.method}',
+          );
+      }
+    });
+  }
+
+  Future<void> requestBlockingAccess() =>
+      channel.invokeMethod<void>('requestBlockingAccess');
+  Future<String?> androidForegroundSource() =>
+      channel.invokeMethod<String>('foregroundSource');
+  Future<void> showAndroidBlock(String source, String message) => channel
+      .invokeMethod<void>('showBlock', {'source': source, 'message': message});
+  Future<void> hideAndroidBlock() => channel.invokeMethod<void>('hideBlock');
 
   Future<List<UsageInterval>> androidHistory(
     String deviceId,
