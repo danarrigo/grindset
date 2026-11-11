@@ -113,8 +113,8 @@ ActivityProbe::ActivityProbe(flutter::BinaryMessenger* messenger)
     const auto it = arguments->find(flutter::EncodableValue("pid"));
     DWORD pid = 0;
     if (it != arguments->end()) {
-      if (const auto* small = std::get_if<int32_t>(&it->second)) pid = static_cast<DWORD>(*small);
-      if (const auto* large = std::get_if<int64_t>(&it->second)) pid = static_cast<DWORD>(*large);
+      if (const auto* pid32 = std::get_if<int32_t>(&it->second)) pid = static_cast<DWORD>(*pid32);
+      if (const auto* pid64 = std::get_if<int64_t>(&it->second)) pid = static_cast<DWORD>(*pid64);
     }
     DWORD foreground = 0;
     GetWindowThreadProcessId(GetForegroundWindow(), &foreground);
