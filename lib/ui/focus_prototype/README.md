@@ -2,7 +2,7 @@
 
 Question: which real Apple-app structure should guide Lockin's focus-first screen? These are deliberately different compositions, not palette swaps. The latest feedback asked for substantially less interface, so D removes the surrounding app chrome.
 
-**Verdict: B did not match the requested minimalism. D is the current candidate and still awaits approval. Do not merge this prototype into main.** The production Flutter entrypoint, database, tracking and cloud modules are not used or mutated here.
+**Verdict: the user approved D, Minimal.** Implement this direction against real app state on a production branch; do not merge this throwaway comparison into main. The production Flutter entrypoint, database, tracking and cloud modules are not used or mutated here.
 
 ## Run
 
