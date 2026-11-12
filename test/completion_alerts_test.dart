@@ -269,6 +269,24 @@ void main() {
     expect(controller.completionAlertsNotice, isNull);
   });
 
+  test('a shared session with a slightly ahead device clock still schedules its end', () async {
+    await controller.setCompletionAlertsEnabled(true);
+    final future = FocusSession(
+      id: 'ahead-device',
+      phase: SessionPhase.focus,
+      start: now.add(const Duration(seconds: 2)),
+      end: now.add(const Duration(minutes: 25)),
+    );
+    await controller.sharedState.receive({
+      'kind': 'focus',
+      'id': 'active',
+      'revision': 1,
+      'value': future.toJson(),
+    });
+    await controller.reloadSharedState();
+    expect(scheduled, isNotNull);
+  });
+
   test(
     'an early end during an in-flight schedule cannot resurrect an old alarm',
     () async {

@@ -56,7 +56,9 @@ class CompletionAlerts {
       // Both platforms cancel pending schedules, including unpackaged Windows.
       // Windows requires MSIX identity only for removing already-delivered toasts.
       await _plugin.cancel(id: _id);
-      if (!enabled || session == null || !session.running(_clock().toUtc())) {
+      if (!enabled ||
+          session == null ||
+          !session.end.isAfter(_clock().toUtc())) {
         return null;
       }
       var exact = true;
@@ -71,7 +73,9 @@ class CompletionAlerts {
         exact = await implementation.canScheduleExactNotifications() == true;
       }
       // A permission dialog or OS call may have outlived the requested deadline.
-      if (generation != _generation || !session.running(_clock().toUtc())) {
+      // A shared session's start can be slightly ahead of this device's clock.
+      // Its confirmed end still needs an alarm; only expired ends are skipped.
+      if (generation != _generation || !session.end.isAfter(_clock().toUtc())) {
         return null;
       }
       // The SDK serializes whole seconds. Round up so an alarm cannot claim
