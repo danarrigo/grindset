@@ -10,6 +10,25 @@ An authoritative check at **02:51 UTC** found **`lockin.ai` already registered**
 
 Multiple existing Android focus/blocker apps already use LockIn or Lockin. A different domain suffix does not resolve product confusion. This search is not trademark clearance.
 
+## Exact-name alternatives from the expanded search
+
+A 2026-11-12 check at approximately **02:55 UTC** queried 43 suffixes through IANA-bootstrap registry RDAP services. The cleaner unregistered-looking options were:
+
+| Domain | Registry observation | Standard registrar renewal baseline (USD/year) |
+|---|---|---|
+| `lockin.plus` | [HTTP 404, Object not found](https://rdap.identitydigital.services/rdap/domain/lockin.plus) | $47.89 |
+| `lockin.tools` | [HTTP 404, Object not found](https://rdap.identitydigital.services/rdap/domain/lockin.tools) | $32.44 |
+| `lockin.wtf` | [HTTP 404, Object not found](https://rdap.identitydigital.services/rdap/domain/lockin.wtf) | $32.44 |
+| `lockin.cool` | [HTTP 404, Object not found](https://rdap.identitydigital.services/rdap/domain/lockin.cool) | $40.68 |
+
+Prefer **`lockin.plus`** for a clean, short suffix, or **`lockin.tools`** for a more explicitly utilitarian identity. `lockin.wtf` is a deliberately irreverent option. These are subjective naming recommendations, not confirmed purchase offers.
+
+The prices above came from Porkbun's official public pricing API (`POST https://api.porkbun.com/api/json/v3/pricing/get`) and are standard TLD renewal baselines, **not domain-specific quotes**. Registry 404 does not establish that a name is purchasable or nonpremium. Confirm both the initial checkout price and renewal price before buying.
+
+Other registry-404 results were `lockin.software`, `lockin.place`, `lockin.watch`, `lockin.systems`, `lockin.chat`, `lockin.global`, `lockin.codes`, `lockin.computer`, `lockin.moe` and `lockin.pw`. The `.pw` registry explicitly described its candidate as available for registration. These weaker naming options are not the primary recommendation.
+
+Direct registry lookups additionally confirmed registrations for [lockin.io](https://rdap.identitydigital.services/rdap/domain/lockin.io), [lockin.sh](https://rdap.identitydigital.services/rdap/domain/lockin.sh), [lockin.ac](https://rdap.identitydigital.services/rdap/domain/lockin.ac), [lockin.me](https://rdap.identitydigital.services/rdap/domain/lockin.me) and [lockin.cc](https://tld-rdap.verisign.com/cc/v1/domain/lockin.cc), despite missing bootstrap entries. Each returned a matching domain registration object.
+
 ## Earlier rejected suggestions: registration evidence
 
 | Candidate | Registry observation | Caveat |
@@ -52,6 +71,6 @@ At approximately 02:15–02:16 UTC, matching registry RDAP HTTP 200 domain objec
 
 `.app` and `.day` evidence uses Google Registry's `https://pubapi.registry.google/rdap/domain/<domain>` endpoint. `.zone` and `.today` use `https://rdap.identitydigital.services/rdap/domain/<domain>`, selected through the [IANA RDAP bootstrap](https://data.iana.org/rdap/dns.json).
 
-Additional exact-name checks at approximately 02:51–02:53 UTC found registrations for `lockin.dev`, `lockin.run`, `lockin.one`, `lockin.now`, `lockin.fyi`, `lockin.work`, `lockin.fit`, `lockin.space`, `lockin.pro` and `lockin.xyz`, using their IANA-bootstrap registry endpoints. `lockin.io`, `lockin.co`, `lockin.me`, `lockin.sh` and `lockin.gg` had no bootstrap endpoint and remain unverified; that absence is not evidence of availability.
+Additional exact-name checks at approximately 02:51–02:53 UTC found registrations for `lockin.dev`, `lockin.run`, `lockin.one`, `lockin.now`, `lockin.fyi`, `lockin.work`, `lockin.fit`, `lockin.space`, `lockin.pro` and `lockin.xyz`, using their IANA-bootstrap registry endpoints. `lockin.co` and `lockin.gg` had no bootstrap endpoint and remain unverified; that absence is not evidence of availability. Direct registry checks later resolved `.io`, `.me` and `.sh` as registered, as recorded above.
 
 `lockin.so` remains **unverified**: no `.so` RDAP service was listed in the bootstrap and the registry website connection failed. Do not present it as available. Registry reference: <https://www.iana.org/domains/root/db/so.html>.
