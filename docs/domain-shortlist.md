@@ -4,11 +4,13 @@ Research date: 2026-11-12 UTC. No domain was purchased, registered or added to a
 
 ## Recommendation
 
-If keeping **Lockin**, quote **`lockinlocal.app`** first. It preserves the name and highlights the local-first positioning without limiting the product to a timer. **`lockinflow.app`** is a shorter, broader alternative.
+The user rejected the compound-name suggestions below and prefers **bare `lockin` with a short suffix**, such as `lockin.ai`. Do not repeat Lockin Local or Lockin Flow as preferred choices.
 
-However, choose the public brand before purchasing: multiple existing Android focus/blocker apps already use LockIn or Lockin. A different domain suffix does not resolve product confusion. This search is not trademark clearance.
+An authoritative check at **02:51 UTC** found **`lockin.ai` already registered**, with registration date **2019-06-18**: <https://rdap.identitydigital.services/rdap/domain/lockin.ai>. No verified aftermarket asking price or willingness to sell was found. Its website not resolving does not make the domain available. Normal-registration versus aftermarket purchase budget remains unknown.
 
-## Registration evidence
+Multiple existing Android focus/blocker apps already use LockIn or Lockin. A different domain suffix does not resolve product confusion. This search is not trademark clearance.
+
+## Earlier rejected suggestions: registration evidence
 
 | Candidate | Registry observation | Caveat |
 |---|---|---|
@@ -49,5 +51,7 @@ These are developer-published claims, not independent testing. This lightweight 
 At approximately 02:15–02:16 UTC, matching registry RDAP HTTP 200 domain objects were found for `lockin.app`, `getlockin.app`, `uselockin.app`, `trylockin.app`, `lockinfocus.app`, `lockin.day`, `lockin.zone` and `lockin.today`.
 
 `.app` and `.day` evidence uses Google Registry's `https://pubapi.registry.google/rdap/domain/<domain>` endpoint. `.zone` and `.today` use `https://rdap.identitydigital.services/rdap/domain/<domain>`, selected through the [IANA RDAP bootstrap](https://data.iana.org/rdap/dns.json).
+
+Additional exact-name checks at approximately 02:51–02:53 UTC found registrations for `lockin.dev`, `lockin.run`, `lockin.one`, `lockin.now`, `lockin.fyi`, `lockin.work`, `lockin.fit`, `lockin.space`, `lockin.pro` and `lockin.xyz`, using their IANA-bootstrap registry endpoints. `lockin.io`, `lockin.co`, `lockin.me`, `lockin.sh` and `lockin.gg` had no bootstrap endpoint and remain unverified; that absence is not evidence of availability.
 
 `lockin.so` remains **unverified**: no `.so` RDAP service was listed in the bootstrap and the registry website connection failed. Do not present it as available. Registry reference: <https://www.iana.org/domains/root/db/so.html>.
