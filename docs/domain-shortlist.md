@@ -4,13 +4,34 @@ Research date: 2026-11-12 UTC. No domain was purchased, registered or added to a
 
 ## Recommendation
 
-The user rejected the compound-name suggestions below and prefers **bare `lockin` with a short suffix**, such as `lockin.ai`. Do not repeat Lockin Local or Lockin Flow as preferred choices.
+No public name or purchase has been approved. The user is open to replacing Lockin and explicitly likes **AllIn** and **DayOne**. They want one word, or two familiar words fused into a catchy name like Lockin, not forced compounds or abstract startup-sounding names. Searchability matters. The audience includes students, people working, and people trying to stop doomscrolling. Earlier Lockin compounds, Dialed and FocusRiot were rejected. Historical shortlists below are not approved choices.
 
 An authoritative check at **02:51 UTC** found **`lockin.ai` already registered**, with registration date **2019-06-18**: <https://rdap.identitydigital.services/rdap/domain/lockin.ai>. No verified aftermarket asking price or willingness to sell was found. Its website not resolving does not make the domain available. Normal-registration versus aftermarket purchase budget remains unknown.
 
 Multiple existing Android focus/blocker apps already use LockIn or Lockin. A different domain suffix does not resolve product confusion. This search is not trademark clearance.
 
-## Exact-name alternatives from the expanded search
+## AllIn and DayOne checks
+
+Registry checks at **2026-11-12 04:41 UTC** found:
+
+- [allin.day](https://pubapi.registry.google/rdap/domain/allin.day), [allin.dev](https://pubapi.registry.google/rdap/domain/allin.dev) and [dayone.day](https://pubapi.registry.google/rdap/domain/dayone.day): HTTP 404 with matching not-found descriptions. This is not confirmed checkout availability or nonpremium pricing.
+- The `.com`, `.app`, `.ai` and `.io` versions of both names were registered. `.so` and `.co` remain unverified; bootstrap endpoint absence is not availability evidence.
+- **Day One** is already an established journal app on desktop and mobile: <https://dayoneapp.com/>. Avoid presenting it as a fresh, unoccupied app brand.
+- **ALLiN - Quit Gambling** also exists. Its first-party listing advertises daily commitments, gambling-site filtering and Screen Time app shields: <https://apps.apple.com/us/app/allin-quit-gambling/id6805274430>. Its blocking functionality makes it a relevant brand-conflict consideration, despite its gambling-recovery niche.
+
+`allin.day` is the most relevant domain candidate from this check if the user retains AllIn. The `.dev` suffix skews toward developer tooling rather than the broad audience. This is a conditional naming judgment, not trademark clearance.
+
+Porkbun's search refused automated browser access, so candidate-specific checkout and renewal prices were not obtained. No account was created, nothing was added to a cart, no purchase was attempted, and the access restriction was not bypassed.
+
+## Rejected new-name exploration
+
+**FocusRiot was rejected by the user.** The following is historical lookup evidence only.
+
+At **2026-11-12 04:30 UTC**, registry lookups returned matching not-found HTTP 404 responses for [focusriot.app](https://pubapi.registry.google/rdap/domain/focusriot.app) and [focusriot.ai](https://rdap.identitydigital.services/rdap/domain/focusriot.ai). [focusriot.com](https://rdap.verisign.com/com/v1/domain/focusriot.com) returned a matching registered domain object. The `.com` website returned HTTP 403, so its business/use was not established. Checkout availability, premium pricing and trademark clearance remain unverified. Nothing was purchased.
+
+Initial searches found direct focus-product collisions for FocusUp ([Chrome listing](https://chromewebstore.google.com/detail/focusup-website-blocker-f/gbmoclfckpimmlbidjdbmhkajggnokop)), FocusBolt ([developer project](https://www.keshavcodes.in/projects/focusbolt)), FocusPact ([App Store](https://apps.apple.com/us/app/focuspact-screen-time-control/id6747784300)), FocusKick ([developer site](https://focuskick.net/)) and Focura ([developer site](https://www.focura.io/)). These were not advanced as new-name recommendations. The absence of an obvious same-name result for FocusRiot is not clearance.
+
+## Historical exact-name alternatives from the expanded search
 
 A 2026-11-12 check at approximately **02:55 UTC** queried 43 suffixes through IANA-bootstrap registry RDAP services. The cleaner unregistered-looking options were:
 
@@ -21,7 +42,7 @@ A 2026-11-12 check at approximately **02:55 UTC** queried 43 suffixes through IA
 | `lockin.wtf` | [HTTP 404, Object not found](https://rdap.identitydigital.services/rdap/domain/lockin.wtf) | $32.44 |
 | `lockin.cool` | [HTTP 404, Object not found](https://rdap.identitydigital.services/rdap/domain/lockin.cool) | $40.68 |
 
-Prefer **`lockin.plus`** for a clean, short suffix, or **`lockin.tools`** for a more explicitly utilitarian identity. `lockin.wtf` is a deliberately irreverent option. These are subjective naming recommendations, not confirmed purchase offers.
+These exact-name alternatives were offered and the user rejected the direction. Retain them only as lookup evidence, not current recommendations. None is a confirmed purchase offer.
 
 The prices above came from Porkbun's official public pricing API (`POST https://api.porkbun.com/api/json/v3/pricing/get`) and are standard TLD renewal baselines, **not domain-specific quotes**. Registry 404 does not establish that a name is purchasable or nonpremium. Confirm both the initial checkout price and renewal price before buying.
 
@@ -33,7 +54,7 @@ Direct registry lookups additionally confirmed registrations for [lockin.io](htt
 
 | Candidate | Registry observation | Caveat |
 |---|---|---|
-| `lockinlocal.app` | Google Registry RDAP HTTP 404, matching “not found”; independently rechecked at **02:44:44 UTC** | Preferred conditional choice |
+| `lockinlocal.app` | Google Registry RDAP HTTP 404, matching “not found”; independently rechecked at **02:44:44 UTC** | Rejected by user |
 | `lockinflow.app` | Google Registry RDAP HTTP 404, matching “not found”; independently rechecked at **02:44:44 UTC** | Broader productivity identity |
 | `lockintimer.app` | Google Registry RDAP HTTP 404, matching “not found”, at **02:15:51 UTC** | Understandable, but undersells blocking/tracking |
 
