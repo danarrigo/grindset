@@ -10,6 +10,35 @@ An authoritative check at **02:51 UTC** found **`lockin.ai` already registered**
 
 Multiple existing Android focus/blocker apps already use LockIn or Lockin. A different domain suffix does not resolve product confusion. This search is not trademark clearance.
 
+## Refreshed Lockin domain options
+
+The user returned to asking for Lockin domains. A fresh RDAP check at **2026-11-12 07:51 UTC** found no registration objects for:
+
+- [itslockin.com](https://rdap.verisign.com/com/v1/domain/itslockin.com): strongest conventional `.com` candidate from this pass.
+- [wearelockin.com](https://rdap.verisign.com/com/v1/domain/wearelockin.com): longer `.com` backup.
+- [lockin.how](https://pubapi.registry.google/rdap/domain/lockin.how): exact name with an instructional suffix.
+- `lockin.tools`, `lockin.plus`, `lockin.cool`, `lockin.wtf`, `lockin.watch`, `lockin.software` and `lockin.pw`: reconfirmed registry-404 options. The `.pw` registry explicitly describes its candidate as available for registration. The user previously disliked this suffix direction; do not present it as newly approved.
+
+The main `.com`, `.app`, `.ai`, `.io`, `.sh`, `.me`, `.dev`, `.day`, `.now`, `.one`, `.net`, `.org`, `.xyz`, `.pro`, `.fyi`, `.work`, `.run`, `.tech`, `.win`, `.id`, `.to`, `.fm` and `.cc` domains were registered. `getlockin`, `uselockin`, `trylockin`, `golockin` in `.com`/`.app`, plus `joinlockin.com`, `heylockin.com`, `withlockin.com`, `lockinapp.com` and `lockinapp.ai`, were also registered.
+
+Previously unresolved suffixes were checked using public WHOIS: `lockin.gg` is registered (`whois.gg`), `lockin.so` is registered (`whois.nic.so`), and `lockin.co` is registered (`whois.registry.co`, resolved via IANA WHOIS). Further IANA-directed WHOIS queries found `.im`, `.do`, `.be` and `.at` registered. `.ch` remains unverified. These newer WHOIS observations supersede the earlier unresolved notes below. Registry references: [IANA .gg](https://www.iana.org/domains/root/db/gg.html), [IANA .so](https://www.iana.org/domains/root/db/so.html), [IANA .co](https://www.iana.org/domains/root/db/co.html).
+
+No candidate-specific checkout or renewal quote was confirmed and nothing was purchased. Registry absence is not a purchase guarantee. Keeping Lockin as the app name with a conventional website such as `itslockin.com` is a possible direction, not an approved choice or trademark clearance.
+
+## Flowstate checks
+
+The user also proposed **Flowstate**; no rename was approved. Registry lookups at **2026-11-12 07:46 UTC** returned matching registered objects for `flowstate.com`, `.app`, `.ai`, `.io`, `.day`, `.now` and `.dev`. Primary examples: [flowstate.app](https://pubapi.registry.google/rdap/domain/flowstate.app), [flowstate.ai](https://rdap.identitydigital.services/rdap/domain/flowstate.ai).
+
+There are exact-category first-party name collisions: [Flowstate: Block Apps & Focus](https://apps.apple.com/us/app/flowstate-block-apps-focus/id6743387768), [FlowState: App Blocker & Focus](https://apps.apple.com/us/app/flowstate-app-blocker-focus/id6787765196), and a [Flowstate Site Blocker](https://chromewebstore.google.com/detail/flowstate-site-blocker/aafldmknbodbdhiahlneeankdibkfbpd). The name clearly evokes deep focus, but the existing focus/blocking products make it a crowded public-brand direction. This is not a legal determination.
+
+## Sudo checks
+
+The user asked whether **Sudo** is definitely taken; no selection or rename was approved. Registry checks at **2026-11-12 07:32 UTC** returned matching registrations for `sudo.com`, `.app`, `.ai`, `.io`, `.day`, `.now`, `.dev`, `.sh` and `.me`. `.co` and `.so` remain unverified because no bootstrap endpoint was available. Do not call those available or registered without more evidence.
+
+There is relevant app-category overlap, not just the Unix command: [Sudo Focus](https://chromewebstore.google.com/detail/sudo-focus-swap-distracti/mloefjkkiljjecjbllpciggmnbllkhga?hl=en) is an existing distraction-blocking Chrome extension. [sudo ego](https://www.sudoego.app/index.html) advertises scheduled app locking on iOS and Android. These are first-party naming/feature claims, not independent enforcement tests. Domain registration and these product names do not establish a legal conclusion about whether Sudo can be used as a brand.
+
+Primary registry examples: [sudo.app](https://pubapi.registry.google/rdap/domain/sudo.app), [sudo.ai](https://rdap.identitydigital.services/rdap/domain/sudo.ai), [sudo.com](https://rdap.verisign.com/com/v1/domain/sudo.com). No aftermarket price, willingness to sell or purchase availability was established.
+
 ## LifeMax direction and checks
 
 The user's latest suggestion, **LifeMax**, clarifies an aspirational self-improvement direction, rather than another literal focus-timer label. It has not been selected or cleared.
