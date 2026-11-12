@@ -39,14 +39,14 @@ void main() {
   Future<(int, Map<String, dynamic>)> request(
     String path, {
     Object? body,
-    String origin = _origin,
+    String? origin = _origin,
     bool authorized = true,
   }) async {
     final req = await client.openUrl(
       body == null ? 'GET' : 'POST',
       Uri.parse('http://127.0.0.1:${bridge.port}$path'),
     );
-    req.headers.set('Origin', origin);
+    if (origin != null) req.headers.set('Origin', origin);
     if (authorized && token != null) {
       req.headers.set('Authorization', 'Bearer $token');
     }
@@ -147,6 +147,39 @@ void main() {
     await bridge.disconnect();
     expect((await request('/v1/rules')).$1, 401);
   });
+
+  test(
+    'Chrome privileged GET can omit Origin, but still requires its token',
+    () async {
+      await pair();
+      expect((await request('/v1/rules', origin: null)).$1, 200);
+      expect(
+        (await request('/v1/rules', origin: null, authorized: false)).$1,
+        401,
+      );
+      expect(
+        (await request('/v1/rules', origin: 'https://example.com')).$1,
+        403,
+      );
+      expect(
+        (await request(
+          '/v1/pair',
+          origin: null,
+          body: {'code': bridge.beginPairing()},
+        )).$1,
+        403,
+      );
+      expect(
+        (await request(
+          '/v1/override',
+          origin: null,
+          body: {'domain': 'example.com'},
+        )).$1,
+        403,
+      );
+      expect((await request('/v1/unknown', origin: null)).$1, 403);
+    },
+  );
 
   test(
     'the wire format rejects complete URLs and extra page metadata',

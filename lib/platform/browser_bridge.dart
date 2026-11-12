@@ -108,12 +108,21 @@ class BrowserBridge {
   Future<void> _handle(HttpRequest request) async {
     try {
       final origin = request.headers.value('origin');
-      if (origin == null ||
-          !RegExp(r'^chrome-extension://[a-p]{32}$').hasMatch(origin)) {
+      // Privileged extension GETs can omit Origin. Only this read-only route
+      // permits that omission, and it still requires the bearer token below.
+      final originlessRulesRead =
+          origin == null &&
+          request.method == 'GET' &&
+          request.uri.path == '/v1/rules';
+      if (!originlessRulesRead &&
+          (origin == null ||
+              !RegExp(r'^chrome-extension://[a-p]{32}$').hasMatch(origin))) {
         _reply(request, 403, {'error': 'Browser extension origin required.'});
         return;
       }
-      request.response.headers.set('Access-Control-Allow-Origin', origin);
+      if (origin != null) {
+        request.response.headers.set('Access-Control-Allow-Origin', origin);
+      }
       request.response.headers.set('Cache-Control', 'no-store');
       if (request.method == 'OPTIONS') {
         request.response.headers.set(

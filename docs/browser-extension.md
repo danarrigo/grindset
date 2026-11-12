@@ -9,7 +9,9 @@ The unpacked Manifest V3 extension in `extension/` supports Chrome and Edge on W
 3. Open the extension's options and enter the six-digit code. It expires after five minutes and permits five failed attempts. Pair Chrome and Edge separately if using both.
 4. Enable tracking in Lockin. Add website sources such as `web:youtube.com` in Rules. A host rule includes its subdomains; do not enter a complete URL, path or wildcard.
 
-The app binds IPv4 loopback port 47831. Pairing issues a random 256-bit bearer token stored in the local journal and trusted extension storage, not cloud usage records. Subsequent requests require both the token and a Chrome/Edge extension origin. Web-page origins are rejected. **Disconnect browsers** rotates the token and invalidates all paired clients. Loopback authentication is not protection against malware running as the same Windows user.
+The app binds IPv4 loopback port 47831. Pairing issues a random 256-bit bearer token stored in the local journal and trusted extension storage, not cloud usage records. Subsequent requests require the token. Pairing and mutating requests also require a Chrome/Edge extension origin; web-page origins are always rejected. Chrome can omit `Origin` on privileged extension GETs, so only the authenticated, read-only `/v1/rules` route permits that omission. **Disconnect browsers** rotates the token and invalidates all paired clients. Loopback authentication is not protection against malware running as the same Windows user.
+
+If connection requests time out while Lockin is running, check whether the browser's proxy routes loopback traffic through a proxy. The bridge needs a direct connection to `127.0.0.1:47831`. Do not disable general browser security or remove your normal proxy configuration.
 
 ## Collection and restrictions
 
