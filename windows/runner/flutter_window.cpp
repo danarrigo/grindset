@@ -28,19 +28,24 @@ bool FlutterWindow::OnCreate() {
   activity_probe_ = std::make_unique<ActivityProbe>(flutter_controller_->engine()->messenger());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
-  flutter_controller_->engine()->SetNextFrameCallback([&]() {
-    this->Show();
+  // Dart owns visibility after tray setup. Showing here would reopen a
+  // --background launch. Publish a first-frame fence for native startup tests
+  // so a hidden, not-yet-rendered window cannot produce a false pass.
+  flutter_controller_->engine()->SetNextFrameCallback([this]() {
+    ::SetPropW(GetHandle(), L"Lockin.FirstFrameRendered",
+               reinterpret_cast<HANDLE>(static_cast<INT_PTR>(1)));
   });
 
-  // Flutter can complete the first frame before the "show window" callback is
-  // registered. The following call ensures a frame is pending to ensure the
-  // window is shown. It is a no-op if the first frame hasn't completed yet.
+  // Ensure the readiness callback also runs if an earlier frame already finished.
   flutter_controller_->ForceRedraw();
 
   return true;
 }
 
 void FlutterWindow::OnDestroy() {
+  if (GetHandle() != nullptr) {
+    ::RemovePropW(GetHandle(), L"Lockin.FirstFrameRendered");
+  }
   activity_probe_ = nullptr;
   if (flutter_controller_) {
     flutter_controller_ = nullptr;

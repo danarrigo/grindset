@@ -40,14 +40,14 @@ class DesktopLifecycle with WindowListener, TrayListener {
         title: 'Lockin',
         backgroundColor: const Color(0xFF09090A),
       ),
-      () async {
-        if (background) {
-          await windowManager.hide();
-        } else {
-          await show();
-        }
-      },
     );
+    // The SDK callback is void-returning; do not discard visibility failures
+    // or finish initialization before the OS show/hide operation completes.
+    if (background) {
+      await windowManager.hide();
+    } else {
+      await show();
+    }
   }
 
   Future<void> enableStartup() => launchAtStartup.enable();

@@ -90,6 +90,9 @@ jobs:
           cache: true
       - run: flutter pub get
       - run: flutter build windows --release
+      - name: Verify native startup and close-to-tray behavior
+        shell: pwsh
+        run: ./test/native/windows_startup_test.ps1 -ExecutablePath ./build/windows/x64/runner/Release/lockin.exe
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: lockin-windows-unsigned

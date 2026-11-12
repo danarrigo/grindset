@@ -128,5 +128,12 @@ Future<void> main(List<String> args) async {
         ),
       ),
     );
+    if (Platform.isWindows) {
+      // The runner no longer overrides Dart visibility on its first frame.
+      // Fatal startup must still expose a closable window, even at sign-in.
+      await windowManager.ensureInitialized();
+      await windowManager.setPreventClose(false);
+      await windowManager.show();
+    }
   }
 }
