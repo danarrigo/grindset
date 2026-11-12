@@ -15,12 +15,14 @@ $vswhere = Join-Path ${env:ProgramFiles(x86)} 'Microsoft Visual Studio\Installer
 if (-not (Test-Path -LiteralPath $vswhere)) { throw 'Visual Studio C++ build tools are required to package the CRT.' }
 $visualStudio = & $vswhere -latest -products '*' -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath
 if ($LASTEXITCODE -ne 0 -or -not $visualStudio) { throw 'Could not find the Visual C++ redistributable files.' }
-$versions = Get-ChildItem -LiteralPath (Join-Path $visualStudio 'VC\Redist\MSVC') -Directory | Sort-Object { [version]$_.Name } -Descending
-$crt = $null
-foreach ($version in $versions) {
-    $crt = Get-ChildItem -Path (Join-Path $version.FullName 'x64\Microsoft.VC*.CRT') -Directory | Select-Object -First 1
-    if ($crt) { break }
-}
+# Toolset aliases such as v145 are not semantic version directories. Select
+# by the actual runtime DLL version, supporting both aliases and numeric paths.
+$crt = Get-ChildItem -Path (Join-Path $visualStudio 'VC\Redist\MSVC\*\x64\Microsoft.VC*.CRT') -Directory |
+    Where-Object { Test-Path -LiteralPath (Join-Path $_.FullName 'vcruntime140.dll') } |
+    Sort-Object {
+        $info = (Get-Item -LiteralPath (Join-Path $_.FullName 'vcruntime140.dll')).VersionInfo
+        [version]::new($info.FileMajorPart, $info.FileMinorPart, $info.FileBuildPart, $info.FilePrivatePart)
+    } -Descending | Select-Object -First 1
 if (-not $crt) { throw 'The x64 Visual C++ redistributable directory is missing.' }
 Copy-Item -Path (Join-Path $crt.FullName '*.dll') -Destination $build -Force
 foreach ($runtime in @('msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll')) {

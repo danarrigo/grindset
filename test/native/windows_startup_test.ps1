@@ -68,6 +68,7 @@ function Stop-OwnedApp($Process) {
 }
 
 $app = $null
+$duplicate = $null
 try {
     $app = Start-OwnedApp (Join-Path $testDirectory 'background') $true
     $window = Wait-FirstFrame $app $true
@@ -83,6 +84,12 @@ try {
     while ([LockinStartupWindow]::IsWindowVisible($window) -and -not $app.HasExited -and [DateTime]::UtcNow -lt $deadline) { Start-Sleep -Milliseconds 100 }
     if ($app.HasExited -or [LockinStartupWindow]::IsWindowVisible($window)) { throw 'Closing the window did not retain a hidden tray process.' }
     Write-Output 'PASS: closing the window keeps the native process alive in the tray.'
+    $duplicate = Start-OwnedApp (Join-Path $testDirectory 'normal') $true
+    $duplicateWindow = Wait-FirstFrame $duplicate $false
+    [void][LockinStartupWindow]::PostMessage($duplicateWindow, 0x0010, [IntPtr]::Zero, [IntPtr]::Zero)
+    if (-not $duplicate.WaitForExit(5000) -or $app.HasExited) { throw 'A second instance did not fail safely without replacing the journal owner.' }
+    Write-Output 'PASS: a second instance cannot take over the same local journal.'
+    Stop-OwnedApp $duplicate; $duplicate = $null
     Stop-OwnedApp $app; $app = $null
 
     $invalidDirectory = Join-Path $testDirectory 'not-a-directory'
@@ -94,6 +101,7 @@ try {
     if (-not $app.WaitForExit(5000)) { throw 'The fatal-startup error window could not be closed.' }
     Write-Output 'PASS: fatal startup has no invisible, unclosable process.'
 } finally {
+    Stop-OwnedApp $duplicate
     Stop-OwnedApp $app
     Remove-Item -LiteralPath $testDirectory -Recurse -Force
 }

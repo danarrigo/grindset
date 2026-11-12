@@ -9,6 +9,7 @@ lockin-export-*.json
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal
+*.sqlite.instance
 .env
 .env.*
 !.env.example

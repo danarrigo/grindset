@@ -16,6 +16,8 @@ To change accounts: export anything worth retaining, choose **Reset this device*
 
 ## Reset
 
+A file-backed runtime holds an OS lock for its journal until SQLite closes. A second Windows instance using the same folder cannot keep writing behind a reset; it receives a closable startup error directing the user to the existing tray app. The lock is released by the OS if the process dies, rather than treating an existing sidecar file as a live owner.
+
 Reset affects this device only:
 
 1. Stop polling and tracking, wait for the current observation, cancel scheduled completion alerts, rotate browser credentials and drain/close browser requests.

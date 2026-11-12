@@ -10,9 +10,36 @@ import '../core/activity.dart';
 
 /// SQLite owns durable local state; no cloud connection is required to use it.
 class LocalStore extends GeneratedDatabase {
-  LocalStore(super.executor);
-  factory LocalStore.file(File file) =>
-      LocalStore(NativeDatabase.createInBackground(file));
+  LocalStore(super.executor) : _lease = null;
+  LocalStore._locked(super.executor, this._lease);
+  final RandomAccessFile? _lease;
+  Future<void>? _closing;
+  factory LocalStore.file(File file) {
+    final lease = File('${file.path}.instance').openSync(mode: FileMode.append);
+    try {
+      lease.lockSync(FileLock.exclusive);
+    } on FileSystemException {
+      lease.closeSync();
+      throw StateError(
+        'This data folder is already open in Lockin. Open the existing app from its system tray.',
+      );
+    }
+    try {
+      return LocalStore._locked(NativeDatabase.createInBackground(file), lease);
+    } catch (_) {
+      lease.closeSync();
+      rethrow;
+    }
+  }
+
+  @override
+  Future<void> close() => _closing ??= () async {
+    try {
+      await super.close();
+    } finally {
+      await _lease?.close();
+    }
+  }();
   factory LocalStore.memory() => LocalStore(NativeDatabase.memory());
 
   @override
