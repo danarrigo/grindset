@@ -68,7 +68,7 @@ Local history is bound to its first cloud account. Uploading it to a different a
 
 Enable **Completion notifications** in Settings. Alerts are independent of activity tracking and use the OS scheduler, so closing the UI does not require a second tracking service. An early finish, a changed shared session, or disabling alerts cancels the previous deadline. Phases still start manually. Android asks for notification and exact-alarm permission; without exact-alarm permission it schedules an inexact alert and reports that delivery may be delayed. Windows uses toast notifications. OS notification settings, battery restrictions and force-stop can suppress delivery. Native delivery verification is still required.
 
-The notification dependency is pinned to the compatible 21.x line for the current Android SDK 36 toolchain; newer 23.x requires SDK 37. Do not suppress permission failures or label an alert delivered merely because scheduling returned successfully.
+Notifications use the maintained 23.x plugin with Android compile SDK 37 and AGP 9.1.1. The older Windows implementation failed on current MSVC; upgrading avoids patching generated/vendor sources. The app's target SDK still follows Flutter's target. Do not suppress permission failures or label an alert delivered merely because scheduling returned successfully.
 
 ## Verification
 
@@ -79,7 +79,7 @@ The notification dependency is pinned to the compatible 21.x line for the curren
 - Android bridge tests exercise the real controller/store against a mocked OS method channel. Sync tests use a local HTTP server to exercise the actual Supabase client, pagination, retries, overlapping uploads and account binding. These do not prove Android OS behavior or server-side RLS.
 - Completion tests exercise the actual controller and notification SDK at a mocked OS channel: opt-in, UTC deadlines rounded up (never early), early cancellation, disabled/denied permissions, delayed fallback, shared-session changes, restart restoration, retries and in-flight scheduling races. These do not prove OS delivery.
 - Shared-state tests cover two independent device databases, timer completion, focus-blocklist scope, revision pagination, conflicting edits, upload races, schema-one migration and durable outbox restoration. PostgreSQL 16 runs the actual migrations and tests the RPC and two-user RLS using a fixture Auth boundary. This does not replace testing a deployed Supabase project.
-- Native Android/Windows builds and database checks run in [GitHub Actions](.github/workflows/verify.yml), which publishes short-lived debug APK and unsigned Windows artifacts. Build success is not device-level enforcement verification.
+- Native Android/Windows builds and database checks run in [GitHub Actions](.github/workflows/verify.yml), which publishes short-lived per-ABI debug APKs and unsigned Windows artifacts. Use the ARM64 APK for a compatible phone and x64 for the test emulator; separate artifacts avoid downloading both engines. Build success is not device-level enforcement verification.
 
 ## Privacy and licensing
 

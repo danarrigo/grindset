@@ -18,7 +18,7 @@ dependencies:
   uuid: ^4.6.0
   timezone: ^0.11.2
   flutter_timezone: ^5.1.1
-  flutter_local_notifications: ^21.0.0
+  flutter_local_notifications: ^23.0.1
   supabase_flutter: ^2.18.3
   win32: ^5.15.0
   ffi: ^2.2.0

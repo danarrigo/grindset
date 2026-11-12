@@ -6,7 +6,7 @@ plugins {
 
 android {
     namespace = "app.lockin.lockin"
-    compileSdk = flutter.compileSdkVersion
+    compileSdk = 37
     ndkVersion = flutter.ndkVersion
 
     compileOptions {

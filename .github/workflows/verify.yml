@@ -67,11 +67,16 @@ jobs:
       - name: Use JDK 21
         run: echo "JAVA_HOME=$JAVA_HOME_21_X64" >> "$GITHUB_ENV"
       - run: flutter pub get
-      - run: flutter build apk --debug --target-platform android-arm64,android-x64
+      - run: flutter build apk --debug --target-platform android-arm64,android-x64 --split-per-abi
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: lockin-android-debug
-          path: build/app/outputs/flutter-apk/app-debug.apk
+          name: lockin-android-arm64-debug
+          path: build/app/outputs/flutter-apk/app-arm64-v8a-debug.apk
+          retention-days: 7
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: lockin-android-x64-debug
+          path: build/app/outputs/flutter-apk/app-x86_64-debug.apk
           retention-days: 7
 
   windows:
