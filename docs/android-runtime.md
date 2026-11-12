@@ -24,4 +24,4 @@ The debug APK was installed on the isolated API 36.1 emulator. Actual UI checks 
 
 Do not use `uiautomator dump` to verify a live Accessibility overlay: its UiAutomation connection suppresses other accessibility services during the dump. Use the real screen and OS diagnostics instead.
 
-Reboot/process recovery, permission loss, completion-alert delivery, OEM battery management and physical-device validation remain outstanding. Do not advertise uninterrupted or store-approved enforcement.
+Completion-alert delivery with tracking disabled, the UI closed and the background process killed is now emulator-verified. See [completion alerts](completion-alerts.md) for exact evidence and limits. Tracking reboot/process recovery, permission loss, OEM battery management and physical-device validation remain outstanding. Do not advertise uninterrupted or store-approved enforcement.

@@ -64,9 +64,11 @@ Usage sync uploads confirmed intervals idempotently and downloads today's data w
 
 Local history is bound to its first cloud account. Uploading it to a different account is refused; a safe account-switch/reset flow is still pending.
 
+CI Android APKs are debug previews, not stable release-signed installers. Their signing key can change between runner images, preventing an in-place upgrade. Do not uninstall a personal installation merely to upgrade without preserving its data; stable signing and export/reset UX remain release work.
+
 ## Completion notifications
 
-Enable **Completion notifications** in Settings. Alerts are independent of activity tracking and use the OS scheduler, so closing the UI does not require a second tracking service. An early finish, a changed shared session, or disabling alerts cancels the previous deadline. Phases still start manually. Android asks for notification and exact-alarm permission; without exact-alarm permission it schedules an inexact alert and reports that delivery may be delayed. Windows uses toast notifications. OS notification settings, battery restrictions and force-stop can suppress delivery. Native delivery verification is still required.
+Enable **Completion notifications** in Settings. Alerts are independent of activity tracking and use the OS scheduler, so closing the UI does not require a second tracking service. An early finish, a changed shared session, or disabling alerts cancels the previous deadline. Phases still start manually. Android asks for notification and exact-alarm permission; without exact-alarm permission it schedules an inexact alert and reports that delivery may be delayed. Windows uses toast notifications. OS notification settings, battery restrictions and force-stop can suppress delivery. Android delivery after UI close and process death is emulator-verified; Windows OS scheduling is verified, but visual delivery and physical-device behavior still need checks. See [completion-alert evidence](docs/completion-alerts.md).
 
 Notifications use the maintained 23.x plugin with Android compile SDK 37 and AGP 9.1.1. The older Windows implementation failed on current MSVC; upgrading avoids patching generated/vendor sources. The app's target SDK still follows Flutter's target. Do not suppress permission failures or label an alert delivered merely because scheduling returned successfully.
 
