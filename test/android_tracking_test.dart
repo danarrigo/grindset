@@ -22,6 +22,8 @@ void main() {
   late bool enabled;
   late bool running;
   late bool failRead;
+  late bool usageAccess;
+  late String? nativeError;
   late String? foreground;
   late List<Map<String, Object>> records;
   late List<MethodCall> calls;
@@ -31,6 +33,8 @@ void main() {
     enabled = true;
     running = true;
     failRead = false;
+    usageAccess = true;
+    nativeError = null;
     foreground = null;
     records = [];
     calls = [];
@@ -44,6 +48,7 @@ void main() {
                 'enabled': enabled,
                 'running': running,
                 'blockingEnabled': true,
+                'error': nativeError,
               };
             case 'setTrackingEnabled':
               enabled = (call.arguments as Map)['enabled'] == true;
@@ -51,9 +56,10 @@ void main() {
                 'enabled': enabled,
                 'running': enabled && running,
                 'blockingEnabled': true,
+                'error': nativeError,
               };
             case 'hasUsageAccess':
-              return true;
+              return usageAccess;
             case 'foregroundSource':
               return foreground;
             case 'readUsage':
@@ -86,6 +92,57 @@ void main() {
     await store.close();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(NativeTracker.channel, null);
+  });
+
+  test(
+    'permission interruption remains visible after refresh and reopen',
+    () async {
+      nativeError = 'Usage Access is required for background tracking.';
+      usageAccess = false;
+      running = false;
+      calls.clear();
+      await controller.refresh();
+      expect(controller.trackingError, nativeError);
+      expect(calls.where((call) => call.method == 'readUsage'), isEmpty);
+      controller.dispose();
+      controller = AppController(
+        store: store,
+        tracker: _Android(),
+        clock: () => now,
+      );
+      await controller.initialize(poll: false);
+      expect(controller.trackingError, nativeError);
+      await controller.refresh();
+      expect(controller.trackingError, nativeError);
+      nativeError = null;
+      usageAccess = true;
+      running = true;
+      await controller.refresh();
+      expect(controller.trackingError, isNull);
+    },
+  );
+
+  test(
+    'tracking review does not reopen already granted Usage Access',
+    () async {
+      calls.clear();
+      await controller.enableTracking();
+      expect(
+        calls.where((call) => call.method == 'requestUsageAccess'),
+        isEmpty,
+      );
+    },
+  );
+
+  test('tracking review requests missing Usage Access', () async {
+    usageAccess = false;
+    running = false;
+    calls.clear();
+    await controller.enableTracking();
+    expect(
+      calls.where((call) => call.method == 'requestUsageAccess'),
+      hasLength(1),
+    );
   });
 
   test(

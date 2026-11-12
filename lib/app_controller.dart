@@ -386,7 +386,7 @@ class AppController extends ChangeNotifier {
     if (tracker.isAndroid) {
       await _adoptAndroidStatus(await tracker.setAndroidTracking(true));
     }
-    await tracker.requestAccess();
+    if (!await tracker.hasAccess()) await tracker.requestAccess();
     await refresh();
   }
 
@@ -412,6 +412,7 @@ class AppController extends ChangeNotifier {
     trackingEnabled = status.enabled;
     backgroundTrackingRunning = status.running;
     androidBlockingEnabled = status.blockingEnabled;
+    trackingError = status.error;
     if (!status.enabled && blockedSource != null) dismissBlock();
   }
 
@@ -551,7 +552,7 @@ class AppController extends ChangeNotifier {
         }
       }
       if (tick % 5 == 0) await reloadUsage();
-      trackingError = null;
+      trackingError = android?.error;
     } catch (error) {
       trackingError = 'Tracking interrupted: $error';
       _webInterval = null;

@@ -25,7 +25,7 @@ object UsageReader {
 
     // The foreground service periodically commits these OS-confirmed intervals
     // to the same durable SQLite journal used by the UI.
-    fun read(context: Context, from: Long, requestedUntil: Long): List<Map<String, Any>> {
+    fun read(context: Context, from: Long, requestedUntil: Long, consentFrom: Long): List<Map<String, Any>> {
         check(hasAccess(context)) { "Enable Usage Access in Android Settings first" }
         val until = minOf(requestedUntil, System.currentTimeMillis())
         if (from >= until) return emptyList()
@@ -44,9 +44,9 @@ object UsageReader {
         var interactive = true
         fun close(at: Long) {
             val pkg = foreground
-            // Keep the original resume timestamp: identity must not change at
-            // midnight or when the importer moves its query window forward.
-            val start = began
+            // Preserve identity across query/day boundaries, but split at a new
+            // consent window so stopped or permission-disabled gaps stay empty.
+            val start = maxOf(began, consentFrom)
             val end = minOf(at, until)
             if (pkg != null && pkg != context.packageName &&
                 pkg != "com.android.systemui" && end > start && end > from) {

@@ -3,6 +3,7 @@ package app.lockin.lockin
 import android.Manifest
 import android.app.Activity
 import android.app.ActivityManager
+import android.app.NotificationManager
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
@@ -69,36 +70,87 @@ object TrackingRuntime {
         }
     }
 
-    fun maybeStart(context: Context, askNotifications: Boolean = false) {
-        if (!enabled(context) || serviceRunning(context)) return
-        if (!UsageReader.hasAccess(context)) {
-            setError(context, "Usage Access is required for background tracking.")
-            return
+    fun permissionError(context: Context): String? {
+        if (!UsageReader.hasAccess(context)) return "Usage Access is required for background tracking."
+        val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if ((Build.VERSION.SDK_INT >= 33 &&
+                context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) ||
+            !manager.areNotificationsEnabled()) {
+            return "Allow notifications so background tracking stays visible."
         }
+        if (Build.VERSION.SDK_INT >= 26 &&
+            manager.getNotificationChannel(TrackingService.CHANNEL)?.importance == NotificationManager.IMPORTANCE_NONE) {
+            return "Allow the background activity tracking notification channel."
+        }
+        return null
+    }
+
+    fun beginCollection(context: Context) {
+        val prefs = preferences(context)
+        val edit = prefs.edit().remove("error")
+        if (!prefs.contains("enabled_since")) {
+            edit.putLong("enabled_since", System.currentTimeMillis())
+                .putLong("collection_generation", prefs.getLong("collection_generation", 0L) + 1L)
+        }
+        edit.apply()
+    }
+
+    fun suspendCollection(context: Context, error: String) {
+        val prefs = preferences(context)
+        // Keep the opt-in, but never backfill a permission-disabled window.
+        prefs.edit().remove("enabled_since").putString("error", error)
+            .putLong("collection_generation", prefs.getLong("collection_generation", 0L) + 1L).apply()
+        AppBlockingService.instance?.hideBlock()
+        context.stopService(Intent(context, TrackingService::class.java))
+    }
+
+    private fun requestNotifications(context: Context, reviewSettings: Boolean) {
+        val host = activity.get() ?: return
+        val prefs = preferences(context)
         if (Build.VERSION.SDK_INT >= 33 &&
-            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
-            setError(context, "Allow notifications so background tracking stays visible.")
-            val prefs = preferences(context)
-            if (askNotifications && !prefs.getBoolean("notification_asked", false)) {
-                activity.get()?.let {
-                    prefs.edit().putBoolean("notification_asked", true).apply()
-                    it.requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), NOTIFICATION_PERMISSION_REQUEST)
-                }
+            context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED &&
+            !prefs.getBoolean("notification_asked", false)) {
+            prefs.edit().putBoolean("notification_asked", true).apply()
+            host.requestPermissions(arrayOf(Manifest.permission.POST_NOTIFICATIONS), NOTIFICATION_PERMISSION_REQUEST)
+        } else if (reviewSettings) {
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            val intent = if (Build.VERSION.SDK_INT >= 26 &&
+                manager.getNotificationChannel(TrackingService.CHANNEL)?.importance == NotificationManager.IMPORTANCE_NONE) {
+                Intent(Settings.ACTION_CHANNEL_NOTIFICATION_SETTINGS)
+                    .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                    .putExtra(Settings.EXTRA_CHANNEL_ID, TrackingService.CHANNEL)
+            } else if (Build.VERSION.SDK_INT >= 26) {
+                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+            } else Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                data = android.net.Uri.parse("package:${context.packageName}")
             }
+            host.startActivity(intent)
+        }
+    }
+
+    fun maybeStart(context: Context, askNotifications: Boolean = false) {
+        if (!enabled(context)) return
+        val issue = permissionError(context)
+        if (issue != null) {
+            suspendCollection(context, issue)
+            if (askNotifications && UsageReader.hasAccess(context)) requestNotifications(context, reviewSettings = false)
             return
         }
+        if (serviceRunning(context)) return
         try {
             val intent = Intent(context, TrackingService::class.java)
             if (Build.VERSION.SDK_INT >= 26) context.startForegroundService(intent)
             else context.startService(intent)
             setError(context, null)
         } catch (error: Exception) {
-            setError(context, "Background tracking could not start: ${error.message}")
+            suspendCollection(context, "Background tracking could not start: ${error.message}")
         }
     }
 
     fun stop(context: Context) {
-        preferences(context).edit().putBoolean("enabled", false).remove("error").apply()
+        val prefs = preferences(context)
+        prefs.edit().putBoolean("enabled", false).remove("error").remove("enabled_since")
+            .putLong("collection_generation", prefs.getLong("collection_generation", 0L) + 1L).apply()
         AppBlockingService.instance?.hideBlock()
         context.stopService(Intent(context, TrackingService::class.java))
         channel?.invokeMethod("trackingStopped", null)
@@ -127,9 +179,11 @@ object TrackingRuntime {
                 "setTrackingEnabled" -> {
                     val enabled = call.argument<Boolean>("enabled") == true
                     if (enabled) {
-                        preferences(context).edit().putBoolean("enabled", true)
-                            .putBoolean("notification_asked", false).apply()
-                        maybeStart(context, askNotifications = true)
+                        preferences(context).edit().putBoolean("enabled", true).apply()
+                        maybeStart(context)
+                        if (permissionError(context) != null && UsageReader.hasAccess(context)) {
+                            requestNotifications(context, reviewSettings = true)
+                        }
                     } else stop(context)
                     result.success(status(context))
                 }
@@ -160,10 +214,26 @@ object TrackingRuntime {
                     val from = call.argument<Number>("from")?.toLong()
                     val until = call.argument<Number>("until")?.toLong()
                     require(from != null && until != null && from < until) { "Choose a positive usage range." }
+                    check(enabled(context) && serviceRunning(context)) { "Background tracking must be running." }
+                    permissionError(context)?.let {
+                        suspendCollection(context, it)
+                        throw IllegalStateException(it)
+                    }
+                    val prefs = preferences(context)
+                    check(prefs.contains("enabled_since")) { "Background tracking has not started." }
+                    val since = prefs.getLong("enabled_since", 0L)
+                    val generation = prefs.getLong("collection_generation", 0L)
                     executor.execute {
                         try {
-                            val records = UsageReader.read(context, from, until)
-                            main.post { result.success(records) }
+                            val records = UsageReader.read(context, maxOf(from, since), until, since)
+                            main.post {
+                                val issue = permissionError(context)
+                                if (issue != null) suspendCollection(context, issue)
+                                if (issue != null || !enabled(context) || !serviceRunning(context) ||
+                                    generation != prefs.getLong("collection_generation", 0L)) {
+                                    result.error("TRACKING_INTERRUPTED", "Tracking stopped or its permissions changed during the read.", null)
+                                } else result.success(records)
+                            }
                         } catch (error: Exception) {
                             main.post { result.error("USAGE_READ_FAILED", error.message, null) }
                         }

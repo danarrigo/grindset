@@ -14,7 +14,29 @@ import android.os.IBinder
 
 /** Keeps the single Dart collector and durable SQLite journal alive after UI close. */
 class TrackingService : Service() {
+    private val handler = android.os.Handler(android.os.Looper.getMainLooper())
+    private val permissionCheck = object : Runnable {
+        override fun run() {
+            if (!TrackingRuntime.enabled(this@TrackingService)) {
+                stopSelf()
+                return
+            }
+            val issue = TrackingRuntime.permissionError(this@TrackingService)
+            if (issue != null) {
+                TrackingRuntime.suspendCollection(this@TrackingService, issue)
+                stopSelf()
+                return
+            }
+            handler.postDelayed(this, 1_000L)
+        }
+    }
+
     override fun onBind(intent: Intent?): IBinder? = null
+
+    override fun onDestroy() {
+        handler.removeCallbacks(permissionCheck)
+        super.onDestroy()
+    }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == STOP || !TrackingRuntime.enabled(this)) {
@@ -25,6 +47,12 @@ class TrackingService : Service() {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= 26) {
             manager.createNotificationChannel(NotificationChannel(CHANNEL, "Background activity tracking", NotificationManager.IMPORTANCE_LOW))
+        }
+        val issue = TrackingRuntime.permissionError(this)
+        if (issue != null) {
+            TrackingRuntime.suspendCollection(this, issue)
+            stopSelf()
+            return START_NOT_STICKY
         }
         val open = PendingIntent.getActivity(this, 0, Intent(this, MainActivity::class.java), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
         val stop = PendingIntent.getService(this, 1, Intent(this, TrackingService::class.java).setAction(STOP), PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE)
@@ -38,16 +66,25 @@ class TrackingService : Service() {
             .setContentIntent(open).setOngoing(true).setShowWhen(false)
             .addAction(Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel, "Stop tracking", stop).build())
             .build()
-        if (Build.VERSION.SDK_INT >= 34) {
-            startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
-        } else startForeground(NOTIFICATION_ID, notification)
+        try {
+            if (Build.VERSION.SDK_INT >= 34) {
+                startForeground(NOTIFICATION_ID, notification, ServiceInfo.FOREGROUND_SERVICE_TYPE_SPECIAL_USE)
+            } else startForeground(NOTIFICATION_ID, notification)
+        } catch (error: Exception) {
+            TrackingRuntime.suspendCollection(this, "Background tracking could not start: ${error.message}")
+            stopSelf()
+            return START_NOT_STICKY
+        }
+        TrackingRuntime.beginCollection(this)
+        handler.removeCallbacks(permissionCheck)
+        handler.postDelayed(permissionCheck, 1_000L)
         // Post after startForeground: engine startup must not delay the service deadline.
-        android.os.Handler(mainLooper).post { TrackingRuntime.engine(this) }
+        handler.post { TrackingRuntime.engine(this) }
         return START_STICKY
     }
 
     companion object {
-        private const val CHANNEL = "lockin_tracking"
+        const val CHANNEL = "lockin_tracking"
         private const val NOTIFICATION_ID = 4301
         private const val STOP = "app.lockin.STOP_TRACKING"
     }
