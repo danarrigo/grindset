@@ -32,6 +32,7 @@ class BrowserBridge {
   final Map<String, Object> Function() restrictions;
   final Future<void> Function(String source) onOverride;
   HttpServer? _server;
+  final _requests = <Future<void>>{};
   final _random = Random.secure();
   String _token = '';
   String? _pairing;
@@ -47,13 +48,16 @@ class BrowserBridge {
     _token = await store.setting('browser_pair_token') ?? _newToken();
     await store.saveSetting('browser_pair_token', _token);
     _server = await HttpServer.bind(InternetAddress.loopbackIPv4, port);
-    _server!.listen(
-      (request) => unawaited(
-        _handle(request).catchError((Object error) {
-          // A disconnected peer must not terminate the collector. Bodies are never logged.
-        }),
-      ),
-    );
+    _server!.listen((request) {
+      late final Future<void> pending;
+      pending = _handle(request)
+          .catchError((Object error) {
+            // A disconnected peer must not terminate the collector. Bodies are never logged.
+          })
+          .whenComplete(() => _requests.remove(pending));
+      _requests.add(pending);
+      unawaited(pending);
+    });
   }
 
   String _newToken() =>
@@ -235,5 +239,6 @@ class BrowserBridge {
     _observations.clear();
     await _server?.close(force: true);
     _server = null;
+    await Future.wait(_requests.toList());
   }
 }

@@ -11,6 +11,7 @@ import 'package:lockin/platform/native_tracker.dart';
 import 'package:lockin/data/shared_state.dart';
 import 'package:lockin/data/cloud_sync.dart';
 import 'package:lockin/data/local_store.dart';
+import 'package:lockin/data/device_data.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 
@@ -265,6 +266,40 @@ void main() {
       (await store.usage(pendingOnly: true)).single.end,
       interval('growing', minutes: 2).end,
     );
+  });
+
+  test('device reset drains an in-flight upload before clearing its owner', () async {
+    final controller = AppController(store: store, tracker: NativeTracker());
+    addTearDown(controller.dispose);
+    await controller.initialize(poll: false);
+    await store.putUsage(interval('pending-before-reset'));
+    server.uploadGate = Completer<void>();
+    server.uploadArrived = Completer<void>();
+    final upload = sync.synchronize(
+      deviceId: controller.deviceId,
+      platform: 'Windows',
+      since: since,
+    );
+    final stopped = expectLater(upload, throwsStateError);
+    await server.uploadArrived!.future;
+    var finished = false;
+    final reset = DeviceData(
+      controller: controller,
+      cloud: sync,
+    ).reset().then((_) => finished = true);
+    await Future<void>.delayed(const Duration(milliseconds: 30));
+    expect(finished, isFalse);
+    expect(await store.setting('cloud_owner'), _owner);
+    server.uploadGate!.complete();
+    await reset;
+    await stopped;
+    expect(client.auth.currentUser, isNull);
+    expect(await store.setting('cloud_owner'), isNull);
+    expect(await store.usage(), isEmpty);
+    expect(await SharedState(store).pending(), isEmpty);
+    // The already-sent request may have reached the server. Local reset is not
+    // an assertion that cloud history was deleted.
+    expect(server.uploaded.single['id'], 'pending-before-reset');
   });
 
   test(

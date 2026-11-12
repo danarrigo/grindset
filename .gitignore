@@ -1,5 +1,11 @@
 # Local configuration and private activity data
 config.local.json
+android/key.properties
+*.jks
+*.keystore
+*.p12
+*.pfx
+lockin-export-*.json
 *.sqlite
 *.sqlite-shm
 *.sqlite-wal

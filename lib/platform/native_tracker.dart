@@ -72,7 +72,10 @@ class NativeTracker {
   Future<bool> hasAccess() async {
     if (isWindows) return true;
     if (isAndroid) {
-      return await channel.invokeMethod<bool>('hasUsageAccess') ?? false;
+      return await channel
+              .invokeMethod<bool>('hasUsageAccess')
+              .timeout(const Duration(seconds: 20)) ??
+          false;
     }
     return false;
   }
@@ -117,33 +120,34 @@ class NativeTracker {
   }
 
   Future<WindowsActivityStatus> windowsActivity(int processId) async {
-    final value = await windowsChannel.invokeMapMethod<String, dynamic>(
-      'activityState',
-      {'pid': processId},
-    );
+    final value = await windowsChannel
+        .invokeMapMethod<String, dynamic>('activityState', {'pid': processId})
+        .timeout(const Duration(seconds: 20));
     return WindowsActivityStatus.fromMap(value ?? {});
   }
 
   Future<AndroidTrackingStatus> initializeAndroidTracking(bool enabled) async {
-    final value = await channel.invokeMapMethod<String, dynamic>(
-      'initializeTracking',
-      {'enabled': enabled},
-    );
+    final value = await channel
+        .invokeMapMethod<String, dynamic>('initializeTracking', {
+          'enabled': enabled,
+        })
+        .timeout(const Duration(seconds: 20));
     return AndroidTrackingStatus.fromMap(value ?? {});
   }
 
   Future<AndroidTrackingStatus> setAndroidTracking(bool enabled) async {
-    final value = await channel.invokeMapMethod<String, dynamic>(
-      'setTrackingEnabled',
-      {'enabled': enabled},
-    );
+    final value = await channel
+        .invokeMapMethod<String, dynamic>('setTrackingEnabled', {
+          'enabled': enabled,
+        })
+        .timeout(const Duration(seconds: 20));
     return AndroidTrackingStatus.fromMap(value ?? {});
   }
 
   Future<AndroidTrackingStatus> androidStatus() async {
-    final value = await channel.invokeMapMethod<String, dynamic>(
-      'trackingStatus',
-    );
+    final value = await channel
+        .invokeMapMethod<String, dynamic>('trackingStatus')
+        .timeout(const Duration(seconds: 20));
     return AndroidTrackingStatus.fromMap(value ?? {});
   }
 
@@ -170,8 +174,9 @@ class NativeTracker {
 
   Future<void> requestBlockingAccess() =>
       channel.invokeMethod<void>('requestBlockingAccess');
-  Future<String?> androidForegroundSource() =>
-      channel.invokeMethod<String>('foregroundSource');
+  Future<String?> androidForegroundSource() => channel
+      .invokeMethod<String>('foregroundSource')
+      .timeout(const Duration(seconds: 20));
   Future<void> showAndroidBlock(String source, String message) => channel
       .invokeMethod<void>('showBlock', {'source': source, 'message': message});
   Future<void> hideAndroidBlock() => channel.invokeMethod<void>('hideBlock');
@@ -183,10 +188,12 @@ class NativeTracker {
   ) async {
     if (!isAndroid) return [];
     final values =
-        await channel.invokeListMethod<dynamic>('readUsage', {
-          'from': from.millisecondsSinceEpoch,
-          'until': until.millisecondsSinceEpoch,
-        }) ??
+        await channel
+            .invokeListMethod<dynamic>('readUsage', {
+              'from': from.millisecondsSinceEpoch,
+              'until': until.millisecondsSinceEpoch,
+            })
+            .timeout(const Duration(seconds: 20)) ??
         [];
     return values.map((value) {
       final row = Map<String, dynamic>.from(value as Map);

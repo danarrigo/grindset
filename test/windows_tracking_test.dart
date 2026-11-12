@@ -66,6 +66,46 @@ void main() {
   }
 
   test(
+    'restart records a persistent tracking gap without inventing activity',
+    () async {
+      await sample();
+      final recorded = controller.deviceUsage(controller.deviceId);
+      controller.dispose();
+      now = now.add(const Duration(minutes: 2));
+      controller = AppController(
+        store: store,
+        tracker: _Windows(),
+        clock: () => now,
+      );
+      await controller.initialize(poll: false);
+      await controller.refresh();
+      expect(
+        controller.trackingInterruption,
+        contains('No activity was estimated'),
+      );
+      expect(controller.deviceUsage(controller.deviceId), recorded);
+      final notice = controller.trackingInterruption;
+      controller.dispose();
+      controller = AppController(
+        store: store,
+        tracker: _Windows(),
+        clock: () => now,
+      );
+      await controller.initialize(poll: false);
+      expect(controller.trackingInterruption, notice);
+      await controller.dismissTrackingInterruption();
+      controller.dispose();
+      controller = AppController(
+        store: store,
+        tracker: _Windows(),
+        clock: () => now,
+      );
+      await controller.initialize(poll: false);
+      expect(controller.trackingInterruption, isNull);
+    },
+  );
+
+  test(
     'inactive foreground applications are not counted after the idle threshold',
     () async {
       idle = const Duration(minutes: 4);

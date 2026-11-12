@@ -1,0 +1,54 @@
+name: Build signed Android APK
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  android-release:
+    runs-on: ubuntu-latest
+    env:
+      FLUTTER_VERSION: 3.47.9
+      LOCKIN_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+      LOCKIN_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+      LOCKIN_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+      SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+      SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+      - uses: subosito/flutter-action@1a449444c387b1966244ae4d4f8c696479add0b2
+        with:
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          channel: stable
+          cache: true
+      - name: Use JDK 21
+        run: echo "JAVA_HOME=$JAVA_HOME_21_X64" >> "$GITHUB_ENV"
+      - name: Prepare owner-supplied signing key
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+        run: |
+          set -euo pipefail
+          for name in ANDROID_KEYSTORE_BASE64 LOCKIN_KEYSTORE_PASSWORD LOCKIN_KEY_ALIAS LOCKIN_KEY_PASSWORD; do
+            if [ -z "${!name}" ]; then
+              echo "::error::Missing signing configuration: $name. No debug-key fallback is allowed."
+              exit 1
+            fi
+          done
+          umask 077
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$RUNNER_TEMP/lockin-release.jks"
+          echo "LOCKIN_KEYSTORE_PATH=$RUNNER_TEMP/lockin-release.jks" >> "$GITHUB_ENV"
+      - name: Validate public client configuration
+        run: python3 tool/client_config.py "$RUNNER_TEMP/lockin-client-config.json"
+      - run: flutter pub get
+      - name: Build stable-key ARM64 release
+        run: flutter build apk --release --target-platform android-arm64 --split-per-abi --build-number "$GITHUB_RUN_NUMBER" --dart-define-from-file="$RUNNER_TEMP/lockin-client-config.json"
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: lockin-android-arm64-release
+          path: build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
+          retention-days: 14
+      - name: Remove runner signing material
+        if: always()
+        run: rm -f "$RUNNER_TEMP/lockin-release.jks" "$RUNNER_TEMP/lockin-client-config.json"

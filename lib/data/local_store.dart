@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:drift/drift.dart';
 import 'package:drift/native.dart';
+import 'package:sqlite3/sqlite3.dart' as sql;
 
 import '../core/activity.dart';
 
@@ -131,4 +133,132 @@ class LocalStore extends GeneratedDatabase {
 
   Future<void> saveRules(Iterable<ActivityRule> rules) =>
       saveSetting('rules', jsonEncode(rules.map((r) => r.toJson()).toList()));
+
+  /// Call only after collectors, browser requests and cloud sync are drained.
+  Future<void> clearLocalData() async {
+    await customStatement('PRAGMA secure_delete=ON');
+    await transaction(() async {
+      for (final table in [
+        'sync_conflicts',
+        'sync_outbox',
+        'sync_entities',
+        'sessions',
+        'intervals',
+        'settings',
+      ]) {
+        await customStatement('DELETE FROM $table');
+      }
+    });
+    await customStatement('PRAGMA wal_checkpoint(TRUNCATE)');
+    await customStatement('VACUUM');
+    await customStatement('PRAGMA wal_checkpoint(TRUNCATE)');
+  }
+
+  /// Snapshot quickly, then stream the archive off-thread without holding the
+  /// live journal open for a slow file picker or destination drive.
+  Future<void> exportTo(
+    File destination, {
+    required DateTime exportedAt,
+  }) async {
+    if (await destination.exists()) {
+      throw FileSystemException(
+        'Export destination already exists.',
+        destination.path,
+      );
+    }
+    final directory = await Directory.systemTemp.createTemp('lockin-snapshot-');
+    try {
+      final snapshot = File('${directory.path}/snapshot.sqlite');
+      await customStatement('VACUUM INTO ?', [snapshot.path]);
+      await _exportInBackground((
+        snapshot: snapshot.path,
+        destination: destination.path,
+        exportedAt: exportedAt.toUtc().toIso8601String(),
+        schema: schemaVersion,
+      ));
+    } finally {
+      await directory.delete(recursive: true);
+    }
+  }
+}
+
+Future<void> _exportInBackground(
+  ({String snapshot, String destination, String exportedAt, int schema}) data,
+) => Isolate.run(() => _writeArchive(data));
+
+void _writeArchive(
+  ({String snapshot, String destination, String exportedAt, int schema}) data,
+) {
+  final database = sql.sqlite3.open(data.snapshot, mode: sql.OpenMode.readOnly);
+  RandomAccessFile? output;
+  try {
+    output = File(data.destination).openSync(mode: FileMode.writeOnly);
+    const publicSettings = {
+      'device_id',
+      'cloud_owner',
+      'timezone',
+      'rules',
+      'focus_flags',
+      'active_session',
+      'preset_focus',
+      'preset_rest',
+      'overrides',
+      'tracking_enabled',
+      'completion_alerts_enabled',
+      'android_imported_until',
+      'tracking_interruption',
+    };
+    final settings = <String, String>{};
+    for (final row in database.select(
+      'SELECT key,value FROM settings ORDER BY key',
+    )) {
+      if (publicSettings.contains(row['key'])) {
+        settings[row['key'] as String] = row['value'] as String;
+      }
+    }
+    final header = jsonEncode({
+      'format': 'lockin-export',
+      'version': 1,
+      'schema_version': data.schema,
+      'exported_at': data.exportedAt,
+      'settings': settings,
+    });
+    output.writeStringSync(header.substring(0, header.length - 1));
+    for (final table in [
+      'intervals',
+      'sessions',
+      'sync_entities',
+      'sync_outbox',
+      'sync_conflicts',
+    ]) {
+      output.writeStringSync(',\n"$table":[');
+      int? cursor;
+      var first = true;
+      while (true) {
+        final rows = database.select(
+          'SELECT rowid AS export_cursor,* FROM $table ${cursor == null ? '' : 'WHERE rowid > ?'} ORDER BY rowid LIMIT 500',
+          cursor == null ? [] : [cursor],
+        );
+        if (rows.isEmpty) break;
+        final batch = <String>[];
+        for (final row in rows) {
+          cursor = row['export_cursor'] as int;
+          final record = Map<String, dynamic>.from(row)
+            ..remove('export_cursor');
+          batch.add(jsonEncode(record));
+        }
+        output.writeStringSync('${first ? '' : ','}${batch.join(',\n')}');
+        first = false;
+      }
+      output.writeStringSync(']');
+    }
+    output.writeStringSync('\n}\n');
+    output.flushSync();
+  } finally {
+    try {
+      output?.closeSync();
+    } finally {
+      database.close();
+    }
+  }
 }

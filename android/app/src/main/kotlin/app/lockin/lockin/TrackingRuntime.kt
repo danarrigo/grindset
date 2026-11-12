@@ -166,6 +166,8 @@ object TrackingRuntime {
     private fun handle(context: Context, call: MethodCall, result: MethodChannel.Result) {
         try {
             when (call.method) {
+                "saveExport" -> ExportFile.save(context, activity.get(),
+                    checkNotNull(call.argument<String>("path")), checkNotNull(call.argument<String>("name")), result)
                 "hasUsageAccess" -> result.success(UsageReader.hasAccess(context))
                 "initializeTracking" -> {
                     val prefs = preferences(context)

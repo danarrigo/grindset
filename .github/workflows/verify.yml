@@ -14,6 +14,8 @@ concurrency:
 
 env:
   FLUTTER_VERSION: 3.47.9
+  SUPABASE_URL: ${{ vars.SUPABASE_URL }}
+  SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
 
 jobs:
   checks:
@@ -67,7 +69,17 @@ jobs:
       - name: Use JDK 21
         run: echo "JAVA_HOME=$JAVA_HOME_21_X64" >> "$GITHUB_ENV"
       - run: flutter pub get
-      - run: flutter build apk --debug --target-platform android-arm64,android-x64 --split-per-abi
+      - name: Prepare public client configuration
+        run: python3 tool/client_config.py "$RUNNER_TEMP/lockin-client-config.json"
+      - run: flutter build apk --debug --target-platform android-arm64,android-x64 --split-per-abi --dart-define-from-file="$RUNNER_TEMP/lockin-client-config.json"
+      - name: Verify release signing fails closed without owner keys
+        shell: bash
+        run: |
+          if ./android/gradlew -p android :app:assembleRelease --dry-run > "$RUNNER_TEMP/signing-check.log" 2>&1; then
+            echo '::error::A release must not silently use debug signing.'
+            exit 1
+          fi
+          grep -q 'Debug keys are never used for a release' "$RUNNER_TEMP/signing-check.log"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: lockin-android-arm64-debug
@@ -89,12 +101,31 @@ jobs:
           channel: stable
           cache: true
       - run: flutter pub get
-      - run: flutter build windows --release
+      - name: Prepare public client configuration
+        shell: pwsh
+        run: python tool/client_config.py "$env:RUNNER_TEMP/lockin-client-config.json"
+      - run: flutter build windows --release --dart-define-from-file="$env:RUNNER_TEMP/lockin-client-config.json"
       - name: Verify native startup and close-to-tray behavior
         shell: pwsh
         run: ./test/native/windows_startup_test.ps1 -ExecutablePath ./build/windows/x64/runner/Release/lockin.exe
+      - name: Build per-user Windows installer
+        shell: pwsh
+        run: |
+          if (-not (Test-Path 'C:\Program Files (x86)\Inno Setup 6\ISCC.exe')) {
+            choco install innosetup --version=6.4.3 --yes --no-progress
+            if ($LASTEXITCODE -ne 0) { throw 'Inno Setup installation failed.' }
+          }
+          ./tool/package_windows.ps1
+      - name: Verify installer and installed application
+        shell: pwsh
+        run: ./test/native/windows_installer_test.ps1 -InstallerPath (Get-ChildItem ./build/installers/*-setup.exe).FullName
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: lockin-windows-unsigned
           path: build/windows/x64/runner/Release/
+          retention-days: 7
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: lockin-windows-installer-unsigned
+          path: build/installers/*-setup.exe
           retention-days: 7

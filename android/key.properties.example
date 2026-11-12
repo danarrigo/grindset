@@ -1,0 +1,7 @@
+# Copy to android/key.properties, or use the LOCKIN_* environment variables.
+# Keep the actual keystore outside this repository and retain an offline backup.
+# Use an absolute path; on Windows use forward slashes (C:/private/lockin.jks).
+storeFile=/absolute/private/path/lockin.jks
+storePassword=REPLACE_LOCALLY
+keyAlias=lockin
+keyPassword=REPLACE_LOCALLY

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' show SignOutScope;
 
 import '../app_controller.dart';
 import '../core/activity.dart';
@@ -69,6 +70,20 @@ class _CloudPanelState extends State<CloudPanel> {
       await auth.signInWithPassword(email: email, password: _password.text);
     }
     _password.clear();
+    final owner = await widget.controller.store.setting('cloud_owner');
+    final signedIn = auth.currentUser;
+    if (owner != null && signedIn != null && owner != signedIn.id) {
+      try {
+        await auth
+            .signOut(scope: SignOutScope.local)
+            .timeout(const Duration(seconds: 20));
+      } catch (_) {
+        if (auth.currentSession != null) rethrow;
+      }
+      throw StateError(
+        'This device still holds another account\'s data. Export it and use Reset this device below before signing in to a different account. Nothing was uploaded to the new account.',
+      );
+    }
   });
 
   String _describe(String kind, Map<String, dynamic>? value) {

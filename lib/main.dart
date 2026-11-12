@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_timezone/flutter_timezone.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
@@ -12,11 +13,14 @@ import 'app.dart';
 import 'app_controller.dart';
 import 'core/activity.dart';
 import 'data/cloud_sync.dart';
+import 'data/device_auth_storage.dart';
+import 'data/device_data.dart';
 import 'data/local_store.dart';
 import 'platform/desktop_lifecycle.dart';
 import 'platform/browser_bridge.dart';
 import 'platform/native_tracker.dart';
 import 'platform/completion_alerts.dart';
+import 'platform/export_files.dart';
 import 'ui/appearance.dart';
 
 Future<void> main(List<String> args) async {
@@ -49,10 +53,21 @@ Future<void> main(List<String> args) async {
     const url = String.fromEnvironment('SUPABASE_URL');
     const key = String.fromEnvironment('SUPABASE_PUBLISHABLE_KEY');
     CloudSync? cloud;
+    DeviceAuthStorage? authStorage;
     String? startupWarning;
     if (url.isNotEmpty && key.isNotEmpty) {
       try {
-        await Supabase.initialize(url: url, publishableKey: key);
+        authStorage = DeviceAuthStorage(
+          SharedPreferencesLocalStorage(
+            persistSessionKey:
+                'sb-${Uri.parse(url).host.split('.').first}-auth-token',
+          ),
+        );
+        await Supabase.initialize(
+          url: url,
+          publishableKey: key,
+          authOptions: FlutterAuthClientOptions(localStorage: authStorage),
+        );
         cloud = CloudSync(client: Supabase.instance.client, store: store);
         await cloud.startAutomatic(
           deviceId: controller.deviceId,
@@ -67,6 +82,64 @@ Future<void> main(List<String> args) async {
       }
     }
     DesktopLifecycle? desktop;
+    Future<void>? closing;
+    Future<void> quit() => closing ??= () async {
+      await cloud?.close();
+      await controller.browserBridge?.close();
+      controller.dispose();
+      await store.close();
+      await desktop?.dispose();
+      if (Platform.isWindows) {
+        await windowManager.destroy();
+      } else {
+        await SystemNavigator.pop();
+      }
+    }();
+    Future<void> resetDevice() async {
+      try {
+        await DeviceData(
+          controller: controller,
+          cloud: cloud,
+          authStorage: authStorage,
+        ).reset();
+        await desktop?.disableStartup();
+        await quit();
+      } catch (error) {
+        // A partial reset must not return to a runtime with disposed sync or
+        // sealed credentials. Keep only a safe, closable recovery surface.
+        runApp(
+          MaterialApp(
+            theme: lockinTheme(Brightness.light),
+            darkTheme: lockinTheme(Brightness.dark),
+            home: Scaffold(
+              body: Center(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.all(32),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Text('Reset could not finish'),
+                      const SizedBox(height: 16),
+                      SelectableText(
+                        'Some steps may have completed. Close and reopen Lockin before retrying. Cloud records were not deleted.\n\n$error',
+                      ),
+                      const SizedBox(height: 24),
+                      FilledButton(
+                        onPressed: quit,
+                        child: const Text('Close Lockin'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+        if (Platform.isWindows) await windowManager.setPreventClose(false);
+        return;
+      }
+    }
+
     if (Platform.isWindows) {
       final bridge = BrowserBridge(
         store: store,
@@ -82,16 +155,7 @@ Future<void> main(List<String> args) async {
         startupWarning =
             'The browser extension bridge could not start. App tracking still works: $error';
       }
-      desktop = DesktopLifecycle(
-        quit: () async {
-          await cloud?.close();
-          await controller.browserBridge?.close();
-          controller.dispose();
-          await store.close();
-          await desktop?.dispose();
-          await windowManager.destroy();
-        },
-      );
+      desktop = DesktopLifecycle(quit: quit);
       try {
         await desktop.initialize(background: args.contains('--background'));
         controller.showBlock = desktop.show;
@@ -109,6 +173,8 @@ Future<void> main(List<String> args) async {
         cloud: cloud,
         startupWarning: startupWarning,
         enableStartup: desktop?.enableStartup,
+        exportData: () => ExportFiles.save(store, exportedAt: controller.now),
+        resetDevice: resetDevice,
       ),
     );
   } catch (error) {

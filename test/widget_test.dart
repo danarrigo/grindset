@@ -72,6 +72,50 @@ void main() {
     await tester.pumpAndSettle();
   }
 
+  testWidgets(
+    'data controls export without resetting and require explicit reset confirmation',
+    (tester) async {
+      final (controller, _) = await open();
+      viewport(tester, const Size(390, 844));
+      var exports = 0;
+      var resets = 0;
+      await tester.pumpWidget(
+        LockinApp(
+          controller: controller,
+          exportData: () async {
+            exports++;
+            return true;
+          },
+          resetDevice: () async {
+            resets++;
+          },
+        ),
+      );
+      await navigate(tester, 4);
+      await tester.ensureVisible(find.text('Export data'));
+      await tester.tap(find.text('Export data'));
+      await tester.pumpAndSettle();
+      expect(exports, 1);
+      expect(resets, 0);
+      await tester.ensureVisible(find.text('Reset this device'));
+      await tester.tap(find.text('Reset this device'));
+      await tester.pumpAndSettle();
+      expect(
+        find.textContaining('Cloud records and other devices are not deleted'),
+        findsOneWidget,
+      );
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(resets, 0);
+      await tester.tap(find.text('Reset this device'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Reset and close'));
+      await tester.pumpAndSettle();
+      expect(resets, 1);
+      expect(tester.takeException(), isNull);
+    },
+  );
+
   testWidgets('Lock in starts immediately without a setup form', (
     tester,
   ) async {

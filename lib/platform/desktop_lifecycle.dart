@@ -51,6 +51,7 @@ class DesktopLifecycle with WindowListener, TrayListener {
   }
 
   Future<void> enableStartup() => launchAtStartup.enable();
+  Future<void> disableStartup() => launchAtStartup.disable();
   Future<void> show() async {
     await windowManager.show();
     await windowManager.restore();

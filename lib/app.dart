@@ -30,12 +30,16 @@ class LockinApp extends StatelessWidget {
     this.cloud,
     this.startupWarning,
     this.enableStartup,
+    this.exportData,
+    this.resetDevice,
     this.themeMode = ThemeMode.system,
   });
   final AppController controller;
   final CloudSync? cloud;
   final String? startupWarning;
   final Future<void> Function()? enableStartup;
+  final Future<bool> Function()? exportData;
+  final Future<void> Function()? resetDevice;
   final ThemeMode themeMode;
 
   @override
@@ -50,6 +54,8 @@ class LockinApp extends StatelessWidget {
       cloud: cloud,
       startupWarning: startupWarning,
       enableStartup: enableStartup,
+      exportData: exportData,
+      resetDevice: resetDevice,
     ),
   );
 }
@@ -60,11 +66,15 @@ class _Home extends StatefulWidget {
     this.cloud,
     this.startupWarning,
     this.enableStartup,
+    this.exportData,
+    this.resetDevice,
   });
   final AppController controller;
   final CloudSync? cloud;
   final String? startupWarning;
   final Future<void> Function()? enableStartup;
+  final Future<bool> Function()? exportData;
+  final Future<void> Function()? resetDevice;
   @override
   State<_Home> createState() => _HomeState();
 }
@@ -182,6 +192,72 @@ class _HomeState extends State<_Home> {
       ),
     );
     if (allowed == true && mounted) await _run(c.tracker.requestBlockingAccess);
+  }
+
+  Future<void> _exportData() => _run(() async {
+    final saved = await widget.exportData!();
+    if (saved && mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Private JSON archive saved.')),
+      );
+    }
+  });
+
+  Future<void> _resetDevice() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        scrollable: true,
+        title: const Text('Reset this device?'),
+        content: const Text(
+          'This permanently clears local history, rules, saved offline edits and the account link on this device. '
+          'Tracking and completion alerts stop, browsers disconnect, this device signs out, and Lockin closes.\n\n'
+          'Cloud records and other devices are not deleted or signed out. Export your data first if you want to keep a copy.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Reset and close'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _run(() async {
+      // Block navigation while collectors, auth and SQLite are being drained.
+      final dialog = showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => const PopScope(
+          canPop: false,
+          child: AlertDialog(
+            title: Text('Resetting this device'),
+            content: Row(
+              children: [
+                CircularProgressIndicator(),
+                SizedBox(width: 20),
+                Expanded(
+                  child: Text('Stopping tracking and clearing local data...'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      );
+      try {
+        await widget.resetDevice!();
+      } finally {
+        if (mounted) Navigator.of(context, rootNavigator: true).pop();
+        await dialog;
+      }
+    });
   }
 
   void _pairBrowser() {
@@ -596,7 +672,12 @@ class _HomeState extends State<_Home> {
     final completed =
         active != null && !now.isBefore(active.end) && !_configuringNext;
     final phase = running ? active!.phase : _phase;
-    final warnings = [widget.startupWarning, c.trackingError].nonNulls;
+    final warnings = [
+      widget.startupWarning,
+      c.trackingError,
+      if (c.trackingInterruption != null)
+        'A tracking interruption needs review in Settings.',
+    ].nonNulls;
     return FocusScreen(
       remaining: completed
           ? Duration.zero
@@ -971,6 +1052,16 @@ class _HomeState extends State<_Home> {
                   : 'Foreground activity tracking is enabled.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
+            if (c.trackingInterruption != null) ...[
+              const SizedBox(height: 12),
+              Text(c.trackingInterruption!),
+              TextButton(
+                onPressed: _busy
+                    ? null
+                    : () => _run(c.dismissTrackingInterruption),
+                child: const Text('Dismiss interruption notice'),
+              ),
+            ],
             const SizedBox(height: 14),
             Wrap(
               spacing: 12,
@@ -1162,6 +1253,49 @@ class _HomeState extends State<_Home> {
           controller: c,
           cloud: widget.cloud,
           onChanged: () => setState(() {}),
+        ),
+      ),
+      const SizedBox(height: 18),
+      _Section(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Data on this device',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Signing out keeps local history linked to its original account. To use a different account, export what you need, then reset this device and reopen Lockin.',
+            ),
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: _busy || widget.exportData == null
+                      ? null
+                      : _exportData,
+                  icon: const Icon(Icons.download_outlined),
+                  label: const Text('Export data'),
+                ),
+                TextButton(
+                  onPressed: _busy || widget.resetDevice == null
+                      ? null
+                      : _resetDevice,
+                  style: TextButton.styleFrom(foregroundColor: colors.error),
+                  child: const Text('Reset this device'),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'The JSON archive includes history, rules and saved offline edits, but no auth credentials or browser pairing keys. It contains private app/domain identifiers and timestamps; store it securely.',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ],
         ),
       ),
       const SizedBox(height: 24),

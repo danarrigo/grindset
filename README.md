@@ -18,19 +18,19 @@ The approved Focus design is just the time, one start/end control and a small me
 | Timers | Pomodoro/custom durations, manual phase starts, deadline-based restoration, shared active session and union-accounted focus history |
 | Accounting | Cross-device interval union, account-timezone days, daylight-saving boundaries, per-device totals |
 | Rules | Shared activity rules, daily budgets and schedules; device-local focus blocklists and source-specific five-minute overrides; explicit offline conflict review |
-| Storage | SQLite through Drift; durable intervals, settings and session history; safe upload acknowledgements |
-| Windows | Win32 foreground reader, tray/close-to-tray, sign-in startup, idle/audio/media probe, voluntary focus interruption; sustained foreground, idle/media and lock checks remain |
+| Storage | SQLite through Drift; private JSON export, explicit device-local reset/account switching, durable outbox/history and safe upload acknowledgements |
+| Windows | Win32 foreground reader, tray/close-to-tray, sign-in startup, persistent interruption notices and per-user installer; idle/media and lock checks remain |
 | Android | Opt-in foreground service keeps one cached Flutter engine and SQLite usage journal alive after UI close; optional package-only Accessibility blocker; native validation in progress |
 | Browsers | Chrome-native policy reads, existing-tab blocking, per-site overrides and disconnect recovery verified with a pre-paired fixture; full pairing UI, website accounting and Edge-native checks remain |
 | Supabase | Automatic usage/account-state sync with durable outbox, retries, idempotent acknowledgements and owner-scoped revisions; HTTP and PostgreSQL/RLS-tested, **not live-deployed** |
 
 ### Still required for the approved v1
 
-- Android recovery, permission-loss, OEM battery and physical-device validation. Basic background collection, lock boundaries, Accessibility blocking and completion delivery have emulator evidence, but are not release-verified. See [Android runtime](docs/android-runtime.md).
+- Physical Android/OEM validation and native acceptance checks for the new export/reset flow. Background collection, process/reboot recovery, notification/Usage Access loss, lock boundaries, Accessibility blocking and completion delivery have bounded emulator evidence, not physical-device certification. See [Android runtime](docs/android-runtime.md).
 - Live Supabase deployment and two-device validation of shared sessions, rules, timezone and offline reconciliation. The implementation and conflict-review UI are now present. See [shared sync](docs/shared-sync.md).
 - Native/browser validation of the Windows idle/media probe and paired Chrome/Edge integration. See [browser integration](docs/browser-extension.md).
-- Windows crash/restart recovery and persistent tracking interruption reporting.
-- Native delivery/cancellation verification of the opt-in completion notifications, broader end-to-end tests, signed packaging, and release/privacy review.
+- Native acceptance checks of the new Windows interruption reporting, export/reset and installer paths; remaining completion-notification delivery/cancellation checks.
+- Owner provisioning of a stable Android signing key and Supabase project configuration. Packaging/signing configuration is implemented; no owner key or Windows trust certificate has been provisioned automatically. Public distribution needs separate privacy/policy review.
 
 No claim of continuous background enforcement is justified until these paths pass physical-device and Windows tests. Force-stop, permission revocation, uninstalling and OS restrictions can still stop a consumer app.
 
@@ -62,9 +62,9 @@ The compatible `win32` 5.x / desktop-plugin dependency family is intentional: `l
 
 Usage sync uploads confirmed intervals idempotently and downloads today's data with explicit pagination. It does not extrapolate offline device activity. Device heartbeats are labelled **last contacted**, not proof of fresh activity. Global budgets can overshoot while disconnected. Shared rules, timezone, the active session and timer history synchronize through a revisioned outbox. Confirmed policy wins stale edits; Settings retains conflicting rule/timezone edits for explicit review. Focus blocklists and overrides stay device-local. Sync runs every 30 seconds with prompt requests after local changes and retry backoff. Android background operation requires its visible foreground service.
 
-Local history is bound to its first cloud account. Uploading it to a different account is refused; a safe account-switch/reset flow is still pending.
+Local history is bound to its first cloud account. Uploading it to a different account is refused. Settings provides **Export data** and **Reset this device**: reset stops collectors/alerts, drains sync, signs out locally, clears this device's history/account link and closes the app. Cloud records remain untouched. Reopen before using another account. See [device data controls](docs/data-controls.md).
 
-CI Android APKs are debug previews, not stable release-signed installers. Their signing key can change between runner images, preventing an in-place upgrade. Do not uninstall a personal installation merely to upgrade without preserving its data; stable signing and export/reset UX remain release work.
+CI Android APKs are debug previews, not stable release-signed installers. Their signing key can change between runner images, preventing an in-place upgrade. Do not uninstall a personal installation merely to upgrade without preserving its data. Stable-key Android release configuration and a per-user Windows installer are implemented; actual signing credentials remain owner-controlled. See [packaging and update behavior](docs/packaging.md).
 
 ## Completion notifications
 
