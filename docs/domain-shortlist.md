@@ -4,11 +4,25 @@ Research date: 2026-11-12 UTC. No domain was purchased, registered or added to a
 
 ## Recommendation
 
-No public name or purchase has been approved. The user is open to replacing Lockin and explicitly likes **AllIn** and **DayOne**. They want one word, or two familiar words fused into a catchy name like Lockin, not forced compounds or abstract startup-sounding names. Searchability matters. The audience includes students, people working, and people trying to stop doomscrolling. Earlier Lockin compounds, Dialed and FocusRiot were rejected. Historical shortlists below are not approved choices.
+No public name or purchase has been approved. The user is open to replacing Lockin and likes the style of **LifeMax**, **AllIn** and **DayOne**. They want one word, or two familiar words fused into a catchy name, with a broader self-improvement/commitment/fresh-start feel. Searchability matters. The audience includes students, people working, and people trying to stop doomscrolling. Forced compounds, abstract startup-sounding names, earlier Lockin variants, Dialed, FocusRiot and the FullOn/OneGo direction were rejected. Historical shortlists below are not approved choices.
 
 An authoritative check at **02:51 UTC** found **`lockin.ai` already registered**, with registration date **2019-06-18**: <https://rdap.identitydigital.services/rdap/domain/lockin.ai>. No verified aftermarket asking price or willingness to sell was found. Its website not resolving does not make the domain available. Normal-registration versus aftermarket purchase budget remains unknown.
 
 Multiple existing Android focus/blocker apps already use LockIn or Lockin. A different domain suffix does not resolve product confusion. This search is not trademark clearance.
+
+## LifeMax direction and checks
+
+The user's latest suggestion, **LifeMax**, clarifies an aspirational self-improvement direction, rather than another literal focus-timer label. It has not been selected or cleared.
+
+First-party name conflicts found:
+
+- [LifeMAX](https://lifemaxapp.com/) is an existing iPhone/Apple Watch longevity and habit app. Its official page describes a remaining-weeks clock, journal, milestones and Apple Health integration; do not claim it is a focus blocker based only on a search summary.
+- [LifeMaxing](https://lifemaxing.app/about) explicitly advertises self-improvement features including deep-work sessions **with app blocking** on iOS and Android.
+- [LifeMaxx: Productivity Planner](https://play.google.com/store/apps/details?id=com.luminova.lifemaxx) is another closely named productivity app.
+
+Registry checks at **2026-11-12 04:58 UTC** found `lifemax.com`, `.app`, `.ai`, `.io` and `.life` registered. [lifemax.day](https://pubapi.registry.google/rdap/domain/lifemax.day) and [lifemax.now](https://rdap.nominet.uk/now/domain/lifemax.now) returned HTTP 404; that does not resolve the brand conflicts or establish checkout availability/pricing.
+
+Related options were checked rather than recommended as fresh names: [Daymax](https://daymaxapp.com/) is an alarm app; [Max Mode: Screen Time & Focus](https://apps.apple.com/no/app/max-mode-screen-time-focus/id6759811630) is a direct app-blocking/focus product; [PeakMode](https://whop.com/peakmode-6626/) has a productivity listing and [peakmode.ai](https://peakmode.ai/) is an AI operations product. Their `.com`, `.app` and `.ai` variants were registered in the check.
 
 ## AllIn and DayOne checks
 
@@ -22,6 +36,14 @@ Registry checks at **2026-11-12 04:41 UTC** found:
 `allin.day` is the most relevant domain candidate from this check if the user retains AllIn. The `.dev` suffix skews toward developer tooling rather than the broad audience. This is a conditional naming judgment, not trademark clearance.
 
 Porkbun's search refused automated browser access, so candidate-specific checkout and renewal prices were not obtained. No account was created, nothing was added to a cart, no purchase was attempted, and the access restriction was not bypassed.
+
+## Rejected FullOn/OneGo direction
+
+**FullOn** and **OneGo** were offered and rejected. Limited category searches did not identify an exact-name focus blocker, but this is not proof of uniqueness or trademark clearance; other uses of these names and their registered domains still need review.
+
+On 2026-11-12, matching registry lookups found both names' `.com`, `.app` and `.ai` domains registered. [fullon.day](https://pubapi.registry.google/rdap/domain/fullon.day) and [onego.day](https://pubapi.registry.google/rdap/domain/onego.day) returned HTTP 404. Purchasability, premium status and renewal quotes remain unconfirmed.
+
+DayZero and Firstlight were screened out because first-party listings already describe focus products: [Day Zero — Focus & Discipline](https://apps.apple.com/us/app/day-zero-focus-discipline/id6758271552) and [Firstlight focus-dashboard extension](https://chromewebstore.google.com/detail/firstlight-%E2%80%94-new-tab-dash/iakonpopbdbliklgjkmibfhlgkinfpgl). GoTime also has an existing [social countdown/habit timer](https://haoleme.me/). These are not fresh, unoccupied names.
 
 ## Rejected new-name exploration
 
