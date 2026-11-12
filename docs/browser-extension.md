@@ -27,4 +27,20 @@ If the native app disconnects, the extension clears its last policy when the nex
 
 `node --test extension/*.test.js` verifies host-only parsing, domain matching, declarative policy compilation and override priority. `flutter test test/browser_bridge_test.dart` exercises the real loopback HTTP server, pairing, metadata rejection, the actual controller/SQLite journal, stale observations, native-foreground checks and stop/resume accounting. Windows activity tests mock the OS channel, not the policy or journal.
 
-Actual Chrome/Edge loading, native process/media matching and end-to-end enforcement still need validation. These tests do not establish store acceptance or Windows/device-level behavior.
+### Native evidence (Windows build `bc929b5`)
+
+The actual Chrome 157 browser loaded the unpacked extension in a separate profile against the compiled Windows app and an isolated journal. A pre-paired token fixture was used; this does **not** establish the complete user-facing pairing flow.
+
+Verified through the real extension and native HTTP server:
+
+- Authenticated policy reads returned 200; Chrome installed two native domain restrictions.
+- An already-open restricted tab was interrupted without navigating it again.
+- The real override button reopened only the domain root. Its persisted override covered `web:example.com`, and `example.net` remained restricted.
+- A heartbeat containing a full URL and page metadata was rejected with 400. The rejected fixture marker was absent from the SQLite journal and WAL, and no URL-shaped interval sources were stored.
+- After quitting the native test process, the extension removed its dynamic restrictions. Following an eight-second settling check, the previously restricted site loaded normally. An immediate navigation can race policy removal; this is not instantaneous fail-open.
+
+The real-browser run found a missing-`Origin` bug that the original HTTP fixtures did not exercise. Chrome omits `Origin` for privileged GETs. The native app now permits that omission only for authenticated `/v1/rules` reads, with regression coverage retaining origin checks for pairing, mutations and web-page requests. The complete 69-test Flutter suite, four extension policy tests, SQL suite and both native CI builds pass on this fix.
+
+The test profile required a direct loopback connection rather than its default proxy route. No normal browser proxy or security settings were changed.
+
+Native Chrome foreground could be acquired briefly but could not be held through the sampling check; no confirmed website intervals were recorded, so this is not evidence of successful end-to-end website accounting. Sustained foreground/media/idle and screen-lock checks, the full pairing UI flow, Edge-native checks and physical-device validation remain outstanding. These checks do not establish store acceptance.
