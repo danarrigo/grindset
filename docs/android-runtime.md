@@ -26,8 +26,18 @@ The debug APK was installed on the isolated API 36.1 emulator. Actual UI checks 
 
 Do not use `uiautomator dump` to verify a live Accessibility overlay: its UiAutomation connection suppresses other accessibility services during the dump. Use the real screen and OS diagnostics instead.
 
-Completion-alert delivery with tracking disabled, the UI closed and the background process killed is now emulator-verified. See [completion alerts](completion-alerts.md) for exact evidence and limits. The retained `b2bc284` APK was hash-matched before additional recovery checks. Killing its process restarted the foreground service without reopening Lockin and advanced its import checkpoint from 10:28:47.204023 UTC to 10:29:11.232884 UTC on 2026-11-12. A real emulator reboot then restored collection, advancing the checkpoint from 10:30:41.252635 UTC to 10:32:56.026560 UTC without extending the old Chrome interval through screen-off/reboot. These are bounded emulator results on the pre-permission-fix binary.
+Completion-alert delivery with tracking disabled, the UI closed and the background process killed is emulator-verified. See [completion alerts](completion-alerts.md) for exact evidence and limits.
 
-The same binary exposed a real bug: revoking `POST_NOTIFICATIONS` left its foreground service running and advanced its checkpoint from 10:38:19.551565 UTC to 10:38:54.901559 UTC. The native guards/window changes above address that path, but new-binary validation is still pending. Run `python3 test/native/android_tracking_permissions_test.py /path/to/adb.exe` against the already opted-in dedicated `Lockin_Test_API_36_1` fixture. The script checks notification and Usage Access revocation, persistent reasons, restoration, and empty denied gaps. It changes only that fixture's Lockin permissions and restores them afterward; it does not establish onboarding UI behavior.
+A hash-matched `b2bc284` APK exposed the permission-loss bug: revoking `POST_NOTIFICATIONS` left its foreground service running and advanced its checkpoint from 10:38:19.551565 UTC to 10:38:54.901559 UTC on 2026-11-12. The retained regression script also failed against that binary across two separate denied-state samples, ruling out only an old in-flight import.
+
+The patched `a5ec8ea` APK from successful CI run `43234510856` was then installed only on the dedicated API 36.1 AVD. Its SHA-256 was `ca2875bf2954665d8e4d44d598f4da0836b0328cc616ba22f80fadfaf1d441db`. Actual OS checks on 2026-11-12 verified:
+
+- Notification revocation stopped the foreground collector. Both post-denial samples retained checkpoint 14:32:27.582554 UTC and the native interruption reason.
+- Usage Access revocation likewise stopped collection and retained checkpoint 14:33:31.461602 UTC across both samples.
+- Restoring each permission resumed imports, cleared the reason, and left no Android intervals overlapping the denied window.
+- Process death restarted the collector without reopening Lockin, advancing the checkpoint from 14:36:01.470225 UTC to 14:36:32.617711 UTC while preserving the permitted collection window/generation.
+- A real reboot preserved that window/generation and resumed imports without opening Lockin. The checkpoint advanced from 14:43:11.486461 UTC to 14:45:26.242536 UTC without extending the old Chrome interval through screen-off/reboot. The post-unlock checkpoint was observed after 71.9 seconds; an initial fixed 22-second wait was insufficient. This is not an immediate-recovery guarantee.
+
+Run `python3 test/native/android_tracking_permissions_test.py /path/to/adb.exe` against the already opted-in dedicated `Lockin_Test_API_36_1` fixture. The script checks notification and Usage Access revocation, persistent reasons, restoration, and empty denied gaps. It changes only that fixture's Lockin permissions and restores them afterward; it does not establish onboarding UI behavior. These permission fixtures and emulator results do not establish physical-device behavior.
 
 Notification-channel-only revocation, OEM battery management and physical-device validation remain outstanding. Do not advertise uninterrupted or store-approved enforcement.

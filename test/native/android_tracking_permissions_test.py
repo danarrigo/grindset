@@ -30,7 +30,7 @@ def adb(*arguments):
 
 
 def preferences():
-    value = adb("exec-out", "run-as", PACKAGE, "dd", "if=shared_prefs/lockin_runtime.xml")
+    value = adb("exec-out", "run-as", PACKAGE, "dd", "if=shared_prefs/lockin_runtime.xml", "status=none")
     return {entry.attrib["name"]: entry.attrib.get("value", entry.text) for entry in ET.fromstring(value)}
 
 
@@ -51,7 +51,7 @@ def snapshot(label):
         target = directory / ("lockin.sqlite" + suffix)
         with target.open("wb") as output:
             result = subprocess.run(
-                [args.adb, "-s", SERIAL, "exec-out", "run-as", PACKAGE, "dd", "if=files/lockin.sqlite" + suffix],
+                [args.adb, "-s", SERIAL, "exec-out", "run-as", PACKAGE, "dd", "if=files/lockin.sqlite" + suffix, "status=none"],
                 stdout=output, stderr=subprocess.DEVNULL, timeout=20,
             )
         if result.returncode:
