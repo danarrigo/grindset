@@ -113,12 +113,17 @@ class _CloudServer {
         final cursor = int.parse(
           (request.uri.queryParameters['revision'] ?? 'gt.0').substring(3),
         );
+        final descending =
+            request.uri.queryParameters['order']?.startsWith('revision.desc') ??
+            false;
         final ordered =
             sharedRows.where((r) => (r['revision'] as int) > cursor).toList()
-              ..sort(
-                (a, b) =>
-                    (a['revision'] as int).compareTo(b['revision'] as int),
-              );
+              ..sort((a, b) {
+                final order = (a['revision'] as int).compareTo(
+                  b['revision'] as int,
+                );
+                return descending ? -order : order;
+              });
         response = ordered
             .take(int.parse(request.uri.queryParameters['limit'] ?? '500'))
             .toList();

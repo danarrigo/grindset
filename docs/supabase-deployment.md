@@ -38,8 +38,25 @@ After the live fix:
 
 Security advisors no longer report anonymous security-definer execution. Two no-policy informational findings are intentional for private `shared_heads`/`shared_receipts`; the authenticated security-definer warning reflects the intended owner-checked RPC. Do not silence those by granting direct table access or removing the RPC's ownership checks.
 
+## Hosted client acceptance (2026-11-13)
+
+`test/live_cloud_sync_test.dart` passed against this deployed project using three independent Supabase clients and file-backed SQLite journals: two for one account and one for a second account. This exercised:
+
+- Real signup-token verification, email-confirmed Auth users, local sign-out and password login.
+- Shared rules, source links, budgets, schedules, timezone, active session and early-finished history. Focus blocklists remained device-local.
+- Confirmed usage uploads/downloads, overlapping-device interval union and upload acknowledgements.
+- A transport-disabled offline edit, failed request, hosted conflict, explicit retry and convergence.
+- Unfiltered second-account reads and a forged-owner write rejected with `42501`.
+- Local reset, cloud-record preservation, another client's successful refresh, and a fresh local device identity with tracking/alerts off.
+
+Two disposable accounts were provisioned through the supported server-side Auth signup-link API. The clients verified real confirmation tokens; no JWTs or Auth database rows were fabricated. The admin credential stayed in server-process memory, never in app builds or the temporary client credential file. Both test accounts, their cascading application rows and temporary credentials were removed afterward; all six inspected account/application counts returned zero. Email confirmation remained required.
+
+The first hosted run exposed `FormatException: Shared sync revisions are not ordered.` Dart's PostgREST SDK defaults to descending order. Revision-keyset downloads now explicitly request ascending order. The loopback fixture was corrected to honor the requested sort; its existing 513-row pagination regression failed before the client fix and passed afterward. Earlier green CI/builds, including `5f3ac3c`, do not include this client fix.
+
+To opt in, set `LOCKIN_LIVE_AUTH_FILE` to a private JSON file containing `url`, a public publishable `key`, and two `accounts` with `email`, `password`, `id` and a signup `token_hash` for an unconfirmed account. Emails must start with `lockin-acceptance-`; use empty disposable accounts only. Run `flutter test test/live_cloud_sync_test.dart`. Without that environment variable it is skipped. The test writes cloud data and does not provision/delete accounts; the operator must clean up only the accounts they created through a trusted server-side path. Never put an admin key in this file.
+
 ## Evidence limits
 
-This establishes real project/schema deployment, public configuration, server-side grant inspection and anonymous HTTP denial. It does **not** establish successful user sign-up/email delivery, signed-in Auth/RLS behavior, two-device synchronization or offline reconciliation against deployed Supabase. The prior fixture-based PostgreSQL/HTTP suites remain separately labeled.
+This is real hosted Auth/RLS/network acceptance through application controllers and storage, not two installed native devices. Inbox email delivery, normal account creation/confirmation through the installed UI, Windows/Android device-to-device acceptance and native scheduling remain separate checks. Auth settings were not weakened to manufacture a passing test.
 
-Create/confirm a real app account through the app before live signed-in acceptance. Auth email delivery/settings belong to this project; they were not weakened to manufacture a passing login test.
+The separately authorized paused `lotorix` project (`hoyilrdpusfezwcrbvoz`) was deleted through the supported Management API after checking its name, organization and inactive state. Deletion returned HTTP 200; a follow-up project read returned 404. The `lockin` project was not deleted.

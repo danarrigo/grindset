@@ -1300,7 +1300,7 @@ class _HomeState extends State<_Home> {
       ),
       const SizedBox(height: 24),
       _notice(
-        'Background operation and blocking are experimental and can be interrupted by the OS, force-stop or permission revocation. Website blocking needs the paired extension. Native release verification and live Supabase setup are still required.',
+        'Background operation and blocking are experimental and can be interrupted by the OS, force-stop or permission revocation. Website blocking needs the paired extension. Enforcement is voluntary, not tamper-proof.',
       ),
     ],
   );

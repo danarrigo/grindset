@@ -291,7 +291,7 @@ class CloudSync extends ChangeNotifier {
           .select('kind,id,revision,value')
           .eq('user_id', owner)
           .gt('revision', cursor)
-          .order('revision')
+          .order('revision', ascending: true)
           .limit(500)
           .timeout(_requestTimeout);
       _checkActive(owner);
