@@ -1,5 +1,6 @@
 # Local configuration and private activity data
 config.local.json
+/.mcp.json
 android/key.properties
 *.jks
 *.keystore

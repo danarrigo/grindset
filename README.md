@@ -30,7 +30,7 @@ The approved Focus design is just the time, one start/end control and a small me
 - Live Supabase deployment and two-device validation of shared sessions, rules, timezone and offline reconciliation. The implementation and conflict-review UI are now present. See [shared sync](docs/shared-sync.md).
 - Native/browser validation of the Windows idle/media probe and paired Chrome/Edge integration. See [browser integration](docs/browser-extension.md).
 - Native acceptance checks of the new Windows interruption reporting, export/reset and installer paths; remaining completion-notification delivery/cancellation checks.
-- Owner provisioning of a stable Android signing key and Supabase project configuration. Packaging/signing configuration is implemented; no owner key or Windows trust certificate has been provisioned automatically. Public distribution needs separate privacy/policy review.
+- Supabase project configuration and owner backup of the provisioned Android signing material. Owner-approved signing credentials are configured in encrypted CI secrets; no Windows trust certificate has been purchased. Public distribution needs separate privacy/policy review.
 
 No claim of continuous background enforcement is justified until these paths pass physical-device and Windows tests. Force-stop, permission revocation, uninstalling and OS restrictions can still stop a consumer app.
 

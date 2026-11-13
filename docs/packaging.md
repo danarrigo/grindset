@@ -38,7 +38,7 @@ For a local release, copy `android/key.properties.example` to ignored `android/k
 
 Keep the keystore outside git, retain an offline backup, and use the same key/package ID for every update. Increase the build number for subsequent releases. Losing the signing key can prevent updating an existing installation.
 
-The manual **Build signed Android APK** workflow expects these repository secrets:
+A manual run of **Verify and build** calls the reusable **Build signed Android APK** workflow, including on the feature branch without merging `main`. Push/PR builds do not access the signing secrets. The signed job expects these repository secrets:
 
 | Secret | Value |
 | --- | --- |
@@ -47,7 +47,11 @@ The manual **Build signed Android APK** workflow expects these repository secret
 | `ANDROID_KEY_ALIAS` | Existing signing alias |
 | `ANDROID_KEY_PASSWORD` | Alias password |
 
-The workflow builds an ARM64 release with the same key, uses its increasing workflow run number as the base build number, and removes runner key material afterward. Use a higher build number for local builds that must update a workflow-built APK. Owner key generation, backup and secret provisioning require approval; no release key has been generated or uploaded automatically. The workflow must exist on the default branch before GitHub exposes manual dispatch.
+The workflow builds an ARM64 release with the same key, uses the increasing **Verify and build** run number as the base build number, verifies the APK with Android's `apksigner`, and removes runner key material afterward. All signed builds use this single entry point to avoid competing version counters. Use a higher build number for local builds that must update a workflow-built APK. Manual signing runs are not cancelled by later pushes.
+
+Owner-approved signing material is provisioned outside git at `~/.local/share/lockin/signing/`: `lockin-release.p12`, owner-only `credentials.json`, and public `certificate.der`. The four encrypted repository secrets above are configured. Back up the keystore and credentials securely outside this machine; GitHub secrets cannot be downloaded as a recovery copy. Do not replace or regenerate this key for later updates.
+
+Public signing-certificate SHA-256: `e5cd43267649b0cda8082dac47eab1332c1d826f9308d3ddbe503df57cf9ac38`. Signed artifacts include `signing-certificate.txt` so the certificate can be compared without exposing private key material.
 
 **Debug previews are a different signing identity.** Older CI debug keys may be unrecoverable and cannot be made upgrade-compatible by this configuration. Do not uninstall a personal installation to work around a signature mismatch without preserving its data. JSON export is an archive, not an automatic in-app restore/migration feature.
 

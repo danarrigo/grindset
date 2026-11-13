@@ -9,8 +9,8 @@ permissions:
   contents: read
 
 concurrency:
-  group: verify-${{ github.ref }}
-  cancel-in-progress: true
+  group: verify-${{ github.ref }}-${{ github.event_name }}
+  cancel-in-progress: ${{ github.event_name != 'workflow_dispatch' }}
 
 env:
   FLUTTER_VERSION: 3.47.9
@@ -18,6 +18,12 @@ env:
   SUPABASE_PUBLISHABLE_KEY: ${{ vars.SUPABASE_PUBLISHABLE_KEY }}
 
 jobs:
+  signed-android:
+    name: Signed Android (manual)
+    if: github.event_name == 'workflow_dispatch'
+    uses: ./.github/workflows/android-release.yml
+    secrets: inherit
+
   checks:
     runs-on: ubuntu-latest
     steps:
