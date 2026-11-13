@@ -50,3 +50,13 @@ Native Chrome foreground could be acquired briefly but could not be held through
 The unsigned Windows artifact from successful CI run `43363379837` ran with a fresh, isolated `--data-dir`. Selecting **Pair browser extension** in the actual Settings UI displayed a new code. Chrome `157.0.8103.52` loaded the unmodified extension in a separate headless profile through its extension-debugging API. Submitting that code through the real `setup.html` form returned **Paired. Tracking and rules follow the Windows app.** No pre-paired token fixture or direct pairing HTTP request was used.
 
 This verifies the native code-display UI and extension form/worker/bridge pairing path, but not manually loading the extension in a visible browser, Edge, sustained native foreground website accounting or enforcement. The normal Chrome profile/proxy configuration was not changed.
+
+### Headful Chrome accounting, idle and video (2026-11-13, `14b597f`)
+
+The real Windows artifact from CI run `43403540374` paired through its displayed code and the real extension setup form in headful Chrome `157.0.8103.52`. A controlled `example.org` page was fulfilled locally through CDP; it displayed a genuine paused/playing muted canvas video. CDP loaded the extension and controlled only this test profile. No token fixture, fabricated journal interval, normal-profile change or security exclusion was used.
+
+Native foreground PID checks and SQLite snapshots verified a fresh, sustained `web:example.org` interval. An initial idle attempt was explicitly blocked after Windows input reset the idle clock; it was not counted as passing. The bounded retry observed Chrome still foreground with native idle at `207906 ms`. Website counting had stopped at the last confirmed heartbeat, `10:52:56.447 UTC`.
+
+Starting the actual foreground muted video without Windows input resumed website accounting from `10:53:31.931` through `10:53:51.442 UTC`, despite native idle exceeding three minutes. Pausing the video left that interval unchanged after another 15 seconds. This verifies the Windows idle plus foreground-page playback path, not desktop-player GSMTC/audio behavior or screen-lock boundaries.
+
+Headful Edge `157.0.4341.46` also paired through the real setup form. Its accounting attempt did not pass: an OS-account automatic-sign-in/sync popup took foreground instead of the controlled page. No sync consent was accepted and no personal browsing data was inspected. The attempt was stopped and only its isolated profile/cache was removed; normal browser profiles and Windows account settings were not changed. Account-free Edge foreground/blocking/override/disconnect acceptance, manually loading the extension through browser UI, desktop-player media and screen-lock checks remain.

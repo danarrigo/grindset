@@ -24,6 +24,8 @@ The real Windows artifact for `4791d85` from successful CI run `43363379837` ran
 
 These are native scheduling/cancellation checks, not mocked method channels. A subsequent schedule expired, but no visible toast was captured, so visual delivery remains unverified. No OS notification settings were weakened to claim delivery.
 
+A later native `14b597f` run opted into completion alerts and started a one-minute focus session through the actual Windows UI, from `2026-11-13T11:16:53.853681Z` to `11:17:53.853681Z`. A bounded Windows-shell UI observer did not capture a visible completion toast. The observer's coverage and OS suppression were not ruled out, so this is neither a delivery pass nor a diagnosed plugin failure. Test cleanup found zero pending tag-4302 alerts, stopped the owned preview and turned its local alert/tracking opt-ins off without changing OS notification settings.
+
 ## Still required
 
 Physical Android delivery, notification and exact-alarm revocation, inexact delivery behavior, OEM battery restrictions and Windows visual delivery. Cloud-driven timer changes need live Supabase validation; HTTP/controller tests are not a substitute. Do not label an alert delivered merely because a scheduling API returned success.

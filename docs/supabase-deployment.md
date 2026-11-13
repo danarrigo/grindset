@@ -55,8 +55,21 @@ The first hosted run exposed `FormatException: Shared sync revisions are not ord
 
 To opt in, set `LOCKIN_LIVE_AUTH_FILE` to a private JSON file containing `url`, a public publishable `key`, and two `accounts` with `email`, `password`, `id` and a signup `token_hash` for an unconfirmed account. Emails must start with `lockin-acceptance-`; use empty disposable accounts only. Run `flutter test test/live_cloud_sync_test.dart`. Without that environment variable it is skipped. The test writes cloud data and does not provision/delete accounts; the operator must clean up only the accounts they created through a trusted server-side path. Never put an admin key in this file.
 
+## Installed-client acceptance (2026-11-13, `14b597f`)
+
+Successful CI run `43403540374` supplied the real Windows release and x64 Android debug APK. Windows used an owned `--data-dir`; Android ran on the dedicated API 36.1 AVD. The owner-approved inbox received the signup email requested through the actual Windows **Create account** form. The owner clicked its confirmation button, then both installed apps signed in with the same real account and password. Windows displayed a successful sync. No confirmation token was fabricated, injected or collected by the agent, and email confirmation remained required.
+
+Independent snapshots of the two native SQLite journals verified:
+
+- The same cloud owner with distinct device identities. Android adopted the first confirmed `Asia/Jakarta` account timezone instead of its local `Asia/Bangkok` default.
+- Android's actual **Lock in** action synchronized one focus session starting `10:17:39.245523 UTC` and ending `10:42:39.245523 UTC`, with identical IDs/deadlines and no pending shared changes. Both journals retained one completed history entry without automatically starting another phase.
+- The Android rule editor synchronized a named two-domain activity and its 30-minute shared budget. Android's focus-block flag stayed true while the independently downloaded Windows flag stayed false.
+- Android downloaded 32 closed, OS-observed Windows usage intervals unchanged, including their IDs, device IDs, sources and confirmed timestamps. This was not seeded usage or extrapolation through an offline gap.
+
+The owner-approved account is retained, not a disposable `lockin-acceptance-*` fixture. Do not delete it or its cloud records using the earlier disposable-account cleanup procedure. Temporary credentials remain outside git in owner-only local storage.
+
 ## Evidence limits
 
-This is real hosted Auth/RLS/network acceptance through application controllers and storage, not two installed native devices. Inbox email delivery, normal account creation/confirmation through the installed UI, Windows/Android device-to-device acceptance and native scheduling remain separate checks. Auth settings were not weakened to manufacture a passing test.
+The earlier controller test establishes hosted Auth/RLS/offline reconciliation. The later installed-client run establishes actual inbox confirmation and Windows-to-emulator shared state/usage, not physical Android reliability or every installed offline-conflict flow. The confirmation link still redirects to the default unavailable localhost destination after confirming the account; this reproduced a real onboarding defect even though password sign-in succeeded. An app-owned confirmation destination remains required. Native notification delivery and Android post-reset redownload remain separate checks. Auth settings were not weakened to manufacture a passing test.
 
 The separately authorized paused `lotorix` project (`hoyilrdpusfezwcrbvoz`) was deleted through the supported Management API after checking its name, organization and inactive state. Deletion returned HTTP 200; a follow-up project read returned 404. The `lockin` project was not deleted.
