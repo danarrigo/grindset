@@ -564,15 +564,17 @@ void main() {
       await tester.pumpAndSettle();
       await tester.enterText(
         find.byType(TextField).last,
-        'android:com.google.android.youtube',
+        'Android:com.google.android.youtube,Web:YouTube.COM',
       );
+      expect(tester.testTextInput.setClientArgs!['autocorrect'], isFalse);
+      expect(tester.testTextInput.setClientArgs!['enableSuggestions'], isFalse);
       await tester.ensureVisible(find.text('Save activity'));
       await tester.tap(find.text('Save activity'));
       await tester.pumpAndSettle();
       expect(controller.rules.single.name, 'YouTube');
       expect(
         controller.rules.single.sources,
-        contains('android:com.google.android.youtube'),
+        containsAll(['android:com.google.android.youtube', 'web:youtube.com']),
       );
       expect(find.text('YouTube'), findsOneWidget);
       expect(tester.takeException(), isNull);

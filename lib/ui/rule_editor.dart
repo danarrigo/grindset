@@ -73,7 +73,13 @@ class _RuleEditorState extends State<RuleEditor> {
           .split(RegExp(r'[\n,]'))
           .map((s) => s.trim())
           .where((s) => s.isNotEmpty);
-      final sources = {..._selected, ...extra}.map((source) {
+      final sources = {..._selected, ...extra}.map((raw) {
+        // Keyboard capitalization must not change the platform prefix. Keep
+        // the identifier itself intact, particularly case-sensitive packages.
+        final source = raw.replaceFirstMapped(
+          RegExp(r'^(windows|android|web):', caseSensitive: false),
+          (match) => match[0]!.toLowerCase(),
+        );
         if (!source.startsWith('web:')) return source;
         final host = websiteHost(source.substring(4));
         if (host == null) {
@@ -212,8 +218,10 @@ class _RuleEditorState extends State<RuleEditor> {
                     TextField(
                       controller: _manual,
                       maxLines: 2,
+                      autocorrect: false,
+                      enableSuggestions: false,
                       decoration: const InputDecoration(
-                        hintText: 'android:com.google.android.youtube\nweb:youtube.com',
+                        hintText: 'android:com.example.app\nweb:example.com',
                         helperText: 'One per line. Web hosts include subdomains and require the paired Windows extension.',
                       ),
                     ),
