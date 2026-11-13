@@ -3,6 +3,34 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lockin/platform/desktop_lifecycle.dart';
+import 'package:launch_at_startup/launch_at_startup.dart';
+
+class _Startup implements LaunchAtStartup {
+  final calls = <String>[];
+
+  @override
+  void setup({
+    required String appName,
+    required String appPath,
+    String? packageName,
+    List<String> args = const [],
+  }) => calls.add('setup');
+
+  @override
+  Future<bool> enable() async {
+    calls.add('enable');
+    return true;
+  }
+
+  @override
+  Future<bool> disable() async {
+    calls.add('disable');
+    return true;
+  }
+
+  @override
+  Future<bool> isEnabled() async => true;
+}
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -20,6 +48,23 @@ void main() {
     'visibleSize': {'width': 1920.0, 'height': 1040.0},
     'scaleFactor': 1,
   };
+
+  for (final manageStartup in [true, false]) {
+    test(
+      '${manageStartup ? 'normal installation manages' : 'isolated preview preserves'} sign-in startup',
+      () async {
+        final startup = _Startup();
+        final lifecycle = DesktopLifecycle(
+          quit: () async {},
+          manageStartup: manageStartup,
+          startup: startup,
+        );
+        await lifecycle.enableStartup();
+        await lifecycle.disableStartup();
+        expect(startup.calls, manageStartup ? ['enable', 'disable'] : isEmpty);
+      },
+    );
+  }
 
   for (final background in [true, false]) {
     test(
@@ -59,7 +104,12 @@ void main() {
             _ => null,
           },
         );
-        final lifecycle = DesktopLifecycle(quit: () async {});
+        final startup = _Startup();
+        final lifecycle = DesktopLifecycle(
+          quit: () async {},
+          manageStartup: !background,
+          startup: startup,
+        );
         var completed = false;
         final initialization = lifecycle
             .initialize(background: background)
@@ -85,6 +135,7 @@ void main() {
         visibilityFinished.complete();
         await initialization;
         expect(completed, isTrue);
+        expect(startup.calls, background ? isEmpty : ['setup']);
         if (background) {
           expect(calls, isNot(contains('show')));
         } else {

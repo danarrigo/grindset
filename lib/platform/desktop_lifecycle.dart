@@ -8,16 +8,24 @@ import 'package:window_manager/window_manager.dart';
 
 /// Keep a user-session tray app, not a Windows service in the wrong desktop.
 class DesktopLifecycle with WindowListener, TrayListener {
-  DesktopLifecycle({required this.quit});
+  DesktopLifecycle({
+    required this.quit,
+    this.manageStartup = true,
+    LaunchAtStartup? startup,
+  }) : _startup = startup ?? launchAtStartup;
   final Future<void> Function() quit;
+  final bool manageStartup;
+  final LaunchAtStartup _startup;
 
   Future<void> initialize({bool background = false}) async {
     await windowManager.ensureInitialized();
-    launchAtStartup.setup(
-      appName: 'Lockin',
-      appPath: Platform.resolvedExecutable,
-      args: ['--background'],
-    );
+    if (manageStartup) {
+      _startup.setup(
+        appName: 'Lockin',
+        appPath: Platform.resolvedExecutable,
+        args: ['--background'],
+      );
+    }
     await trayManager.setIcon('assets/tray.ico');
     await trayManager.setToolTip('Lockin - foreground activity and focus');
     await trayManager.setContextMenu(
@@ -50,8 +58,14 @@ class DesktopLifecycle with WindowListener, TrayListener {
     }
   }
 
-  Future<void> enableStartup() => launchAtStartup.enable();
-  Future<void> disableStartup() => launchAtStartup.disable();
+  Future<void> enableStartup() async {
+    if (manageStartup) await _startup.enable();
+  }
+
+  Future<void> disableStartup() async {
+    if (manageStartup) await _startup.disable();
+  }
+
   Future<void> show() async {
     await windowManager.show();
     await windowManager.restore();

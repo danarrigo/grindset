@@ -136,11 +136,12 @@ class _HomeState extends State<_Home> {
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Enable activity tracking?'),
-        content: const SingleChildScrollView(
+        content: SingleChildScrollView(
           child: Text(
             'Lockin reads foreground app identifiers and usage timestamps throughout the day. '
             'It does not read page titles, screenshots, keystrokes or window contents.\n\n'
-            'Windows will start Lockin at sign-in and keep it in the tray. Android requires Usage Access and notifications, '
+            '${c.tracker.isWindows && widget.enableStartup == null ? 'This isolated preview does not change Windows sign-in startup.' : 'Windows will start Lockin at sign-in and keep it in the tray.'} '
+            'Android requires Usage Access and notifications, '
             'then keeps a visible background service running when you close the UI. You can stop it from Settings or its notification. '
             'App blocking requires a separate, optional Accessibility permission.\n\n'
             'History is stored locally. Cloud uploads require configured Supabase and sign-in.',

@@ -12,6 +12,17 @@ import 'package:lockin/data/local_store.dart';
 import 'package:lockin/platform/native_tracker.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 
+class _WindowsTracker extends NativeTracker {
+  @override
+  bool get isWindows => true;
+  @override
+  bool get isAndroid => false;
+  @override
+  Future<bool> hasAccess() async => true;
+  @override
+  ForegroundApp? foreground() => null;
+}
+
 void main() {
   setUpAll(() async {
     tzdata.initializeTimeZones();
@@ -115,6 +126,37 @@ void main() {
       expect(tester.takeException(), isNull);
     },
   );
+
+  testWidgets('isolated Windows tracking does not promise sign-in startup', (
+    tester,
+  ) async {
+    final store = LocalStore.memory();
+    final controller = AppController(store: store, tracker: _WindowsTracker());
+    addTearDown(() async {
+      controller.dispose();
+      await store.close();
+    });
+    await controller.initialize(poll: false);
+    viewport(tester, const Size(800, 900));
+    await tester.pumpWidget(LockinApp(controller: controller));
+    await navigate(tester, 4);
+    await tester.tap(find.text('Enable tracking'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining(
+        'This isolated preview does not change Windows sign-in startup.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Windows will start Lockin at sign-in'),
+      findsNothing,
+    );
+    await tester.tap(find.widgetWithText(FilledButton, 'Enable tracking'));
+    await tester.pumpAndSettle();
+    expect(controller.trackingEnabled, isTrue);
+    expect(tester.takeException(), isNull);
+  });
 
   testWidgets('Lock in starts immediately without a setup form', (
     tester,

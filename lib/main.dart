@@ -155,7 +155,10 @@ Future<void> main(List<String> args) async {
         startupWarning =
             'The browser extension bridge could not start. App tracking still works: $error';
       }
-      desktop = DesktopLifecycle(quit: quit);
+      desktop = DesktopLifecycle(
+        quit: quit,
+        manageStartup: customDirectory == null,
+      );
       try {
         await desktop.initialize(background: args.contains('--background'));
         controller.showBlock = desktop.show;
@@ -172,7 +175,9 @@ Future<void> main(List<String> args) async {
         controller: controller,
         cloud: cloud,
         startupWarning: startupWarning,
-        enableStartup: desktop?.enableStartup,
+        enableStartup: desktop?.manageStartup == true
+            ? desktop?.enableStartup
+            : null,
         exportData: () => ExportFiles.save(store, exportedAt: controller.now),
         resetDevice: resetDevice,
       ),
