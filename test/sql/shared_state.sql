@@ -1,5 +1,17 @@
 -- Exercise actual PostgreSQL policies/RPCs with two fixture users. The Auth
 -- boundary is provided by bootstrap.sql; live Supabase Auth is a separate test.
+do $$
+begin
+  if has_function_privilege('anon','public.apply_shared_changes(text,jsonb,uuid)','EXECUTE')
+     or has_function_privilege('anon','public.valid_source(text)','EXECUTE') then
+    raise exception 'Anonymous function execution survived hosted default privileges';
+  end if;
+  if not has_function_privilege('authenticated','public.apply_shared_changes(text,jsonb,uuid)','EXECUTE')
+     or has_function_privilege('authenticated','public.validate_shared_value(text,text,jsonb)','EXECUTE') then
+    raise exception 'The authenticated RPC/helper grants are incorrect';
+  end if;
+end;
+$$;
 begin;
 set role authenticated;
 select set_config('request.jwt.claim.sub','11111111-1111-4111-8111-111111111111',false);

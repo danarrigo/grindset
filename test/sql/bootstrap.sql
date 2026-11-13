@@ -3,6 +3,8 @@ do $$ begin
   if not exists(select 1 from pg_roles where rolname='anon') then create role anon nologin; end if;
   if not exists(select 1 from pg_roles where rolname='authenticated') then create role authenticated nologin; end if;
 end $$;
+-- Match the hosted defaults that exposed anonymous RPC execution during live setup.
+alter default privileges in schema public grant execute on functions to anon,authenticated;
 create schema auth;
 create table auth.users(id uuid primary key);
 create function auth.uid() returns uuid language sql stable as $$

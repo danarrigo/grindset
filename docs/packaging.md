@@ -51,7 +51,7 @@ The workflow builds an ARM64 release with the same key, uses the increasing **Ve
 
 Owner-approved signing material is provisioned outside git at `~/.local/share/lockin/signing/`: `lockin-release.p12`, owner-only `credentials.json`, and public `certificate.der`. The four encrypted repository secrets above are configured. Back up the keystore and credentials securely outside this machine; GitHub secrets cannot be downloaded as a recovery copy. Do not replace or regenerate this key for later updates.
 
-Public signing-certificate SHA-256: `e5cd43267649b0cda8082dac47eab1332c1d826f9308d3ddbe503df57cf9ac38`. Signed artifacts include `signing-certificate.txt` so the certificate can be compared without exposing private key material.
+Public signing-certificate SHA-256: `e5cd43267649b0cda8082dac47eab1332c1d826f9308d3ddbe503df57cf9ac38`. Signed artifacts include `signing-certificate.txt` so the certificate can be compared without exposing private key material. The first owner-key build, run `43337652818`, passed APK signature verification and all jobs. That build preceded public Supabase configuration and is local-mode; use a later configured build for cloud access.
 
 **Debug previews are a different signing identity.** Older CI debug keys may be unrecoverable and cannot be made upgrade-compatible by this configuration. Do not uninstall a personal installation to work around a signature mismatch without preserving its data. JSON export is an archive, not an automatic in-app restore/migration feature.
 
@@ -59,4 +59,4 @@ Public signing-certificate SHA-256: `e5cd43267649b0cda8082dac47eab1332c1d826f930
 
 Native CI builds use repository **variables** `SUPABASE_URL` and `SUPABASE_PUBLISHABLE_KEY`. Both empty means local mode. Both set means the public configuration is compiled into the app. Legacy `anon` keys are supported; privileged/service-role keys are rejected. Never supply admin credentials to a client build.
 
-This does not create a Supabase project or apply migrations. Live Auth and two-device validation still require the owner's project and the migrations in `supabase/migrations/`.
+The build itself does not create a Supabase project or apply migrations. The owner's project and public variables are now configured; see [deployment state](supabase-deployment.md). Live Auth/email and two-device acceptance remain separate from successful signed packaging.

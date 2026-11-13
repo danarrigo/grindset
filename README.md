@@ -22,15 +22,15 @@ The approved Focus design is just the time, one start/end control and a small me
 | Windows | Win32 foreground reader, tray/close-to-tray, sign-in startup, persistent interruption notices and per-user installer; idle/media and lock checks remain |
 | Android | Opt-in foreground service keeps one cached Flutter engine and SQLite usage journal alive after UI close; optional package-only Accessibility blocker; native validation in progress |
 | Browsers | Chrome-native policy reads, existing-tab blocking, per-site overrides and disconnect recovery verified with a pre-paired fixture; full pairing UI, website accounting and Edge-native checks remain |
-| Supabase | Automatic usage/account-state sync with durable outbox, retries, idempotent acknowledgements and owner-scoped revisions; HTTP and PostgreSQL/RLS-tested, **not live-deployed** |
+| Supabase | Live project/schema and public build configuration deployed; automatic revisioned sync is HTTP/PostgreSQL-tested, with live signed-in/two-device acceptance still pending |
 
 ### Still required for the approved v1
 
 - Physical Android/OEM validation and native acceptance checks for the new export/reset flow. Background collection, process/reboot recovery, notification/Usage Access loss, lock boundaries, Accessibility blocking and completion delivery have bounded emulator evidence, not physical-device certification. See [Android runtime](docs/android-runtime.md).
-- Live Supabase deployment and two-device validation of shared sessions, rules, timezone and offline reconciliation. The implementation and conflict-review UI are now present. See [shared sync](docs/shared-sync.md).
+- Live user Auth/email delivery and two-device validation of shared sessions, rules, timezone and offline reconciliation. The project, schema and public client configuration are deployed. See [deployment evidence](docs/supabase-deployment.md) and [shared sync](docs/shared-sync.md).
 - Native/browser validation of the Windows idle/media probe and paired Chrome/Edge integration. See [browser integration](docs/browser-extension.md).
 - Native acceptance checks of the new Windows interruption reporting, export/reset and installer paths; remaining completion-notification delivery/cancellation checks.
-- Supabase project configuration and owner backup of the provisioned Android signing material. Owner-approved signing credentials are configured in encrypted CI secrets; no Windows trust certificate has been purchased. Public distribution needs separate privacy/policy review.
+- Owner backup of the provisioned Android signing material. Owner-approved signing credentials are configured in encrypted CI secrets; no Windows trust certificate has been purchased. Public distribution needs separate privacy/policy review.
 
 No claim of continuous background enforcement is justified until these paths pass physical-device and Windows tests. Force-stop, permission revocation, uninstalling and OS restrictions can still stop a consumer app.
 
@@ -55,7 +55,7 @@ The compatible `win32` 5.x / desktop-plugin dependency family is intentional: `l
 
 ### Supabase (optional; local mode needs no credentials)
 
-1. In your own Supabase project, apply both files in [supabase/migrations/](supabase/migrations/) in filename order, using the Supabase CLI or SQL editor.
+1. For a new project, apply all files in [supabase/migrations/](supabase/migrations/) in filename order, using the Supabase CLI or SQL editor. This repository's project is already deployed; check [migration history](docs/supabase-deployment.md) before replaying anything.
 2. Copy `config.example.json` to `config.local.json` and fill in your project URL and **public publishable key**. An older public anon key also works. Never use a service-role key.
 3. Run `flutter run -d windows --dart-define-from-file=config.local.json` (or choose your Android device).
 4. In Settings, create/confirm an account and sign in on each device. Account state and confirmed usage then synchronize automatically; **Sync now** retries immediately. Email confirmation/delivery settings belong to your Supabase project.
