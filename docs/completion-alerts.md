@@ -15,6 +15,15 @@ Android uses the platform notification/alarm APIs. Exact alarms require separate
 
 The emulator clock lagged the host during native testing. The initial implementation required the receiving device to consider the session already running, so a slightly future shared start could silently skip its end alert. Scheduling now checks whether the confirmed **end** is still in the future. This fixes the native reproduction and is covered by a regression test. It does not change usage accounting or extrapolate disconnected activity.
 
+## Windows cancellation acceptance (2026-11-13)
+
+The real Windows artifact for `4791d85` from successful CI run `43363379837` ran with a fresh, isolated `--data-dir`, tracking disabled and no signed-in account. Through the actual UI, completion alerts were enabled and the duration changed to one minute:
+
+- **Lock in** created OS toast schedule tag `4302`, title **Focus complete**, deadline `2026-11-13T04:58:13Z`. Confirming **End session** before the deadline removed it from `ToastNotifier.GetScheduledToastNotifications()`.
+- A later one-minute session created tag `4302` for `05:10:27Z`. Turning off **Completion notifications** in Settings while the timer was still running removed the pending schedule too.
+
+These are native scheduling/cancellation checks, not mocked method channels. A subsequent schedule expired, but no visible toast was captured, so visual delivery remains unverified. No OS notification settings were weakened to claim delivery.
+
 ## Still required
 
-Physical Android delivery, notification and exact-alarm revocation, inexact delivery behavior, OEM battery restrictions, Windows visual delivery and native early-cancellation checks. Cloud-driven timer changes need live Supabase validation; HTTP/controller tests are not a substitute. Do not label an alert delivered merely because a scheduling API returned success.
+Physical Android delivery, notification and exact-alarm revocation, inexact delivery behavior, OEM battery restrictions and Windows visual delivery. Cloud-driven timer changes need live Supabase validation; HTTP/controller tests are not a substitute. Do not label an alert delivered merely because a scheduling API returned success.

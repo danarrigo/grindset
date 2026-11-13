@@ -1,6 +1,6 @@
 """Real permission-loss checks on the dedicated, already opted-in test AVD.
 
-Run: python3 test/native/android_tracking_permissions_test.py /path/to/adb.exe
+Run: python3 test/native/android_tracking_permissions_test.py /path/to/adb.exe --serial emulator-5554
 This changes permissions only for Lockin on Lockin_Test_API_36_1. It does not
 install, uninstall, clear data, or prove the consent/onboarding UI flow.
 """
@@ -17,9 +17,10 @@ import xml.etree.ElementTree as ET
 
 parser = argparse.ArgumentParser(description=__doc__)
 parser.add_argument("adb")
+parser.add_argument("--serial", required=True, help="ADB serial of the dedicated Lockin_Test_API_36_1 fixture")
 args = parser.parse_args()
 PACKAGE = "app.lockin.lockin"
-SERIAL = "emulator-5556"
+SERIAL = args.serial
 root = pathlib.Path(tempfile.mkdtemp(prefix="lockin-android-permissions-"))
 
 
@@ -78,6 +79,25 @@ def resume():
     time.sleep(18)
 
 
+def set_tracking_channel(enabled):
+    # Use the real Settings UI: app-wide POST_NOTIFICATIONS stays granted.
+    # UiAutomation is used only on Settings, never to inspect a blocking overlay.
+    adb("shell", "am", "start", "-a", "android.settings.CHANNEL_NOTIFICATION_SETTINGS",
+        "--es", "android.provider.extra.APP_PACKAGE", PACKAGE,
+        "--es", "android.provider.extra.CHANNEL_ID", "lockin_tracking")
+    for _ in range(5):
+        adb("shell", "uiautomator", "dump", "/data/local/tmp/lockin-channel.xml")
+        tree = ET.fromstring(adb("exec-out", "cat", "/data/local/tmp/lockin-channel.xml"))
+        switch = tree.find(".//node[@resource-id='com.android.settings:id/main_switch_bar']//node[@resource-id='android:id/switch_widget']")
+        if switch is not None:
+            if (switch.attrib["checked"] == "true") != enabled:
+                left, top, right, bottom = map(int, re.findall(r"\d+", switch.attrib["bounds"]))
+                adb("shell", "input", "tap", str((left + right) // 2), str((top + bottom) // 2))
+            return
+        time.sleep(1)
+    raise AssertionError("Tracking notification channel switch was not found in Settings")
+
+
 def denied_window(label, deny, restore, message):
     before = checkpoint(snapshot(label + "-before"))
     assert before, "The baseline collector has not imported usage"
@@ -109,7 +129,8 @@ def denied_window(label, deny, restore, message):
     print("PASS:", label, "stopped, recovered, and left the denied gap empty", flush=True)
 
 
-assert adb("emu", "avd", "name").splitlines()[0] == "Lockin_Test_API_36_1", "Refusing to modify any other device"
+if adb("emu", "avd", "name").splitlines()[0] != "Lockin_Test_API_36_1":
+    raise SystemExit("Refusing to modify any other device")
 assert int(adb("shell", "getprop", "ro.build.version.sdk")) >= 33
 assert preferences().get("enabled") == "true", "Explicitly opt in on the dedicated fixture before running"
 assert "GET_USAGE_STATS: allow" in adb("shell", "cmd", "appops", "get", PACKAGE, "GET_USAGE_STATS")
@@ -125,6 +146,13 @@ try:
         "notifications",
     )
     denied_window(
+        "notification-channel",
+        lambda: set_tracking_channel(False),
+        lambda: set_tracking_channel(True),
+        "tracking notification channel",
+    )
+    assert re.search(r"POST_NOTIFICATIONS: granted=true", adb("shell", "dumpsys", "package", PACKAGE)), "Channel-only test changed app-wide permission"
+    denied_window(
         "usage-access",
         lambda: adb("shell", "cmd", "appops", "set", PACKAGE, "GET_USAGE_STATS", "ignore"),
         lambda: adb("shell", "cmd", "appops", "set", PACKAGE, "GET_USAGE_STATS", "allow"),
@@ -133,4 +161,6 @@ try:
 finally:
     adb("shell", "pm", "grant", PACKAGE, "android.permission.POST_NOTIFICATIONS")
     adb("shell", "cmd", "appops", "set", PACKAGE, "GET_USAGE_STATS", "allow")
+    set_tracking_channel(True)
+    adb("shell", "rm", "-f", "/data/local/tmp/lockin-channel.xml")
     print("Isolated journal evidence:", root, flush=True)

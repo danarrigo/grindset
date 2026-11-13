@@ -43,4 +43,10 @@ The real-browser run found a missing-`Origin` bug that the original HTTP fixture
 
 The test profile required a direct loopback connection rather than its default proxy route. No normal browser proxy or security settings were changed.
 
-Native Chrome foreground could be acquired briefly but could not be held through the sampling check; no confirmed website intervals were recorded, so this is not evidence of successful end-to-end website accounting. Sustained foreground/media/idle and screen-lock checks, the full pairing UI flow, Edge-native checks and physical-device validation remain outstanding. These checks do not establish store acceptance.
+Native Chrome foreground could be acquired briefly but could not be held through the sampling check; no confirmed website intervals were recorded, so this is not evidence of successful end-to-end website accounting. Sustained foreground/media/idle and screen-lock checks, Edge-native checks and physical-device validation remain outstanding. These checks do not establish store acceptance.
+
+### Pairing acceptance (2026-11-13, Windows build `4791d85`)
+
+The unsigned Windows artifact from successful CI run `43363379837` ran with a fresh, isolated `--data-dir`. Selecting **Pair browser extension** in the actual Settings UI displayed a new code. Chrome `157.0.8103.52` loaded the unmodified extension in a separate headless profile through its extension-debugging API. Submitting that code through the real `setup.html` form returned **Paired. Tracking and rules follow the Windows app.** No pre-paired token fixture or direct pairing HTTP request was used.
+
+This verifies the native code-display UI and extension form/worker/bridge pairing path, but not manually loading the extension in a visible browser, Edge, sustained native foreground website accounting or enforcement. The normal Chrome profile/proxy configuration was not changed.
