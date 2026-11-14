@@ -37,6 +37,7 @@ class AppController extends ChangeNotifier {
   final _uuid = const Uuid();
   Timer? _timer;
   bool _refreshing = false;
+  bool _windowsRefreshPending = false;
   Completer<void>? _refreshDone;
   bool _resetting = false;
   bool _disposed = false;
@@ -67,6 +68,8 @@ class AppController extends ChangeNotifier {
   String? blockedSource;
   String? blockMessage;
   Future<void> Function()? showBlock;
+  Future<bool> Function(ForegroundApp app)? restrictWindowsApp;
+  Future<void> Function(String source)? restoreWindowsApp;
   VoidCallback? onSharedChange;
 
   Future<void> initialize({
@@ -151,6 +154,14 @@ class AppController extends ChangeNotifier {
     await _updateCompletionAlerts();
     await _loadSharedRevisions();
     await reloadUsage();
+    if (tracker.isWindows) {
+      tracker.bindWindowsForeground(requestWindowsRefresh);
+      if (!await tracker.setWindowsForegroundWatch(trackingEnabled)) {
+        throw StateError(
+          'Windows foreground restriction monitoring is unavailable.',
+        );
+      }
+    }
     if (poll) {
       await refresh();
       _timer = Timer.periodic(
@@ -396,6 +407,11 @@ class AppController extends ChangeNotifier {
       _lastWindowsCheck = null;
       await store.saveSetting('tracking_heartbeat', '');
     }
+    if (tracker.isWindows && !await tracker.setWindowsForegroundWatch(true)) {
+      throw StateError(
+        'Windows foreground restriction monitoring is unavailable.',
+      );
+    }
     await store.saveSetting('tracking_enabled', 'true');
     trackingEnabled = true;
     if (tracker.isAndroid) {
@@ -414,6 +430,7 @@ class AppController extends ChangeNotifier {
     backgroundTrackingRunning = false;
     trackingError = null;
     if (tracker.isWindows) {
+      await tracker.setWindowsForegroundWatch(false);
       _lastWindowsCheck = null;
       await store.saveSetting('tracking_heartbeat', '');
     }
@@ -437,7 +454,10 @@ class AppController extends ChangeNotifier {
 
   Future<void> overrideBlock() async {
     final source = blockedSource;
-    if (source != null) await overrideSource(source);
+    if (source != null) {
+      await overrideSource(source);
+      await restoreWindowsApp?.call(source);
+    }
   }
 
   Future<void> overrideSource(String source) async {
@@ -502,8 +522,15 @@ class AppController extends ChangeNotifier {
     await browserBridge?.close();
   }
 
+  void requestWindowsRefresh() {
+    if (_disposed || _resetting) return;
+    _windowsRefreshPending = true;
+    if (!_refreshing) unawaited(refresh());
+  }
+
   Future<void> refresh() async {
     if (_refreshing || _disposed || _resetting) return;
+    _windowsRefreshPending = false;
     _refreshing = true;
     _refreshDone = Completer<void>();
     try {
@@ -521,9 +548,34 @@ class AppController extends ChangeNotifier {
           if (blockedSource != null) dismissBlock();
         } else if (tracker.isWindows) {
           var current = tracker.foreground();
+          if (current == null && blockedSource != null) dismissBlock();
+          if (blockedSource != null &&
+              restrictionForSource(blockedSource!) == null) {
+            dismissBlock();
+          }
           if (current != null) {
             final activity = await tracker.windowsActivity(current.processId);
-            if (!activity.current ||
+            if (!activity.current) {
+              current = null;
+            } else if (current.source != 'windows:lockin.exe' &&
+                restrictWindowsApp != null) {
+              final reason = restrictionForSource(current.source);
+              if (reason == null) {
+                dismissBlock();
+              } else {
+                blockedSource = current.source;
+                blockMessage = reason;
+                _changed();
+                final presented = await restrictWindowsApp!(current);
+                if (!presented && blockedSource == current.source) {
+                  dismissBlock();
+                }
+                // Enforcement changed foreground. Never account the minimized
+                // app as active while its explanation is shown.
+                current = null;
+              }
+            }
+            if (current != null &&
                 (activity.idleKnown &&
                     activity.mediaAvailable &&
                     activity.idle >= const Duration(minutes: 3) &&
@@ -559,7 +611,9 @@ class AppController extends ChangeNotifier {
                 ),
               );
             }
-            _checkBlock(current.source, entered: entered);
+            if (restrictWindowsApp == null) {
+              _checkBlock(current.source, entered: entered);
+            }
           }
           await _recordBrowser(current, observed);
           _previousObservation = observed;
@@ -614,11 +668,13 @@ class AppController extends ChangeNotifier {
       _lastWebObservation = null;
       _openInterval = null;
       _previousObservation = null;
+      if (tracker.isWindows && blockedSource != null) dismissBlock();
     } finally {
       _refreshing = false;
       _refreshDone?.complete();
       _refreshDone = null;
       _changed();
+      if (_windowsRefreshPending) requestWindowsRefresh();
     }
   }
 
@@ -750,6 +806,11 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  void reportRestrictionFailure(Object error) {
+    trackingError = 'Could not restore the desktop restriction window: $error';
+    _changed();
+  }
+
   void _changed() {
     if (!_disposed) notifyListeners();
   }
@@ -760,6 +821,14 @@ class AppController extends ChangeNotifier {
     _disposed = true;
     _timer?.cancel();
     if (tracker.isAndroid) NativeTracker.channel.setMethodCallHandler(null);
+    if (tracker.isWindows) {
+      tracker.bindWindowsForeground(null);
+      unawaited(
+        tracker
+            .setWindowsForegroundWatch(false)
+            .catchError((Object _) => false),
+      );
+    }
     super.dispose();
   }
 }

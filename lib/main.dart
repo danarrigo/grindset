@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -164,7 +165,18 @@ Future<void> main(List<String> args) async {
       );
       try {
         await desktop.initialize(background: args.contains('--background'));
-        controller.showBlock = desktop.showRestriction;
+        controller.restrictWindowsApp = desktop.showRestriction;
+        controller.restoreWindowsApp = desktop.restoreRestrictedApp;
+        controller.addListener(() {
+          if (controller.blockedSource == null) {
+            unawaited(
+              desktop!.dismissRestriction().catchError((Object error) {
+                controller.reportRestrictionFailure(error);
+              }),
+            );
+          }
+        });
+        controller.requestWindowsRefresh();
       } catch (error) {
         startupWarning =
             'Tray setup failed. Background operation is not ready: $error';

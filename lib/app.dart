@@ -433,6 +433,14 @@ class _HomeState extends State<_Home> {
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: Listenable.merge([c, if (widget.cloud != null) widget.cloud!]),
     builder: (context, _) {
+      if (c.tracker.isWindows && c.blockedSource != null) {
+        return Theme(
+          data: lockinTheme(Brightness.dark),
+          child: Builder(
+            builder: (context) => Scaffold(body: _blocked(context)),
+          ),
+        );
+      }
       final desktop = _desktopLayout;
       final workspace = _page == 0 ? _focusHome() : _secondaryPages(desktop);
       if (!desktop) return workspace;
@@ -1473,7 +1481,11 @@ class _HomeState extends State<_Home> {
                 const SizedBox(height: 28),
                 FilledButton(
                   onPressed: c.dismissBlock,
-                  child: const Text('Return to Grindset'),
+                  child: Text(
+                    c.tracker.isWindows
+                        ? 'Use other apps'
+                        : 'Return to Grindset',
+                  ),
                 ),
                 const SizedBox(height: 8),
                 TextButton(
@@ -1482,7 +1494,9 @@ class _HomeState extends State<_Home> {
                 ),
                 const SizedBox(height: 20),
                 Text(
-                  'Tracking stays on. Other restrictions remain active.',
+                  c.tracker.isWindows
+                      ? 'Restricted apps stay minimized. Other apps and Windows controls remain available.'
+                      : 'Tracking stays on. Other restrictions remain active.',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.bodySmall,
                 ),

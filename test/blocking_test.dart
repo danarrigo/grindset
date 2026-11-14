@@ -12,6 +12,10 @@ class _ForegroundFixture extends NativeTracker {
   @override
   bool get isWindows => true;
   @override
+  Future<bool> setWindowsForegroundWatch(bool enabled) async => true;
+  @override
+  void bindWindowsForeground(void Function()? onChanged) {}
+  @override
   bool get isAndroid => false;
   @override
   Future<bool> hasAccess() async => true;

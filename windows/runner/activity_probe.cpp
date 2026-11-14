@@ -89,27 +89,17 @@ bool IsPlaying(const MediaManager& manager, DWORD pid) {
   }
   return false;
 }
-// Focus only this process's restriction window. No global foreground policy,
-// synthetic keyboard input, process suspension or other app content is used.
-bool FocusRestriction(HWND window) {
-  DWORD owner = 0;
-  GetWindowThreadProcessId(window, &owner);
-  if (!IsWindow(window) || owner != GetCurrentProcessId()) return false;
-  if (GetForegroundWindow() == window) return true;
-  const DWORD current = GetCurrentThreadId();
-  const DWORD foreground = GetWindowThreadProcessId(GetForegroundWindow(), nullptr);
-  const bool attached = foreground != 0 && foreground != current &&
-      AttachThreadInput(current, foreground, TRUE) != FALSE;
-  ShowWindow(window, SW_RESTORE);
-  BringWindowToTop(window);
-  SetForegroundWindow(window);
-  if (attached) AttachThreadInput(current, foreground, FALSE);
-  return GetForegroundWindow() == window;
+constexpr UINT kForegroundChanged = WM_APP + 173;
+// OUTOFCONTEXT callbacks are delivered on the registering UI thread. The runner
+// owns exactly one Flutter window per process; no other-app titles are queried.
+HWND foreground_notification_window = nullptr;
+void CALLBACK ForegroundChanged(HWINEVENTHOOK, DWORD, HWND, LONG, LONG, DWORD, DWORD) {
+  if (foreground_notification_window) PostMessageW(foreground_notification_window, kForegroundChanged, 0, 0);
 }
 }  // namespace
 
 ActivityProbe::ActivityProbe(flutter::BinaryMessenger* messenger, HWND window)
-    : state_(std::make_shared<ActivityProbeState>()),
+    : window_(window), restriction_(window), state_(std::make_shared<ActivityProbeState>()),
       channel_(std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
           messenger, "app.lockin/windows", &flutter::StandardMethodCodec::GetInstance())) {
   const auto state = state_;
@@ -123,9 +113,38 @@ ActivityProbe::ActivityProbe(flutter::BinaryMessenger* messenger, HWND window)
       } catch (const winrt::hresult_error&) { /* Conservative idle behavior if unavailable. */ }
     });
   } catch (const winrt::hresult_error&) { /* Older Windows or denied media capability. */ }
-  channel_->SetMethodCallHandler([state, window](const auto& call, auto result) {
-    if (call.method_name() == "focusRestriction") {
-      result->Success(flutter::EncodableValue(FocusRestriction(window)));
+  channel_->SetMethodCallHandler([this, state](const auto& call, auto result) {
+    const auto* args = std::get_if<flutter::EncodableMap>(call.arguments());
+    if (call.method_name() == "setForegroundWatch") {
+      const auto it = args ? args->find(flutter::EncodableValue("enabled")) : flutter::EncodableMap::const_iterator{};
+      const auto* enabled = args && it != args->end() ? std::get_if<bool>(&it->second) : nullptr;
+      if (!enabled) { result->Error("INVALID_WATCH", "An enabled flag is required."); return; }
+      result->Success(flutter::EncodableValue(SetForegroundWatch(*enabled)));
+      return;
+    }
+    if (call.method_name() == "dismissRestriction") {
+      restriction_.Dismiss();
+      result->Success();
+      return;
+    }
+    if (call.method_name() == "presentRestriction" || call.method_name() == "restoreRestrictedApp") {
+      if (!args) { result->Error("INVALID_APP", "A selected app is required."); return; }
+      const auto source_it = args->find(flutter::EncodableValue("source"));
+      const auto* source = source_it == args->end() ? nullptr : std::get_if<std::string>(&source_it->second);
+      if (!source) { result->Error("INVALID_APP", "An app source is required."); return; }
+      if (call.method_name() == "restoreRestrictedApp") {
+        result->Success(flutter::EncodableValue(restriction_.RestoreTarget(*source)));
+        return;
+      }
+      const auto pid_it = args->find(flutter::EncodableValue("pid"));
+      DWORD pid = 0;
+      if (pid_it != args->end()) {
+        if (const auto* value = std::get_if<int32_t>(&pid_it->second)) pid = static_cast<DWORD>(*value);
+        if (const auto* value = std::get_if<int64_t>(&pid_it->second)) pid = static_cast<DWORD>(*value);
+      }
+      const auto status = restriction_.Present(pid, *source);
+      if (status == "refused") { result->Error("RESTRICTION_REFUSED", "Windows could not minimize the selected app. It has not been locked."); return; }
+      result->Success(flutter::EncodableValue(status));
       return;
     }
     if (call.method_name() != "activityState") { result->NotImplemented(); return; }
@@ -160,4 +179,30 @@ ActivityProbe::ActivityProbe(flutter::BinaryMessenger* messenger, HWND window)
   });
 }
 
-ActivityProbe::~ActivityProbe() { channel_->SetMethodCallHandler(nullptr); }
+bool ActivityProbe::SetForegroundWatch(bool enabled) {
+  if (!enabled) {
+    if (foreground_hook_) UnhookWinEvent(foreground_hook_);
+    foreground_hook_ = nullptr;
+    foreground_notification_window = nullptr;
+    return true;
+  }
+  if (foreground_hook_) return true;
+  foreground_notification_window = window_;
+  foreground_hook_ = SetWinEventHook(EVENT_SYSTEM_FOREGROUND, EVENT_SYSTEM_FOREGROUND,
+      nullptr, ForegroundChanged, 0, 0, WINEVENT_OUTOFCONTEXT);
+  if (!foreground_hook_) foreground_notification_window = nullptr;
+  return foreground_hook_ != nullptr;
+}
+
+std::optional<LRESULT> ActivityProbe::HandleMessage(UINT message, WPARAM wparam, LPARAM lparam) {
+  if (message == kForegroundChanged) {
+    if (foreground_hook_) channel_->InvokeMethod("foregroundChanged", nullptr);
+    return 0;
+  }
+  return restriction_.HandleMessage(message, wparam, lparam);
+}
+
+ActivityProbe::~ActivityProbe() {
+  SetForegroundWatch(false);
+  channel_->SetMethodCallHandler(nullptr);
+}

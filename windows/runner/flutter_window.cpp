@@ -58,6 +58,11 @@ LRESULT
 FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
                               WPARAM const wparam,
                               LPARAM const lparam) noexcept {
+  // The active restriction owns its frame, ahead of generic close-to-tray and
+  // window-manager handlers. Windows controls and other apps remain available.
+  if (activity_probe_) {
+    if (auto result = activity_probe_->HandleMessage(message, wparam, lparam)) return *result;
+  }
   // Give Flutter, including plugins, an opportunity to handle window messages.
   if (flutter_controller_) {
     std::optional<LRESULT> result =

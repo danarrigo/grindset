@@ -17,6 +17,8 @@ class _WindowsTracker extends NativeTracker {
   @override
   bool get isWindows => true;
   @override
+  Future<bool> setWindowsForegroundWatch(bool enabled) async => true;
+  @override
   bool get isAndroid => false;
   @override
   Future<bool> hasAccess() async => true;
@@ -47,6 +49,33 @@ void main() {
       tester.view.resetDevicePixelRatio();
     });
   }
+
+  testWidgets(
+    'Windows restriction replaces the entire desktop workspace, not just the timer pane',
+    (tester) async {
+      viewport(tester, const Size(1280, 900));
+      final store = LocalStore.memory();
+      final controller = AppController(
+        store: store,
+        tracker: _WindowsTracker(),
+      );
+      await controller.initialize(poll: false);
+      addTearDown(() async {
+        controller.dispose();
+        await store.close();
+      });
+      controller.blockedSource = 'windows:discord.exe';
+      controller.blockMessage = 'Focus session in progress';
+      await tester.pumpWidget(LockinApp(controller: controller));
+      await tester.pumpAndSettle();
+      expect(find.text('Discord is restricted'), findsOneWidget);
+      expect(find.byKey(const ValueKey('nav-3')), findsNothing);
+      expect(tester.getSize(find.byType(Scaffold)), const Size(1280, 900));
+      await tester.tap(find.text('Use other apps'));
+      await tester.pumpAndSettle();
+      expect(find.byKey(const ValueKey('nav-3')), findsOneWidget);
+    },
+  );
 
   Future<(AppController, LocalStore)> open({DateTime Function()? clock}) async {
     final store = LocalStore.memory();

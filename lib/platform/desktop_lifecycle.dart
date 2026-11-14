@@ -19,6 +19,10 @@ class DesktopLifecycle with WindowListener, TrayListener {
   final Future<void> Function() quit;
   final bool manageStartup;
   final LaunchAtStartup _startup;
+  Future<void> _restrictionWork = Future.value();
+  int _restrictionEpoch = 0;
+  bool _restrictionRequested = false;
+  bool _restrictionVisible = false;
 
   Future<void> initialize({bool background = false}) async {
     await windowManager.ensureInitialized();
@@ -76,22 +80,54 @@ class DesktopLifecycle with WindowListener, TrayListener {
     await windowManager.focus();
   }
 
-  Future<void> showRestriction() async {
-    await windowManager.show();
-    await windowManager.restore();
-    final focused = await NativeTracker.windowsChannel
-        .invokeMethod<bool>('focusRestriction')
-        .timeout(const Duration(seconds: 5));
-    if (focused != true) {
-      throw StateError(
-        'Windows did not allow the restriction window to gain focus.',
+  Future<void> _serializeRestriction(Future<void> Function() action) {
+    final operation = _restrictionWork.then((_) => action());
+    _restrictionWork = operation.catchError((Object _) {});
+    return operation;
+  }
+
+  Future<bool> showRestriction(ForegroundApp app) async {
+    final epoch = ++_restrictionEpoch;
+    _restrictionRequested = true;
+    var shown = false;
+    await _serializeRestriction(() async {
+      if (epoch != _restrictionEpoch) return;
+      final status = await NativeTracker.windowsChannel
+          .invokeMethod<String>('presentRestriction', {
+            'pid': app.processId,
+            'source': app.source,
+          })
+          .timeout(const Duration(seconds: 5));
+      _restrictionVisible = shown = status == 'shown';
+    });
+    return shown && epoch == _restrictionEpoch;
+  }
+
+  Future<void> dismissRestriction() {
+    if (!_restrictionRequested && !_restrictionVisible) return Future.value();
+    ++_restrictionEpoch;
+    _restrictionRequested = false;
+    return _serializeRestriction(() async {
+      _restrictionVisible = false;
+      await NativeTracker.windowsChannel
+          .invokeMethod<void>('dismissRestriction')
+          .timeout(const Duration(seconds: 5));
+    });
+  }
+
+  Future<void> restoreRestrictedApp(String source) async {
+    await dismissRestriction();
+    await _serializeRestriction(() async {
+      await NativeTracker.windowsChannel.invokeMethod<bool>(
+        'restoreRestrictedApp',
+        {'source': source},
       );
-    }
+    });
   }
 
   @override
   void onWindowClose() {
-    unawaited(windowManager.hide());
+    if (!_restrictionRequested) unawaited(windowManager.hide());
   }
 
   @override
@@ -111,6 +147,8 @@ class DesktopLifecycle with WindowListener, TrayListener {
   }
 
   Future<void> dispose() async {
+    await dismissRestriction();
+    await _restrictionWork;
     trayManager.removeListener(this);
     windowManager.removeListener(this);
     await trayManager.destroy();

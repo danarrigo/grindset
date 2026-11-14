@@ -80,6 +80,22 @@ class NativeTracker {
     return false;
   }
 
+  void bindWindowsForeground(void Function()? onChanged) {
+    windowsChannel.setMethodCallHandler(
+      onChanged == null
+          ? null
+          : (call) async {
+              if (call.method == 'foregroundChanged') onChanged();
+            },
+    );
+  }
+
+  Future<bool> setWindowsForegroundWatch(bool enabled) async =>
+      await windowsChannel.invokeMethod<bool>('setForegroundWatch', {
+        'enabled': enabled,
+      }) ??
+      false;
+
   Future<void> requestAccess() async {
     if (isAndroid) await channel.invokeMethod<void>('requestUsageAccess');
   }

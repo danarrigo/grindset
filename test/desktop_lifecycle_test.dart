@@ -67,6 +67,7 @@ void main() {
     );
   }
 
+  const app = ForegroundApp('windows:discord.exe', 'Discord', processId: 42);
   for (final focused in [true, false]) {
     test(
       'restriction activation ${focused ? 'verifies foreground' : 'reports Windows refusal'}',
@@ -79,10 +80,11 @@ void main() {
         messenger.setMockMethodCallHandler(NativeTracker.windowsChannel, (
           call,
         ) async {
-          expect(call.method, 'focusRestriction');
-          expect(call.arguments, isNull);
+          expect(call.method, 'presentRestriction');
+          expect(call.arguments, {'pid': 42, 'source': 'windows:discord.exe'});
           calls.add(call.method);
-          return focused;
+          if (!focused) throw PlatformException(code: 'RESTRICTION_REFUSED');
+          return 'shown';
         });
         addTearDown(() {
           messenger.setMockMethodCallHandler(windowChannel, null);
@@ -96,16 +98,77 @@ void main() {
           manageStartup: false,
         );
         await expectLater(
-          lifecycle.showRestriction(),
-          focused ? completes : throwsStateError,
+          lifecycle.showRestriction(app),
+          focused ? completion(isTrue) : throwsA(isA<PlatformException>()),
         );
-        expect(
-          calls,
-          containsAllInOrder(['show', 'restore', 'focusRestriction']),
-        );
+        expect(calls, ['presentRestriction']);
       },
     );
   }
+
+  test(
+    'closing an active restriction cannot hide it like a normal tray window',
+    () async {
+      final calls = <String>[];
+      messenger.setMockMethodCallHandler(windowChannel, (call) async {
+        calls.add(call.method);
+        return call.method == 'isMinimized' ? false : null;
+      });
+      messenger.setMockMethodCallHandler(
+        NativeTracker.windowsChannel,
+        (_) async => 'shown',
+      );
+      addTearDown(() {
+        messenger.setMockMethodCallHandler(windowChannel, null);
+        messenger.setMockMethodCallHandler(NativeTracker.windowsChannel, null);
+      });
+      final lifecycle = DesktopLifecycle(
+        quit: () async {},
+        manageStartup: false,
+      );
+      await lifecycle.showRestriction(app);
+      calls.clear();
+      lifecycle.onWindowClose();
+      await Future<void>.delayed(Duration.zero);
+      expect(calls, isNot(contains('hide')));
+    },
+  );
+
+  test(
+    'dismissal racing a native presentation restores the window afterwards',
+    () async {
+      final started = Completer<void>();
+      final finish = Completer<String>();
+      final calls = <String>[];
+      messenger.setMockMethodCallHandler(NativeTracker.windowsChannel, (
+        call,
+      ) async {
+        calls.add(call.method);
+        if (call.method == 'presentRestriction') {
+          started.complete();
+          return finish.future;
+        }
+        return null;
+      });
+      addTearDown(
+        () => messenger.setMockMethodCallHandler(
+          NativeTracker.windowsChannel,
+          null,
+        ),
+      );
+      final lifecycle = DesktopLifecycle(
+        quit: () async {},
+        manageStartup: false,
+      );
+      final showing = lifecycle.showRestriction(app);
+      await started.future;
+      final dismissing = lifecycle.dismissRestriction();
+      finish.complete('shown');
+      expect(await showing, isFalse);
+      await dismissing;
+      expect(calls, ['presentRestriction', 'dismissRestriction']);
+    },
+  );
 
   for (final background in [true, false]) {
     test(

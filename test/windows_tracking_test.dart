@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lockin/app_controller.dart';
 import 'package:lockin/core/activity.dart';
@@ -10,6 +12,8 @@ class _Windows extends NativeTracker {
   String source = 'windows:player.exe';
   @override
   bool get isWindows => true;
+  @override
+  Future<bool> setWindowsForegroundWatch(bool enabled) async => true;
   @override
   bool get isAndroid => false;
   @override
@@ -145,6 +149,79 @@ void main() {
       await sample();
       expect(controller.blockedSource, isNull);
       expect(interruptions, 2);
+    },
+  );
+
+  test('fast reentry is enforced even before an own-window accounting sample, independent of idle', () async {
+    final tracker = controller.tracker as _Windows;
+    tracker.source = 'windows:discord.exe';
+    await controller.saveRule(
+      ActivityRule(
+        id: 'discord',
+        name: 'Discord',
+        sources: ['windows:discord.exe'],
+      ),
+    );
+    await controller.startSession(
+      const Duration(minutes: 25),
+      SessionPhase.focus,
+    );
+    idle = const Duration(minutes: 4);
+    var enforcement = 0;
+    controller.restrictWindowsApp = (app) async {
+      expect(app.source, 'windows:discord.exe');
+      expect(app.processId, 42);
+      enforcement++;
+      return true;
+    };
+    await controller.refresh();
+    await controller.refresh();
+    expect(enforcement, 2);
+    expect(controller.blockedSource, 'windows:discord.exe');
+    expect(controller.deviceUsage(controller.deviceId), Duration.zero);
+    tracker.source = 'windows:lockin.exe';
+    await controller.refresh();
+    expect(controller.blockedSource, 'windows:discord.exe');
+    var restored = '';
+    controller.restoreWindowsApp = (source) async => restored = source;
+    await controller.overrideBlock();
+    expect(restored, 'windows:discord.exe');
+    tracker.source = 'windows:discord.exe';
+    await controller.refresh();
+    expect(enforcement, 2);
+    expect(controller.blockedSource, isNull);
+  });
+
+  test(
+    'a foreground change arriving during presentation is not dropped',
+    () async {
+      final tracker = controller.tracker as _Windows;
+      tracker.source = 'windows:discord.exe';
+      await controller.saveRule(
+        ActivityRule(
+          id: 'discord',
+          name: 'Discord',
+          sources: ['windows:discord.exe'],
+        ),
+      );
+      await controller.startSession(
+        const Duration(minutes: 25),
+        SessionPhase.focus,
+      );
+      final started = Completer<void>();
+      final finish = Completer<bool>();
+      controller.restrictWindowsApp = (_) {
+        started.complete();
+        return finish.future;
+      };
+      final refresh = controller.refresh();
+      await started.future;
+      tracker.source = 'windows:allowed.exe';
+      controller.requestWindowsRefresh();
+      finish.complete(true);
+      await refresh;
+      await Future<void>.delayed(Duration.zero);
+      expect(controller.blockedSource, isNull);
     },
   );
 

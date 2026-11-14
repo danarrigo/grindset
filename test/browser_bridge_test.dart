@@ -17,6 +17,8 @@ class _Windows extends NativeTracker {
   @override
   bool get isWindows => true;
   @override
+  Future<bool> setWindowsForegroundWatch(bool enabled) async => true;
+  @override
   bool get isAndroid => false;
   @override
   ForegroundApp foreground() =>
