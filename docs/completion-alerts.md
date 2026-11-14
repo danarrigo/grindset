@@ -26,6 +26,12 @@ These are native scheduling/cancellation checks, not mocked method channels. A s
 
 A later native `14b597f` run opted into completion alerts and started a one-minute focus session through the actual Windows UI, from `2026-11-13T11:16:53.853681Z` to `11:17:53.853681Z`. A bounded Windows-shell UI observer did not capture a visible completion toast. The observer's coverage and OS suppression were not ruled out, so this is neither a delivery pass nor a diagnosed plugin failure. Test cleanup found zero pending tag-4302 alerts, stopped the owned preview and turned its local alert/tracking opt-ins off without changing OS notification settings.
 
+### Installed, hidden-app attempt
+
+The `3a312e4` Windows installer was installed per-user into a dedicated `Lockin-Acceptance` directory after verifying no existing Lockin installation would be replaced. Through the real UI, alerts were enabled and a one-minute session started at `2026-11-13T14:57:38.659249Z`, ending at `14:58:38.659249Z`. Windows reported pending tag `4302` for `14:58:39Z`. Close-to-tray was requested; Win32 independently reported the owned window hidden while its process remained responsive.
+
+The visible-toast observer started only at `14:59:10.7767216Z`, after the deadline, and saw no toast. The owner's sighting was uncertain. Consequently this attempt is **unverified**, not a delivery pass or evidence of failure. Any repeat needs observation active before the deadline. The owned app was closed, local tracking/alert opt-ins turned off, zero pending test alerts confirmed and only the temporary installation removed. Normal browser profiles and OS notification settings were not changed.
+
 ## Still required
 
 Physical Android delivery, notification and exact-alarm revocation, inexact delivery behavior, OEM battery restrictions and Windows visual delivery. Cloud-driven timer changes need live Supabase validation; HTTP/controller tests are not a substitute. Do not label an alert delivered merely because a scheduling API returned success.
