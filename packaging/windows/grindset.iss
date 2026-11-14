@@ -25,6 +25,7 @@ DisableDirPage=auto
 CloseApplications=force
 RestartApplications=no
 SetupMutex=Lockin.Installer
+UninstallDisplayName=Grindset
 UninstallDisplayIcon={app}\lockin.exe
 SetupIconFile={#BuildDir}\data\flutter_assets\assets\tray.ico
 OutputDir={#OutputDir}

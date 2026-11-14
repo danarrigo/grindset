@@ -10,7 +10,7 @@ try {
     if ($setup.ExitCode -ne 0) { throw "Installer failed: $($setup.ExitCode)" }
     $registration = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\app.lockin.lockin_is1'
     if ($registration.DisplayName -ne 'Grindset' -or $registration.Publisher -ne 'Grindset') {
-        throw 'Installed app registration did not use Grindset branding.'
+        throw "Installed app registration has name '$($registration.DisplayName)' and publisher '$($registration.Publisher)', expected Grindset for both."
     }
     $executable = Join-Path $installed 'lockin.exe'
     if (-not (Test-Path -LiteralPath $executable)) { throw 'Installer did not install Grindset.' }
