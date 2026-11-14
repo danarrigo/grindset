@@ -15,6 +15,7 @@ import 'ui/cloud_panel.dart';
 import 'ui/duration_dialog.dart';
 import 'ui/focus_screen.dart';
 import 'ui/rule_editor.dart';
+import 'ui/updates_panel.dart';
 
 String durationLabel(Duration duration) {
   final minutes = duration.inMinutes;
@@ -1342,6 +1343,8 @@ class _HomeState extends State<_Home> {
           ],
         ),
       ),
+      const SizedBox(height: 18),
+      const _Section(padding: EdgeInsets.all(20), child: UpdatesPanel()),
       const SizedBox(height: 24),
       _notice(
         'Background operation and blocking are experimental and can be interrupted by the OS, force-stop or permission revocation. Website blocking needs the paired extension. Enforcement is voluntary, not tamper-proof.',

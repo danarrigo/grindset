@@ -1,0 +1,123 @@
+import 'dart:convert';
+
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
+import 'package:lockin/app_controller.dart';
+import 'package:lockin/data/cloud_sync.dart';
+import 'package:lockin/data/local_store.dart';
+import 'package:lockin/platform/app_links.dart';
+import 'package:lockin/platform/native_tracker.dart';
+import 'package:lockin/ui/cloud_panel.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:timezone/data/latest_all.dart' as tzdata;
+
+class _PkceStorage extends GotrueAsyncStorage {
+  final values = <String, String>{};
+  @override
+  Future<String?> getItem({required String key}) async => values[key];
+  @override
+  Future<void> setItem({required String key, required String value}) async {
+    values[key] = value;
+  }
+
+  @override
+  Future<void> removeItem({required String key}) async => values.remove(key);
+}
+
+void main() {
+  testWidgets('signup and resend request the public confirmation destination', (
+    tester,
+  ) async {
+    tzdata.initializeTimeZones();
+    final requests = <http.Request>[];
+    final network = MockClient((request) async {
+      requests.add(request);
+      if (request.url.path.endsWith('/signup')) {
+        return http.Response(
+          jsonEncode({
+            'id': '11111111-1111-4111-8111-111111111111',
+            'aud': 'authenticated',
+            'email': 'fixture@example.test',
+            'created_at': '2026-11-14T00:00:00Z',
+            'app_metadata': <String, Object>{},
+            'user_metadata': <String, Object>{},
+            'identities': <Object>[],
+          }),
+          200,
+        );
+      }
+      expect(request.url.path, endsWith('/resend'));
+      return http.Response('{}', 200);
+    });
+    late final SupabaseClient client;
+    await tester.runAsync(() async {
+      client = SupabaseClient(
+        'https://fixture.supabase.co',
+        'public-test-key',
+        httpClient: network,
+        authOptions: AuthClientOptions(
+          autoRefreshToken: false,
+          pkceAsyncStorage: _PkceStorage(),
+        ),
+      );
+    });
+    final store = LocalStore.memory();
+    final controller = AppController(store: store, tracker: NativeTracker());
+    await controller.initialize(poll: false);
+    final cloud = CloudSync(client: client, store: store);
+    addTearDown(() async {
+      await cloud.close();
+      controller.dispose();
+      await tester.runAsync(client.dispose);
+      await store.close();
+      network.close();
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: SingleChildScrollView(
+            child: CloudPanel(
+              controller: controller,
+              cloud: cloud,
+              onChanged: () {},
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Email'),
+      'fixture@example.test',
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Password'),
+      'fixture-password',
+    );
+    await tester.tap(find.text('Create account'));
+    await tester.pumpAndSettle();
+    expect(
+      find.textContaining('Check your email'),
+      findsOneWidget,
+      reason: tester
+          .widgetList<SelectableText>(find.byType(SelectableText))
+          .map((text) => text.data)
+          .join('\n'),
+    );
+    await tester.ensureVisible(find.text('Resend confirmation email'));
+    await tester.tap(find.text('Resend confirmation email'));
+    await tester.pumpAndSettle();
+    expect(find.textContaining('Confirmation email requested'), findsOneWidget);
+    expect(requests, hasLength(2));
+    for (final request in requests) {
+      expect(
+        request.url.queryParameters['redirect_to'],
+        AppLinks.confirmation.toString(),
+      );
+      expect(jsonDecode(request.body)['email'], 'fixture@example.test');
+    }
+    expect(await store.setting('cloud_owner'), isNull);
+    expect(client.auth.currentSession, isNull);
+  });
+}

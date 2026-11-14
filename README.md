@@ -2,9 +2,9 @@
 
 A local-first focus app for **Windows + Android**, built with Flutter/Dart. The approved full v1 scope is in [docs/v1-spec.md](docs/v1-spec.md).
 
-**v1.1.0 is a personal-use release with known limitations, not physical-device certification or store-reviewed distribution.** The interface deliberately labels experimental integrations. There is no fabricated usage or pretend live-device data.
+**v1.2.0 is a personal-use release with known limitations, not physical-device certification or store-reviewed distribution.** The interface deliberately labels experimental integrations. There is no fabricated usage or pretend live-device data.
 
-Download the Windows installer, stable-key Android ARM64 APK and browser extension from [Releases](https://github.com/danarrigo/grindset/releases). See the [release notes](docs/releases/v1.1.0.md) for installation and limitations. Existing app/package IDs, executable/storage identifiers and signing keys remain unchanged for compatibility with the former Lockin name.
+Download the Windows installer, stable-key Android ARM64 APK and browser extension from [Releases](https://github.com/danarrigo/grindset-releases/releases). See the [release notes](docs/releases/v1.2.0.md) for installation and limitations. Existing app/package IDs, executable/storage identifiers and signing keys remain unchanged for compatibility with the former Lockin name.
 
 ![Desktop UI rendered by the widget test](test/goldens/desktop.png)
 
@@ -29,12 +29,16 @@ The approved Focus design is just the time, one start/end control and a small me
 ### Known limitations and deferred acceptance
 
 - Physical Android/OEM validation, Android post-reset redownload. Export/document-picker, local reset and the patched identifier-entry form now pass on the emulator. Background collection, process/reboot recovery, permission loss, lock boundaries, blocking and completion delivery still have bounded emulator evidence, not physical-device certification. See [Android runtime](docs/android-runtime.md).
-- Replace the broken default localhost post-confirmation redirect with an app-owned destination. Inbox confirmation, native Windows/Android-emulator password login and shared timezone/timer/history/rules/budgets/usage now pass. Installed offline-conflict flows remain separate from the hosted-client recovery checks. See [deployment evidence](docs/supabase-deployment.md) and [shared sync](docs/shared-sync.md).
+- The app-owned [confirmation page](https://danarrigo.github.io/grindset-releases/confirmed/) is deployed, and signup/resend explicitly request it. The hosted Auth Site URL still needs its dashboard change from localhost; the available MCP OAuth permission cannot change Auth configuration. Inbox confirmation, native Windows/Android-emulator password login and shared timezone/timer/history/rules/budgets/usage now pass. Installed offline-conflict flows remain separate from the hosted-client recovery checks. See [deployment evidence](docs/supabase-deployment.md) and [shared sync](docs/shared-sync.md).
 - Native Edge foreground accounting, Windows desktop-player media and screen-lock boundaries, and manual extension onboarding. Actual restriction pages and five-minute overrides now pass in both Chrome and Edge; Chrome's real foreground website accounting and idle/video behavior also pass. The rebuilt preview also tracks without changing startup or triggering a new Defender detection with real-time protection on. See [packaging](docs/packaging.md) and [browser integration](docs/browser-extension.md).
 - Windows interruption restart/dismissal acceptance and visible completion-notification delivery. The native interruption notice and its persisted journal state are verified, without invented usage in the observed gap. Native early-end and alerts-off cancellation now pass against the actual OS schedule; Windows export/reset passed on an isolated local-mode preview and installer smoke checks passed in CI. See [completion alerts](docs/completion-alerts.md) and [data controls](docs/data-controls.md).
 - Public distribution still needs separate privacy/policy review; no Windows trust certificate has been purchased. The Android signing backup is now encrypted in Google Drive and recovery-verified, with the passphrase held separately by the owner. See [packaging](docs/packaging.md).
 
 No claim of continuous background enforcement is justified until these paths pass physical-device and Windows tests. Force-stop, permission revocation, uninstalling and OS restrictions can still stop a consumer app.
+
+## Updates
+
+Install v1.2.0 manually once to gain **Settings > App updates > Check for updates**. Checks are explicit, show release notes and open the platform's public download in your browser. Run the Windows installer or approve Android's APK update over the existing release. This is not silent/background installation. Source stays private; the [public distribution repository](https://github.com/danarrigo/grindset-releases) contains only the website, feed and release files. See [update behavior](docs/app-updates.md).
 
 ## Starter activities
 

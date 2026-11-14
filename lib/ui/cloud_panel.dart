@@ -1,10 +1,12 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart' show SignOutScope;
+import 'package:supabase_flutter/supabase_flutter.dart'
+    show OtpType, SignOutScope;
 
 import '../app_controller.dart';
 import '../core/activity.dart';
 import '../data/cloud_sync.dart';
 import '../data/shared_state.dart';
+import '../platform/app_links.dart';
 
 class CloudPanel extends StatefulWidget {
   const CloudPanel({
@@ -59,7 +61,11 @@ class _CloudPanelState extends State<CloudPanel> {
       if (_password.text.length < 8) {
         throw ArgumentError('Use at least 8 characters.');
       }
-      await auth.signUp(email: email, password: _password.text);
+      await auth.signUp(
+        email: email,
+        password: _password.text,
+        emailRedirectTo: AppLinks.confirmation.toString(),
+      );
       if (mounted) {
         setState(
           () => _message =
@@ -82,6 +88,21 @@ class _CloudPanelState extends State<CloudPanel> {
       }
       throw StateError(
         'This device still holds another account\'s data. Export it and use Reset this device below before signing in to a different account. Nothing was uploaded to the new account.',
+      );
+    }
+  });
+
+  Future<void> _resendConfirmation() => _run(() async {
+    final email = _email.text.trim();
+    if (!email.contains('@')) throw ArgumentError('Enter your email first.');
+    await widget.cloud!.client.auth.resend(
+      type: OtpType.signup,
+      email: email,
+      emailRedirectTo: AppLinks.confirmation.toString(),
+    );
+    if (mounted) {
+      setState(
+        () => _message = 'Confirmation email requested. Open the newest link, then return here and sign in.',
       );
     }
   });
@@ -208,6 +229,10 @@ class _CloudPanelState extends State<CloudPanel> {
               OutlinedButton(
                 onPressed: _busy ? null : () => _authenticate(true),
                 child: const Text('Create account'),
+              ),
+              TextButton(
+                onPressed: _busy ? null : _resendConfirmation,
+                child: const Text('Resend confirmation email'),
               ),
             ],
           ),
