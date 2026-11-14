@@ -8,6 +8,10 @@ $uninstaller = Join-Path $installed 'unins000.exe'
 try {
     $setup = Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', ('/DIR="' + $installed + '"')) -PassThru -Wait
     if ($setup.ExitCode -ne 0) { throw "Installer failed: $($setup.ExitCode)" }
+    $registration = Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\app.lockin.lockin_is1'
+    if ($registration.DisplayName -ne 'Grindset' -or $registration.Publisher -ne 'Grindset') {
+        throw 'Installed app registration did not use Grindset branding.'
+    }
     $executable = Join-Path $installed 'lockin.exe'
     if (-not (Test-Path -LiteralPath $executable)) { throw 'Installer did not install Grindset.' }
     & (Join-Path $PSScriptRoot 'windows_startup_test.ps1') -ExecutablePath $executable

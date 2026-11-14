@@ -12,7 +12,7 @@
 AppId=app.lockin.lockin
 AppName=Grindset
 AppVersion={#AppVersion}
-AppPublisher=app.lockin
+AppPublisher=Grindset
 DefaultDirName={localappdata}\Programs\Grindset
 DefaultGroupName=Grindset
 UsePreviousGroup=no
