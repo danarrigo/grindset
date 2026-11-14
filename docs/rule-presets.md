@@ -4,6 +4,14 @@ Rules offers **All social media** plus 17 individual activities: Instagram, YouT
 
 Select a starter, review its sources, suggested **30 minutes per day** and **Block during focus**, then save. Nothing is automatically persisted or enforced. Tracking and OS permissions remain opt-in. Individual activities have separate budgets; All social media has one combined budget, unioning overlapping usage across all selected sources/devices. Existing individual restrictions still apply alongside it. There is no default recurring schedule. Focus-block flags remain device-local; daily budgets and schedules synchronize.
 
+## App selection and focus hours
+
+**Schedule focus hours** opens an explicit, schedule-only editor with editable weekday/time windows and the account timezone. See [scheduled focus hours](scheduled-focus-hours.md). No timer is started and existing activities are not rewritten.
+
+On Windows, **Find apps on this PC** reads visible running applications and existing Windows App Paths registrations on demand. Labels come from executable version metadata, never window titles. Use search/platform filters, or **Browse for .exe** to select an actual application executable. Browsing does not launch it. Only its executable identifier and your activity name are saved, not its installation path. Executable names containing spaces are supported. Scans run off the Windows UI thread; cancellation/failure preserves existing selections.
+
+This is not a complete installed-package inventory. Elevated apps can be inaccessible; launchers/updaters can use a different foreground executable; Store/PWA apps may share hosts. Prefer the running app itself or website rules, not an installer. Windows recovery/system hosts and Grindset itself are excluded. Different installations using the same executable name share the same identifier. Choosing an app does not grant tracking consent, automatically save a rule or enable blocking.
+
 ## Windows apps
 
 The Discord starter includes `windows:discord.exe`, `windows:discordptb.exe` and `windows:discordcanary.exe`. Telegram includes `windows:telegram.exe`; Signal includes `windows:signal.exe`; WhatsApp includes the distinct `windows:whatsapp.exe` and `windows:whatsapp.root.exe` process names. These are app-specific executable identifiers, never generic browser/WebView hosts. Windows executable matching is case-insensitive; Android package matching remains case-sensitive.

@@ -15,6 +15,8 @@ import 'ui/cloud_panel.dart';
 import 'ui/duration_dialog.dart';
 import 'ui/desktop_shell.dart';
 import 'ui/focus_screen.dart';
+import 'ui/schedule_summary.dart';
+import 'platform/windows_apps.dart';
 import 'ui/rule_editor.dart';
 import 'ui/rule_starters.dart';
 import 'ui/updates_panel.dart';
@@ -313,13 +315,21 @@ class _HomeState extends State<_Home> {
     );
   }
 
-  Future<void> _editRule({ActivityRule? rule, RulePreset? preset}) async {
+  Future<void> _editRule({
+    ActivityRule? rule,
+    RulePreset? preset,
+    bool scheduledFocus = false,
+  }) async {
     final baseRevision = rule == null ? 0 : c.ruleRevision(rule.id);
     final result = await showDialog<ActivityRule>(
       context: context,
       builder: (_) => RuleEditor(
         rule: rule,
         preset: preset,
+        scheduledFocus: scheduledFocus,
+        timezone: c.location.name,
+        loadWindowsApps: c.tracker.isWindows ? WindowsApps.list : null,
+        browseWindowsApp: c.tracker.isWindows ? WindowsApps.browse : null,
         sources: {
           ...c.usage.map((i) => i.source),
           ...c.rules.expand((r) => r.sources),
@@ -965,6 +975,15 @@ class _HomeState extends State<_Home> {
             label: const Text('Add activity'),
           ),
         ),
+        Align(
+          alignment: Alignment.centerLeft,
+          child: OutlinedButton.icon(
+            onPressed: () => _editRule(scheduledFocus: true),
+            icon: const Icon(Icons.schedule_rounded, size: 18),
+            label: const Text('Schedule focus hours'),
+          ),
+        ),
+        const SizedBox(height: 16),
         if (!c.trackingEnabled) ...[
           _notice(
             'Tracking is off. Enable tracking in Settings to enforce these rules.',
@@ -1038,7 +1057,11 @@ class _HomeState extends State<_Home> {
                     if (c.rules[i].focusBlock) 'During focus',
                     if (c.rules[i].dailyMinutes != null)
                       '${durationLabel(c.ruleUsage(c.rules[i]))} of ${c.rules[i].dailyMinutes} min today',
-                    if (c.rules[i].schedules.isNotEmpty) 'Scheduled',
+                    for (final window in c.rules[i].schedules.take(2))
+                      scheduleSummary(context, window),
+                    if (c.rules[i].schedules.length > 2)
+                      '+${c.rules[i].schedules.length - 2} more windows',
+                    if (c.rules[i].schedules.isNotEmpty) c.location.name,
                   ].join(' · '),
                 ),
               ),

@@ -21,6 +21,43 @@ void main() {
       expect(schedule.contains(DateTime.utc(2026, 11, 11, 1), utc), isFalse);
     },
   );
+  test('scheduled hours enforce without a timer, respect timezone and leave gaps between windows', () {
+    final zone = tz.getLocation('Asia/Jakarta');
+    final rule = ActivityRule(
+      id: 'work',
+      name: 'Focus hours',
+      sources: ['windows:discord.exe'],
+      focusBlock: false,
+      schedules: [
+        ScheduleWindow(
+          weekdays: [1, 2, 3, 4, 5],
+          startMinute: 540,
+          endMinute: 720,
+        ),
+        ScheduleWindow(
+          weekdays: [1, 2, 3, 4, 5],
+          startMinute: 780,
+          endMinute: 1020,
+        ),
+      ],
+    );
+    String? reason(int hour, int minute) => blockingReason(
+      rule: rule,
+      now: DateTime.utc(2026, 11, 9, hour, minute),
+      location: zone,
+      intervals: [],
+      focusing: false,
+    );
+    expect(reason(1, 59), isNull);
+    expect(reason(2, 0), 'Scheduled restriction');
+    expect(reason(5, 0), isNull);
+    expect(reason(6, 0), 'Scheduled restriction');
+    expect(reason(10, 0), isNull);
+    expect(
+      ActivityRule.fromJson(rule.toJson()).schedules.map((w) => w.toJson()),
+      rule.schedules.map((w) => w.toJson()),
+    );
+  });
   test('account days follow daylight saving, not a fixed 24 hours', () {
     final zone = tz.getLocation('America/New_York');
     final (springStart, springEnd) = accountDay(

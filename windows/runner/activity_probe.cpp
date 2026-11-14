@@ -1,4 +1,5 @@
 #include "activity_probe.h"
+#include "windows_apps.h"
 
 #include <windows.h>
 #include <appmodel.h>
@@ -14,6 +15,7 @@
 #include <mutex>
 #include <string>
 #include <vector>
+#include <thread>
 
 using MediaManager = winrt::Windows::Media::Control::GlobalSystemMediaTransportControlsSessionManager;
 using PlaybackStatus = winrt::Windows::Media::Control::GlobalSystemMediaTransportControlsSessionPlaybackStatus;
@@ -21,6 +23,9 @@ using PlaybackStatus = winrt::Windows::Media::Control::GlobalSystemMediaTranspor
 struct ActivityProbeState {
   std::mutex mutex;
   MediaManager manager{nullptr};
+  bool alive = true;
+  std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> catalog_result;
+  std::optional<flutter::EncodableList> catalog_apps;
 };
 
 namespace {
@@ -90,6 +95,7 @@ bool IsPlaying(const MediaManager& manager, DWORD pid) {
   return false;
 }
 constexpr UINT kForegroundChanged = WM_APP + 173;
+constexpr UINT kCatalogReady = WM_APP + 174;
 // OUTOFCONTEXT callbacks are delivered on the registering UI thread. The runner
 // owns exactly one Flutter window per process; no other-app titles are queried.
 HWND foreground_notification_window = nullptr;
@@ -115,6 +121,31 @@ ActivityProbe::ActivityProbe(flutter::BinaryMessenger* messenger, HWND window)
   } catch (const winrt::hresult_error&) { /* Older Windows or denied media capability. */ }
   channel_->SetMethodCallHandler([this, state](const auto& call, auto result) {
     const auto* args = std::get_if<flutter::EncodableMap>(call.arguments());
+    if (call.method_name() == "listWindowsApps") {
+      {
+        const std::lock_guard<std::mutex> guard(state->mutex);
+        if (state->catalog_result) { result->Error("APP_SCAN_BUSY", "An app scan is already running."); return; }
+        state->catalog_result = std::move(result);
+      }
+      const HWND host = window_;
+      std::thread([state, host]() {
+        std::optional<flutter::EncodableList> apps;
+        try { apps = ListWindowsApps(); } catch (...) { /* Report on the UI thread. */ }
+        const std::lock_guard<std::mutex> guard(state->mutex);
+        if (!state->alive) return;
+        state->catalog_apps = std::move(apps);
+        PostMessageW(host, kCatalogReady, 0, 0);
+      }).detach();
+      return;
+    }
+    if (call.method_name() == "describeWindowsApp") {
+      if (!args) { result->Error("INVALID_APP", "Choose an executable."); return; }
+      const auto it = args->find(flutter::EncodableValue("path"));
+      const auto* path = it == args->end() ? nullptr : std::get_if<std::string>(&it->second);
+      if (!path) { result->Error("INVALID_APP", "Choose an executable."); return; }
+      result->Success(DescribeWindowsApp(*path));
+      return;
+    }
     if (call.method_name() == "setForegroundWatch") {
       const auto it = args ? args->find(flutter::EncodableValue("enabled")) : flutter::EncodableMap::const_iterator{};
       const auto* enabled = args && it != args->end() ? std::get_if<bool>(&it->second) : nullptr;
@@ -195,6 +226,20 @@ bool ActivityProbe::SetForegroundWatch(bool enabled) {
 }
 
 std::optional<LRESULT> ActivityProbe::HandleMessage(UINT message, WPARAM wparam, LPARAM lparam) {
+  if (message == kCatalogReady) {
+    std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> response;
+    std::optional<flutter::EncodableList> apps;
+    {
+      const std::lock_guard<std::mutex> guard(state_->mutex);
+      response = std::move(state_->catalog_result);
+      apps = std::move(state_->catalog_apps);
+    }
+    if (response) {
+      if (apps) response->Success(flutter::EncodableValue(*apps));
+      else response->Error("APP_SCAN_FAILED", "Could not read Windows applications. Try again or browse for an executable.");
+    }
+    return 0;
+  }
   if (message == kForegroundChanged) {
     if (foreground_hook_) channel_->InvokeMethod("foregroundChanged", nullptr);
     return 0;
@@ -203,6 +248,11 @@ std::optional<LRESULT> ActivityProbe::HandleMessage(UINT message, WPARAM wparam,
 }
 
 ActivityProbe::~ActivityProbe() {
+  {
+    const std::lock_guard<std::mutex> guard(state_->mutex);
+    state_->alive = false;
+    state_->catalog_result.reset();
+  }
   SetForegroundWatch(false);
   channel_->SetMethodCallHandler(nullptr);
 }

@@ -1,4 +1,5 @@
 #include "restriction_window.h"
+#include "windows_apps.h"
 
 #include <algorithm>
 #include <cwctype>
@@ -21,21 +22,14 @@ bool MatchesApp(DWORD pid, const std::string& source) {
   std::wstring executable(buffer.data(), length);
   executable = executable.substr(executable.find_last_of(L"\\/") + 1);
   std::transform(executable.begin(), executable.end(), executable.begin(), towlower);
-  // Never interfere with the desktop, security UI, task switching or recovery.
-  static const wchar_t* protected_apps[] = {
-    L"lockin.exe", L"explorer.exe", L"taskmgr.exe", L"dwm.exe", L"csrss.exe",
-    L"winlogon.exe", L"logonui.exe", L"lockapp.exe", L"credentialuibroker.exe",
-    L"consent.exe", L"systemsettings.exe", L"applicationframehost.exe",
-    L"startmenuexperiencehost.exe", L"shellexperiencehost.exe", L"searchhost.exe",
-  };
-  if (std::find(std::begin(protected_apps), std::end(protected_apps), executable) != std::end(protected_apps)) return false;
+  if (IsProtectedWindowsApp(executable)) return false;
   const std::string expected_utf8 = source.substr(8);
   const int size = MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, expected_utf8.data(), static_cast<int>(expected_utf8.size()), nullptr, 0);
   if (size <= 0) return false;
   std::wstring expected(size, L'\0');
   MultiByteToWideChar(CP_UTF8, MB_ERR_INVALID_CHARS, expected_utf8.data(), static_cast<int>(expected_utf8.size()), expected.data(), size);
   std::transform(expected.begin(), expected.end(), expected.begin(), towlower);
-  return expected == executable;
+  return CompareStringOrdinal(expected.c_str(), -1, executable.c_str(), -1, TRUE) == CSTR_EQUAL;
 }
 
 bool FocusOwned(HWND window) {
