@@ -60,7 +60,7 @@ jobs:
           "$signer" verify --verbose --print-certs build/app/outputs/flutter-apk/app-arm64-v8a-release.apk | tee build/app/outputs/flutter-apk/signing-certificate.txt
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: lockin-android-arm64-release
+          name: grindset-android-arm64-release
           path: |
             build/app/outputs/flutter-apk/app-arm64-v8a-release.apk
             build/app/outputs/flutter-apk/signing-certificate.txt

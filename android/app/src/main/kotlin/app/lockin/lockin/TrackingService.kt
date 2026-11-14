@@ -61,7 +61,7 @@ class TrackingService : Service() {
             Notification.Builder(this)
         }
         val notification = builder.setSmallIcon(android.R.drawable.ic_lock_idle_lock)
-            .setContentTitle("Lockin activity tracking")
+            .setContentTitle("Grindset activity tracking")
             .setContentText("Foreground app time is saved on this device.")
             .setContentIntent(open).setOngoing(true).setShowWhen(false)
             .addAction(Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel, "Stop tracking", stop).build())

@@ -1,6 +1,6 @@
 # Android background runtime
 
-Tracking is opt-in. Enable Usage Access and notifications in Settings. Lockin starts a `specialUse` foreground service with a persistent notification and a stop action. Force-stop, system termination, uninstall and permission revocation can still interrupt it. The foreground-service declaration and Accessibility use require policy review before Play distribution.
+Tracking is opt-in. Enable Usage Access and notifications in Settings. Grindset starts a `specialUse` foreground service with a persistent notification and a stop action. Force-stop, system termination, uninstall and permission revocation can still interrupt it. The foreground-service declaration and Accessibility use require policy review before Play distribution.
 
 ## Ownership
 
@@ -10,13 +10,13 @@ Every 15 seconds the controller commits OS-confirmed usage intervals and its imp
 
 The notification's stop choice is authoritative in native preferences. The Dart database adopts it even when the stop callback was lost. Boot/package-replacement restart occurs only after opt-in and with required permissions; failures are shown rather than silently treated as running.
 
-Usage Access, app-wide notifications, and the tracking notification channel must remain enabled. The native service checks them at startup and once per second, independently of a busy Dart import. Losing a requirement pauses the service and persists an actionable reason without discarding the opt-in. Opening Lockin after restoring access starts a new collection window. Neither permission-disabled gaps nor explicitly stopped periods are backfilled. Ordinary process/reboot recovery retains the existing window while permissions remain valid. In-flight reads are rejected if permissions or the collection generation change before delivery. A legacy installation without a recorded window starts one conservatively; it does not reconstruct pre-upgrade consent.
+Usage Access, app-wide notifications, and the tracking notification channel must remain enabled. The native service checks them at startup and once per second, independently of a busy Dart import. Losing a requirement pauses the service and persists an actionable reason without discarding the opt-in. Opening Grindset after restoring access starts a new collection window. Neither permission-disabled gaps nor explicitly stopped periods are backfilled. Ordinary process/reboot recovery retains the existing window while permissions remain valid. In-flight reads are rejected if permissions or the collection generation change before delivery. A legacy installation without a recorded window starts one conservatively; it does not reconstruct pre-upgrade consent.
 
 ## Optional blocking
 
-Enable **Lockin app blocking** yourself in Android Accessibility settings, after the in-app disclosure. The service requests only window-state events and reads package identifiers. It does not retrieve a window content tree, text, screenshots, keystrokes or gestures.
+Enable **Grindset app blocking** yourself in Android Accessibility settings, after the in-app disclosure. The service requests only window-state events and reads package identifiers. It does not retrieve a window content tree, text, screenshots, keystrokes or gestures.
 
-The existing Dart policy evaluates focus blocks, union-accounted daily budgets and account-timezone schedules. An active restriction displays a native accessibility overlay. A five-minute override is committed for one source on this device before the overlay is dismissed. Android Settings, the launcher, permission/install interfaces and Lockin remain accessible. This is voluntary enforcement, not tamper or uninstall protection.
+The existing Dart policy evaluates focus blocks, union-accounted daily budgets and account-timezone schedules. An active restriction displays a native accessibility overlay. A five-minute override is committed for one source on this device before the overlay is dismissed. Android Settings, the launcher, permission/install interfaces and Grindset remain accessible. This is voluntary enforcement, not tamper or uninstall protection.
 
 ## Verification status
 

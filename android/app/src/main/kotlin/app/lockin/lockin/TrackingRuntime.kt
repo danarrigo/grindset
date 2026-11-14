@@ -191,20 +191,20 @@ object TrackingRuntime {
                 }
                 "trackingStatus" -> result.success(status(context))
                 "requestUsageAccess" -> {
-                    val host = checkNotNull(activity.get()) { "Open Lockin to review permissions." }
+                    val host = checkNotNull(activity.get()) { "Open Grindset to review permissions." }
                     host.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
                         data = android.net.Uri.parse("package:${context.packageName}")
                     })
                     result.success(null)
                 }
                 "requestBlockingAccess" -> {
-                    val host = checkNotNull(activity.get()) { "Open Lockin to enable app blocking." }
+                    val host = checkNotNull(activity.get()) { "Open Grindset to enable app blocking." }
                     host.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                     result.success(null)
                 }
                 "foregroundSource" -> result.success(AppBlockingService.instance?.foregroundSource())
                 "showBlock" -> {
-                    val service = checkNotNull(AppBlockingService.instance) { "Enable Lockin in Accessibility settings to block apps." }
+                    val service = checkNotNull(AppBlockingService.instance) { "Enable Grindset in Accessibility settings to block apps." }
                     service.showBlock(checkNotNull(call.argument<String>("source")), call.argument<String>("message") ?: "An activity rule is active.")
                     result.success(null)
                 }

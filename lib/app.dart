@@ -44,7 +44,7 @@ class LockinApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => MaterialApp(
-    title: 'Lockin',
+    title: 'Grindset',
     debugShowCheckedModeBanner: false,
     theme: lockinTheme(Brightness.light),
     darkTheme: lockinTheme(Brightness.dark),
@@ -138,9 +138,9 @@ class _HomeState extends State<_Home> {
         title: const Text('Enable activity tracking?'),
         content: SingleChildScrollView(
           child: Text(
-            'Lockin reads foreground app identifiers and usage timestamps throughout the day. '
+            'Grindset reads foreground app identifiers and usage timestamps throughout the day. '
             'It does not read page titles, screenshots, keystrokes or window contents.\n\n'
-            '${c.tracker.isWindows && widget.enableStartup == null ? 'This isolated preview does not change Windows sign-in startup.' : 'Windows will start Lockin at sign-in and keep it in the tray.'} '
+            '${c.tracker.isWindows && widget.enableStartup == null ? 'This isolated preview does not change Windows sign-in startup.' : 'Windows will start Grindset at sign-in and keep it in the tray.'} '
             'Android requires Usage Access and notifications, '
             'then keeps a visible background service running when you close the UI. You can stop it from Settings or its notification. '
             'App blocking requires a separate, optional Accessibility permission.\n\n'
@@ -174,10 +174,10 @@ class _HomeState extends State<_Home> {
         title: const Text('Enable app blocking?'),
         content: const SingleChildScrollView(
           child: Text(
-            'Lockin uses Accessibility only to identify the foreground app package and display a blocking screen when one of your rules applies. '
+            'Grindset uses Accessibility only to identify the foreground app package and display a blocking screen when one of your rules applies. '
             'It does not read screen contents, typed text, screenshots or keystrokes.\n\n'
-            'This is voluntary enforcement. You can disable Accessibility, stop tracking or uninstall Lockin at any time. Android Settings remains accessible.\n\n'
-            'After continuing, choose Lockin app blocking in Android Accessibility settings and enable it yourself.',
+            'This is voluntary enforcement. You can disable Accessibility, stop tracking or uninstall Grindset at any time. Android Settings remains accessible.\n\n'
+            'After continuing, choose Grindset app blocking in Android Accessibility settings and enable it yourself.',
           ),
         ),
         actions: [
@@ -212,7 +212,7 @@ class _HomeState extends State<_Home> {
         title: const Text('Reset this device?'),
         content: const Text(
           'This permanently clears local history, rules, saved offline edits and the account link on this device. '
-          'Tracking and completion alerts stop, browsers disconnect, this device signs out, and Lockin closes.\n\n'
+          'Tracking and completion alerts stop, browsers disconnect, this device signs out, and Grindset closes.\n\n'
           'Cloud records and other devices are not deleted or signed out. Export your data first if you want to keep a copy.',
         ),
         actions: [
@@ -594,7 +594,7 @@ class _HomeState extends State<_Home> {
                 const Align(
                   alignment: Alignment.centerLeft,
                   child: Text(
-                    'Lockin',
+                    'Grindset',
                     style: TextStyle(
                       fontSize: 20,
                       fontWeight: FontWeight.w600,
@@ -726,7 +726,10 @@ class _HomeState extends State<_Home> {
       builder: (sheetContext) => CupertinoTheme(
         data: theme,
         child: CupertinoActionSheet(
-          title: const Text('Lockin', style: textStyle),
+          title: Text(
+            'Grindset',
+            style: textStyle.copyWith(color: const Color(0xFFE5E5EA)),
+          ),
           actions: [
             if (!running) ...[
               CupertinoActionSheetAction(
@@ -1268,7 +1271,7 @@ class _HomeState extends State<_Home> {
             ),
             const SizedBox(height: 12),
             const Text(
-              'Signing out keeps local history linked to its original account. To use a different account, export what you need, then reset this device and reopen Lockin.',
+              'Signing out keeps local history linked to its original account. To use a different account, export what you need, then reset this device and reopen Grindset.',
             ),
             const SizedBox(height: 14),
             Wrap(
@@ -1338,7 +1341,7 @@ class _HomeState extends State<_Home> {
                 const SizedBox(height: 28),
                 FilledButton(
                   onPressed: c.dismissBlock,
-                  child: const Text('Return to Lockin'),
+                  child: const Text('Return to Grindset'),
                 ),
                 const SizedBox(height: 8),
                 TextButton(

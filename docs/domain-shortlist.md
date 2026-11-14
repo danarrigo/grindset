@@ -4,11 +4,15 @@ Research date: 2026-11-12 UTC. No domain was purchased, registered or added to a
 
 ## Recommendation
 
-No public name or purchase has been approved. The user is open to replacing Lockin and likes the style of **LifeMax**, **AllIn** and **DayOne**. They want one word, or two familiar words fused into a catchy name, with a broader self-improvement/commitment/fresh-start feel. Searchability matters. The audience includes students, people working, and people trying to stop doomscrolling. Forced compounds, abstract startup-sounding names, earlier Lockin variants, Dialed, FocusRiot and the FullOn/OneGo direction were rejected. Historical shortlists below are not approved choices.
+At the time of this research, no public name or purchase had been approved. The user was open to replacing Lockin and likes the style of **LifeMax**, **AllIn** and **DayOne**. They want one word, or two familiar words fused into a catchy name, with a broader self-improvement/commitment/fresh-start feel. Searchability matters. The audience includes students, people working, and people trying to stop doomscrolling. Forced compounds, abstract startup-sounding names, earlier Lockin variants, Dialed, FocusRiot and the FullOn/OneGo direction were rejected. Historical shortlists below are not approved choices.
 
 An authoritative check at **02:51 UTC** found **`lockin.ai` already registered**, with registration date **2019-06-18**: <https://rdap.identitydigital.services/rdap/domain/lockin.ai>. No verified aftermarket asking price or willingness to sell was found. Its website not resolving does not make the domain available. Normal-registration versus aftermarket purchase budget remains unknown.
 
 Multiple existing Android focus/blocker apps already use LockIn or Lockin. A different domain suffix does not resolve product confusion. This search is not trademark clearance.
+
+## Naming decision
+
+The product is now **Grindset**. The research below is historical evidence under the former Lockin name, not current branding or a claim of trademark clearance/domain ownership.
 
 ## Refreshed Lockin domain options
 

@@ -159,7 +159,7 @@ class BrowserBridge {
       }
       if (request.headers.value('authorization') != 'Bearer $_token') {
         _reply(request, 401, {
-          'error': 'Pair the extension with Lockin first.',
+          'error': 'Pair the extension with Grindset first.',
         });
         return;
       }

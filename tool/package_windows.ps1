@@ -33,9 +33,9 @@ foreach ($runtime in @('msvcp140.dll', 'vcruntime140.dll', 'vcruntime140_1.dll')
 $output = (Resolve-Path -LiteralPath $OutputDirectory).Path
 $version = (Get-Item -LiteralPath $executable).VersionInfo.ProductVersion.Split('+')[0]
 if ($version -notmatch '^\d+\.\d+\.\d+$') { throw "Unsupported application version: $version" }
-$definition = Join-Path $PSScriptRoot '..\packaging\windows\lockin.iss'
+$definition = Join-Path $PSScriptRoot '..\packaging\windows\grindset.iss'
 & $Compiler "/DBuildDir=$build" "/DOutputDir=$output" "/DAppVersion=$version" $definition
 if ($LASTEXITCODE -ne 0) { throw 'Windows installer compilation failed.' }
-$installer = Join-Path $output "lockin-$version-windows-x64-setup.exe"
+$installer = Join-Path $output "grindset-$version-windows-x64-setup.exe"
 if (-not (Test-Path -LiteralPath $installer)) { throw 'The installer was not produced.' }
 Write-Output $installer

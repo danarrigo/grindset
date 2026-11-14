@@ -1,4 +1,4 @@
-# Lockin v1
+# Grindset v1
 
 Approved scope: a personal Windows + Android focus product, potentially commercial later. Flutter/Dart, Kotlin Android integrations, Win32 through Dart FFI, local SQLite/Drift, Supabase Auth/Postgres under the owner's account, and a Windows Chrome/Edge extension.
 
@@ -18,7 +18,7 @@ Approved scope: a personal Windows + Android focus product, potentially commerci
 
 ## Interface direction
 
-- Approved direction: **D, Minimal** in the [isolated design comparison](https://github.com/danarrigo/lockin/tree/design/apple-focus-prototype/lib/ui/focus_prototype). Use licensed Inter and Flutter Cupertino Icons, not proprietary Apple fonts.
+- Approved direction: **D, Minimal** in the [isolated design comparison](https://github.com/danarrigo/grindset/tree/design/apple-focus-prototype/lib/ui/focus_prototype). Use licensed Inter and Flutter Cupertino Icons, not proprietary Apple fonts.
 - Focus shows only the time, one **Lock in** / end control and a small menu, plus quiet build status and genuine error/completion feedback. No dashboard metrics, presets, cards, sidebar, tab bar or prototype controls on this screen.
 - Start immediately with the selected duration and current focus rules; do not show a setup form on every start. Duration and focus/break selection belong in the menu and cannot alter a running session. Save duration choices immediately and remember focus/break durations independently, including without starting a session or when a session ends early. Each phase still starts manually; ending early still requires confirmation.
 - Use the same composition on phone and desktop. Focus stays dark regardless of system appearance, like the approved Clock-style utility. Windows opens as a compact real window, not a drawn window inside a dashboard. Secondary screens retain system light/dark appearance.

@@ -1,14 +1,16 @@
-# Lockin
+# Grindset
 
 A local-first focus app for **Windows + Android**, built with Flutter/Dart. The approved full v1 scope is in [docs/v1-spec.md](docs/v1-spec.md).
 
-**This is an implementation checkpoint, not the completed v1.** The interface deliberately labels unfinished integrations. There is no fabricated usage or pretend live-device data.
+**v1.0.0 is a personal-use release with known limitations, not physical-device certification or store-reviewed distribution.** The interface deliberately labels experimental integrations. There is no fabricated usage or pretend live-device data.
+
+Download the Windows installer, stable-key Android ARM64 APK and browser extension from [Releases](https://github.com/danarrigo/grindset/releases). See the [release notes](docs/releases/v1.0.0.md) for installation and limitations. Existing app/package IDs, executable/storage identifiers and signing keys remain unchanged for compatibility with the former Lockin name.
 
 ![Desktop UI rendered by the widget test](test/goldens/desktop.png)
 
 Widget-rendered previews of the real app: [desktop](test/goldens/desktop.png) · [mobile](test/goldens/mobile.png) · [menu](test/goldens/mobile-menu.png) · [active focus](test/goldens/mobile-focus.png) · [break](test/goldens/mobile-break.png) · [completed](test/goldens/mobile-complete.png) · [maximized](test/goldens/desktop-wide.png).
 
-The approved Focus design is just the time, one start/end control and a small menu. Duration, phase selection and navigation live in the menu; focused time is in Activity and individual budgets are in Rules. Focus stays dark in either system appearance, while secondary screens follow the system theme. The [throwaway comparison](https://github.com/danarrigo/lockin/tree/design/apple-focus-prototype/lib/ui/focus_prototype) remains separate from the production app.
+The approved Focus design is just the time, one start/end control and a small menu. Duration, phase selection and navigation live in the menu; focused time is in Activity and individual budgets are in Rules. Focus stays dark in either system appearance, while secondary screens follow the system theme. The [throwaway comparison](https://github.com/danarrigo/grindset/tree/design/apple-focus-prototype/lib/ui/focus_prototype) remains separate from the production app.
 
 ## What is here
 
@@ -21,10 +23,10 @@ The approved Focus design is just the time, one start/end control and a small me
 | Storage | SQLite through Drift; private JSON export, explicit device-local reset/account switching, durable outbox/history and safe upload acknowledgements |
 | Windows | Win32 foreground reader, tray/close-to-tray, preview startup isolation, interruption notices and installer; Chrome foreground idle/video checks pass, desktop-player/lock checks remain |
 | Android | Opt-in foreground service keeps one cached Flutter engine and SQLite usage journal alive after UI close; optional package-only Accessibility blocker; native validation in progress |
-| Browsers | Real Chrome pairing, website accounting, idle/video checks and earlier policy/blocking/override/disconnect evidence; Edge paired, but native foreground acceptance and manual browser onboarding remain |
+| Browsers | Actual Chrome/Edge blocking and overrides pass; Chrome website accounting and idle/video checks pass; Edge foreground accounting and manual browser onboarding remain |
 | Supabase | Inbox confirmation and installed Windows/Android-emulator login, timezone/session/rule/budget/usage sync verified; hosted RLS/offline recovery verified separately; confirmation redirect still needs fixing |
 
-### Still required for the approved v1
+### Known limitations and deferred acceptance
 
 - Physical Android/OEM validation, Android post-reset redownload. Export/document-picker, local reset and the patched identifier-entry form now pass on the emulator. Background collection, process/reboot recovery, permission loss, lock boundaries, blocking and completion delivery still have bounded emulator evidence, not physical-device certification. See [Android runtime](docs/android-runtime.md).
 - Replace the broken default localhost post-confirmation redirect with an app-owned destination. Inbox confirmation, native Windows/Android-emulator password login and shared timezone/timer/history/rules/budgets/usage now pass. Installed offline-conflict flows remain separate from the hosted-client recovery checks. See [deployment evidence](docs/supabase-deployment.md) and [shared sync](docs/shared-sync.md).
@@ -64,7 +66,7 @@ Usage sync uploads confirmed intervals idempotently and downloads today's data w
 
 Local history is bound to its first cloud account. Uploading it to a different account is refused. Settings provides **Export data** and **Reset this device**: reset stops collectors/alerts, drains sync, signs out locally, clears this device's history/account link and closes the app. Cloud records remain untouched. Reopen before using another account. See [device data controls](docs/data-controls.md).
 
-CI Android APKs are debug previews, not stable release-signed installers. Their signing key can change between runner images, preventing an in-place upgrade. Do not uninstall a personal installation merely to upgrade without preserving its data. Stable-key Android release configuration and a per-user Windows installer are implemented; actual signing credentials remain owner-controlled. See [packaging and update behavior](docs/packaging.md).
+Push/PR CI Android APKs are debug previews, not stable release-signed installers. GitHub release APKs are built separately with the retained owner signing key. Their signing key can change between runner images, preventing an in-place upgrade. Do not uninstall a personal installation merely to upgrade without preserving its data. Stable-key Android release configuration and a per-user Windows installer are implemented; actual signing credentials remain owner-controlled. See [packaging and update behavior](docs/packaging.md).
 
 ## Completion notifications
 

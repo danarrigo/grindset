@@ -11,7 +11,7 @@
         tools:ignore="ProtectedPermissions" />
     <application
         android:allowBackup="false"
-        android:label="Lockin"
+        android:label="Grindset"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity

@@ -21,7 +21,7 @@ class CompletionAlerts {
           settings: const InitializationSettings(
             android: AndroidInitializationSettings('ic_notification'),
             windows: WindowsInitializationSettings(
-              appName: 'Lockin',
+              appName: 'Grindset',
               appUserModelId: 'app.lockin.lockin',
               guid: 'e92ecb75-223b-4d5b-9f98-75b0f301c656',
             ),
@@ -89,7 +89,7 @@ class CompletionAlerts {
         title: session.phase == SessionPhase.focus
             ? 'Focus complete'
             : 'Break complete',
-        body: 'Open Lockin when you are ready to start the next phase.',
+        body: 'Open Grindset when you are ready to start the next phase.',
         scheduledDate: tz.TZDateTime.from(alarmEnd, tz.UTC),
         notificationDetails: const NotificationDetails(
           android: AndroidNotificationDetails(

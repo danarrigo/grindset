@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="blocking_label">Lockin app blocking</string>
-    <string name="blocking_description">Optional app blocking for your own focus rules, daily budgets and schedules. Lockin reads only the foreground app package identifier and shows an interruption when a rule is active. It does not read screen contents, typed text, screenshots or keystrokes. You can disable this service in Android Settings at any time. This is voluntary enforcement, not uninstall protection.</string>
+    <string name="blocking_label">Grindset app blocking</string>
+    <string name="blocking_description">Optional app blocking for your own focus rules, daily budgets and schedules. Grindset reads only the foreground app package identifier and shows an interruption when a rule is active. It does not read screen contents, typed text, screenshots or keystrokes. You can disable this service in Android Settings at any time. This is voluntary enforcement, not uninstall protection.</string>
 </resources>

@@ -567,7 +567,7 @@ class AppController extends ChangeNotifier {
             if (blockedSource != null) dismissBlock();
             throw StateError(
               android?.error ??
-                  'Background tracking is stopped. Open Lockin to restart it.',
+                  'Background tracking is stopped. Open Grindset to restart it.',
             );
           }
           if (tick % 15 == 0) {

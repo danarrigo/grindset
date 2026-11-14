@@ -1,6 +1,6 @@
 # Install and update packages
 
-This milestone is personal/preview distribution, not a Play Store submission or a Windows trust certificate. Packaging does not establish native enforcement or cloud validation.
+Grindset releases are personal-use distribution, not a Play Store submission or a Windows trust certificate. Packaging does not establish native enforcement or cloud validation.
 
 ## Windows
 
@@ -12,16 +12,17 @@ flutter build windows --release
 ./tool/package_windows.ps1
 ```
 
-The packaging script requires Inno Setup 6.4 or newer and the Visual C++ redistributable files installed with Visual Studio. It bundles the CRT app-locally, then creates `build/installers/lockin-<version>-windows-x64-setup.exe`.
+The packaging script requires Inno Setup 6.4 or newer and the Visual C++ redistributable files installed with Visual Studio. It bundles the CRT app-locally, then creates `build/installers/grindset-<version>-windows-x64-setup.exe`.
 
-- Per-user installation under `%LOCALAPPDATA%\Programs\Lockin`, without elevation.
+- Per-user installation under `%LOCALAPPDATA%\Programs\Grindset`, without elevation.
 - Stable installer identity `app.lockin.lockin`, Start-menu shortcut, optional desktop shortcut, and the notification AppUserModelID.
 - Sign-in startup is not enabled by the installer; the app's tracking opt-in controls it.
-- Updates close the installed app and replace its executable/assets. The normal application-support journal and auth storage remain outside the install directory and are preserved.
+- Updates close the installed app and replace its executable/assets. The normal application-support journal and auth storage remain outside the install directory and are preserved. Existing installations retain their previous install directory; fresh installations use Grindset.
+- The legacy Android package ID, Windows installer/AppUserModelID, startup registry key, executable name (`lockin.exe`), Dart package, Windows resource identity and storage/export schema identifiers are intentionally retained. Windows resource identity determines the application-support/auth location; changing it just for branding would strand existing data. Visible app, tray, notification, shortcut, extension and installer labels use Grindset. Historical acceptance evidence and local SDK/signing paths retain their original names.
 - Uninstall preserves app data. Use Settings > Reset this device first to clear local data and sign out. Uninstall removes the startup entry only when it points at this installation.
 - The installer is **unsigned**. SmartScreen/trust warnings remain possible. No publisher certificate has been purchased or configured.
 
-The Verify workflow builds the installer and runs a silent install, the existing native startup/close-to-tray checks against the installed executable, and uninstall on an ephemeral Windows runner. It uploads `lockin-windows-installer-unsigned` alongside the portable `lockin-windows-unsigned` bundle. A runner smoke check is not a clean physical-machine certification.
+The Verify workflow builds the installer and runs a silent install, the existing native startup/close-to-tray checks against the installed executable, and uninstall on an ephemeral Windows runner. It uploads `grindset-windows-installer-unsigned` alongside the portable `grindset-windows-unsigned` bundle. A runner smoke check is not a clean physical-machine certification.
 
 Existing `--data-dir` previews use explicitly selected journals. They do not register themselves for Windows sign-in startup or remove the normal installation's startup entry on reset; their tracking disclosure makes that distinction explicit. Installing the app does not silently import those folders or change the account identity. Preserve/export the old preview's data before deciding how to move it.
 

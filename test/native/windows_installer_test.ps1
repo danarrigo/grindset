@@ -9,7 +9,7 @@ try {
     $setup = Start-Process -FilePath $installer -ArgumentList @('/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART', ('/DIR="' + $installed + '"')) -PassThru -Wait
     if ($setup.ExitCode -ne 0) { throw "Installer failed: $($setup.ExitCode)" }
     $executable = Join-Path $installed 'lockin.exe'
-    if (-not (Test-Path -LiteralPath $executable)) { throw 'Installer did not install Lockin.' }
+    if (-not (Test-Path -LiteralPath $executable)) { throw 'Installer did not install Grindset.' }
     & (Join-Path $PSScriptRoot 'windows_startup_test.ps1') -ExecutablePath $executable
     Write-Output 'PASS: the installed application loads and passes native startup checks.'
     $remove = Start-Process -FilePath $uninstaller -ArgumentList '/VERYSILENT', '/SUPPRESSMSGBOXES', '/NORESTART' -PassThru -Wait

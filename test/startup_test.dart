@@ -21,7 +21,7 @@ void main() {
 
       expect(
         find.textContaining(
-          'Lockin could not open its local database or platform settings.',
+          'Grindset could not open its local database or platform settings.',
         ),
         findsOneWidget,
       );

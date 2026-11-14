@@ -21,7 +21,7 @@ class LocalStore extends GeneratedDatabase {
     } on FileSystemException {
       lease.closeSync();
       throw StateError(
-        'This data folder is already open in Lockin. Open the existing app from its system tray.',
+        'This data folder is already open in Grindset. Open the existing app from its system tray.',
       );
     }
     try {

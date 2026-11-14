@@ -149,7 +149,7 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.textContaining('Windows will start Lockin at sign-in'),
+      find.textContaining('Windows will start Grindset at sign-in'),
       findsNothing,
     );
     await tester.tap(find.widgetWithText(FilledButton, 'Enable tracking'));
@@ -679,6 +679,7 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
+        expect(find.text('Grindset'), findsOneWidget);
         expect(find.text('Lock in'), findsOneWidget);
         expect(find.text('25:00'), findsOneWidget);
         expect(find.text('Focused today'), findsNothing);

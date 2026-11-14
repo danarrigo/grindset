@@ -6,13 +6,13 @@ Settings > **Export data** creates a private JSON archive. Windows uses a save-f
 
 The archive is a consistent SQLite snapshot, then streamed off-thread in batches of at most 500 rows. It includes settings from an explicit allowlist, all confirmed/pending intervals, timer history, canonical shared state, pending offline edits and saved conflicts. The live database is not held open while the user chooses a destination. Private temporary snapshot/output directories are removed afterward.
 
-Format `lockin-export`, version `1`, records the UTC export time and SQLite schema version. Table rows retain their stored fields; interval timestamps are UTC epoch milliseconds. JSON-valued table fields/settings remain JSON strings. Auth credentials, browser pairing tokens and unknown future settings are excluded. Device/account identifiers and activity timestamps are personal data: the archive is not anonymous and should be stored securely. There is no automatic archive-import feature.
+Suggested filenames use `grindset-export-*.json`; the legacy format identifier is deliberately preserved. Format `lockin-export`, version `1`, records the UTC export time and SQLite schema version. Table rows retain their stored fields; interval timestamps are UTC epoch milliseconds. JSON-valued table fields/settings remain JSON strings. Auth credentials, browser pairing tokens and unknown future settings are excluded. Device/account identifiers and activity timestamps are personal data: the archive is not anonymous and should be stored securely. There is no automatic archive-import feature.
 
 ## Sign-out and another account
 
 Sign-out keeps history and its original account binding. Another account cannot upload or adopt that journal. The login UI signs the mismatched account back out and directs the user to export/reset first; the sync protocol independently refuses mismatched owners before uploads.
 
-To change accounts: export anything worth retaining, choose **Reset this device**, confirm **Reset and close**, reopen Lockin, and sign in to the other account. This is deliberately a restart, not a hot swap of SQLite/auth ownership.
+To change accounts: export anything worth retaining, choose **Reset this device**, confirm **Reset and close**, reopen Grindset, and sign in to the other account. This is deliberately a restart, not a hot swap of SQLite/auth ownership.
 
 ## Reset
 
@@ -28,7 +28,7 @@ Reset affects this device only:
 
 Cloud records, exports saved elsewhere, backups and OS-maintained usage history/permissions are not deleted. New Android collection windows cannot backfill the previous account's system usage. Deleting SQLite rows is not a claim of forensic erasure from SSDs or external backups.
 
-If reset fails, Lockin exposes only a closable recovery screen, not a half-reset account UI. Some steps may already have completed; close/reopen before retrying. No cloud deletion is attempted.
+If reset fails, Grindset exposes only a closable recovery screen, not a half-reset account UI. Some steps may already have completed; close/reopen before retrying. No cloud deletion is attempted.
 
 ## Windows interruptions
 

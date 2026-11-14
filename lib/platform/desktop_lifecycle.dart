@@ -21,17 +21,18 @@ class DesktopLifecycle with WindowListener, TrayListener {
     await windowManager.ensureInitialized();
     if (manageStartup) {
       _startup.setup(
+        // Keep the existing registry identity to avoid duplicate startup entries.
         appName: 'Lockin',
         appPath: Platform.resolvedExecutable,
         args: ['--background'],
       );
     }
     await trayManager.setIcon('assets/tray.ico');
-    await trayManager.setToolTip('Lockin - foreground activity and focus');
+    await trayManager.setToolTip('Grindset - foreground activity and focus');
     await trayManager.setContextMenu(
       Menu(
         items: [
-          MenuItem(key: 'open', label: 'Open Lockin'),
+          MenuItem(key: 'open', label: 'Open Grindset'),
           MenuItem.separator(),
           MenuItem(key: 'quit', label: 'Quit (stops tracking)'),
         ],
@@ -45,7 +46,7 @@ class DesktopLifecycle with WindowListener, TrayListener {
         size: const Size(400, 600),
         minimumSize: const Size(360, 520),
         center: true,
-        title: 'Lockin',
+        title: 'Grindset',
         backgroundColor: const Color(0xFF09090A),
       ),
     );

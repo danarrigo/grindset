@@ -121,12 +121,12 @@ Future<void> main(List<String> args) async {
                       const Text('Reset could not finish'),
                       const SizedBox(height: 16),
                       SelectableText(
-                        'Some steps may have completed. Close and reopen Lockin before retrying. Cloud records were not deleted.\n\n$error',
+                        'Some steps may have completed. Close and reopen Grindset before retrying. Cloud records were not deleted.\n\n$error',
                       ),
                       const SizedBox(height: 24),
                       FilledButton(
                         onPressed: quit,
-                        child: const Text('Close Lockin'),
+                        child: const Text('Close Grindset'),
                       ),
                     ],
                   ),
@@ -192,7 +192,7 @@ Future<void> main(List<String> args) async {
             child: Padding(
               padding: const EdgeInsets.all(32),
               child: SelectableText(
-                'Lockin could not open its local database or platform settings.\n\n$error\n\nYour data has not been reset. Fix the issue and restart.',
+                'Grindset could not open its local database or platform settings.\n\n$error\n\nYour data has not been reset. Fix the issue and restart.',
               ),
             ),
           ),

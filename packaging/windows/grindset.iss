@@ -5,16 +5,17 @@
   #error OutputDir is required.
 #endif
 #ifndef AppVersion
-  #define AppVersion "0.1.0"
+  #define AppVersion "1.0.0"
 #endif
 
 [Setup]
 AppId=app.lockin.lockin
-AppName=Lockin
+AppName=Grindset
 AppVersion={#AppVersion}
 AppPublisher=app.lockin
-DefaultDirName={localappdata}\Programs\Lockin
-DefaultGroupName=Lockin
+DefaultDirName={localappdata}\Programs\Grindset
+DefaultGroupName=Grindset
+UsePreviousGroup=no
 PrivilegesRequired=lowest
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
@@ -27,7 +28,7 @@ SetupMutex=Lockin.Installer
 UninstallDisplayIcon={app}\lockin.exe
 SetupIconFile={#BuildDir}\data\flutter_assets\assets\tray.ico
 OutputDir={#OutputDir}
-OutputBaseFilename=lockin-{#AppVersion}-windows-x64-setup
+OutputBaseFilename=grindset-{#AppVersion}-windows-x64-setup
 Compression=lzma2
 SolidCompression=yes
 WizardStyle=modern
@@ -35,15 +36,20 @@ WizardStyle=modern
 [Files]
 Source: "{#BuildDir}\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
+[InstallDelete]
+Type: files; Name: "{userprograms}\Lockin\Lockin.lnk"
+Type: dirifempty; Name: "{userprograms}\Lockin"
+Type: files; Name: "{autodesktop}\Lockin.lnk"
+
 [Tasks]
 Name: "desktopicon"; Description: "Create a desktop shortcut"; Flags: unchecked
 
 [Icons]
-Name: "{group}\Lockin"; Filename: "{app}\lockin.exe"; AppUserModelID: "app.lockin.lockin"
-Name: "{autodesktop}\Lockin"; Filename: "{app}\lockin.exe"; Tasks: desktopicon; AppUserModelID: "app.lockin.lockin"
+Name: "{group}\Grindset"; Filename: "{app}\lockin.exe"; AppUserModelID: "app.lockin.lockin"
+Name: "{autodesktop}\Grindset"; Filename: "{app}\lockin.exe"; Tasks: desktopicon; AppUserModelID: "app.lockin.lockin"
 
 [Run]
-Filename: "{app}\lockin.exe"; Description: "Open Lockin"; Flags: nowait postinstall skipifsilent
+Filename: "{app}\lockin.exe"; Description: "Open Grindset"; Flags: nowait postinstall skipifsilent
 
 [Code]
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);

@@ -7,7 +7,7 @@ let policyUpdate = Promise.resolve();
 
 async function request(path, body, paired = true) {
   const {token} = await chrome.storage.local.get("token");
-  if (paired && !token) throw new Error("Pair this browser with Lockin first.");
+  if (paired && !token) throw new Error("Pair this browser with Grindset first.");
   const response = await fetch(base + path, {
     method: body === undefined ? "GET" : "POST",
     headers: {"Content-Type": "application/json", ...(paired ? {Authorization: `Bearer ${token}`} : {})},
@@ -15,7 +15,7 @@ async function request(path, body, paired = true) {
     cache: "no-store", signal: AbortSignal.timeout(4000),
   });
   if (response.status === 401) await chrome.storage.local.remove("token");
-  if (!response.ok) throw new Error(response.status === 401 ? "Pair this browser with Lockin again." : "Open Lockin and check the local connection or pairing code.");
+  if (!response.ok) throw new Error(response.status === 401 ? "Pair this browser with Grindset again." : "Open Grindset and check the local connection or pairing code.");
   return response.json();
 }
 
@@ -24,7 +24,7 @@ function apply(config) {
     const previous = await chrome.declarativeNetRequest.getDynamicRules();
     await chrome.declarativeNetRequest.updateDynamicRules({removeRuleIds: previous.map(rule => rule.id), addRules: buildRules(config, chrome.runtime.getURL("blocked.html"))});
     await chrome.action.setBadgeText({text: config.enabled ? "" : "OFF"});
-    await chrome.action.setTitle({title: config.enabled ? "Lockin - paired" : "Lockin - tracking is off"});
+    await chrome.action.setTitle({title: config.enabled ? "Grindset - paired" : "Grindset - tracking is off"});
     const [tab] = await chrome.tabs.query({active: true, lastFocusedWindow: true});
     const window = tab ? await chrome.windows.get(tab.windowId) : null;
     const domain = hostFromUrl(tab?.url);
@@ -38,7 +38,7 @@ function apply(config) {
 async function unavailable() {
   // Closing/quitting the native app must not leave an unbounded stale block.
   await apply({enabled: false});
-  await chrome.action.setTitle({title: "Lockin - native app disconnected; blocking is unavailable"});
+  await chrome.action.setTitle({title: "Grindset - native app disconnected; blocking is unavailable"});
 }
 
 async function refresh() {
@@ -66,7 +66,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
   (async () => {
     if (message.type === "heartbeat" && sender.tab) { await report(sender, message); return {ok: true}; }
     if (message.type === "pair" && sender.url === chrome.runtime.getURL("setup.html")) {
-      if (!/^\d{6}$/.test(message.code)) throw new Error("Enter the six-digit code shown by Lockin.");
+      if (!/^\d{6}$/.test(message.code)) throw new Error("Enter the six-digit code shown by Grindset.");
       const {token} = await request("/pair", {code: message.code}, false);
       await chrome.storage.local.set({token});
       await refresh();
@@ -82,7 +82,7 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
       }
       if (message.type === "refresh") return {ok: true, config: await refresh()};
     }
-    throw new Error("Unsupported Lockin request.");
+    throw new Error("Unsupported Grindset request.");
   })().then(reply, error => reply({ok: false, error: error.message}));
   return true;
 });

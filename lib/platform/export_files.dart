@@ -15,10 +15,10 @@ class ExportFiles {
     required DateTime exportedAt,
   }) async {
     final cache = await getTemporaryDirectory();
-    final directory = await cache.createTemp('lockin-export-');
+    final directory = await cache.createTemp('grindset-export-');
     try {
       final name =
-          'lockin-export-${exportedAt.toUtc().toIso8601String().replaceAll(RegExp(r'[:.]'), '-')}.json';
+          'grindset-export-${exportedAt.toUtc().toIso8601String().replaceAll(RegExp(r'[:.]'), '-')}.json';
       final archive = File(p.join(directory.path, name));
       await store.exportTo(archive, exportedAt: exportedAt);
       if (Platform.isAndroid) {

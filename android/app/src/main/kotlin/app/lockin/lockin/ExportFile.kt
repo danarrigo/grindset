@@ -17,7 +17,7 @@ object ExportFile {
     private var pending: Pair<File, MethodChannel.Result>? = null
 
     fun save(context: Context, host: Activity?, path: String, name: String, result: MethodChannel.Result) {
-        checkNotNull(host) { "Open Lockin to export data." }
+        checkNotNull(host) { "Open Grindset to export data." }
         check(pending == null) { "An export dialog is already open." }
         val source = File(path).canonicalFile
         require(source.path.startsWith(context.cacheDir.canonicalPath + File.separator) && source.isFile &&

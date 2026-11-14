@@ -88,12 +88,12 @@ jobs:
           grep -q 'Debug keys are never used for a release' "$RUNNER_TEMP/signing-check.log"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: lockin-android-arm64-debug
+          name: grindset-android-arm64-debug
           path: build/app/outputs/flutter-apk/app-arm64-v8a-debug.apk
           retention-days: 7
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: lockin-android-x64-debug
+          name: grindset-android-x64-debug
           path: build/app/outputs/flutter-apk/app-x86_64-debug.apk
           retention-days: 7
 
@@ -127,11 +127,11 @@ jobs:
         run: ./test/native/windows_installer_test.ps1 -InstallerPath (Get-ChildItem ./build/installers/*-setup.exe).FullName
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: lockin-windows-unsigned
+          name: grindset-windows-unsigned
           path: build/windows/x64/runner/Release/
           retention-days: 7
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: lockin-windows-installer-unsigned
+          name: grindset-windows-installer-unsigned
           path: build/installers/*-setup.exe
           retention-days: 7

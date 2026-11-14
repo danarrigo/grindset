@@ -5,6 +5,6 @@ document.querySelector("#pair").addEventListener("submit", async event => {
   try {
     const result = await chrome.runtime.sendMessage({type: "pair", code: document.querySelector("#code").value.trim()});
     status.textContent = result.ok ? "Paired. Tracking and rules follow the Windows app." : result.error;
-  } catch { status.textContent = "Could not connect. Open Lockin and try again."; }
+  } catch { status.textContent = "Could not connect. Open Grindset and try again."; }
   finally { button.disabled = false; }
 });

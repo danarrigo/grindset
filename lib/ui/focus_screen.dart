@@ -47,7 +47,7 @@ class FocusScreen extends StatelessWidget {
           children: [
             const Expanded(
               child: Text(
-                'Lockin',
+                'Grindset',
                 style: TextStyle(
                   color: Color(0xFFE5E5EA),
                   fontSize: 18,
