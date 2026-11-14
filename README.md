@@ -42,7 +42,7 @@ Install v1.2.0 manually once to gain **Settings > App updates > Check for update
 
 ## Starter activities
 
-Open **Rules** and choose **All social media** for one combined budget across 17 supported social/messaging/video apps, or choose individual starters. Discord now includes Windows Stable/PTB/Canary; Telegram, Signal and WhatsApp also have Windows executable coverage. Review the sources, suggested **30-minute daily limit** and **Block during focus**, then save. Old rules are preserved; use **Add desktop coverage** on an existing rule to review and save missing Windows identifiers. Tracking and permissions remain opt-in. See [starter behavior and coverage](docs/rule-presets.md).
+Open **Rules** and choose **All social media** for one combined budget across 17 supported social/messaging/video apps, or choose individual starters. Discord now includes Windows Stable/PTB/Canary; Telegram, Signal and WhatsApp also have Windows executable coverage. Review the sources, suggested **30-minute daily limit** and **Block during focus**, then save. Old rules are preserved; use **Add desktop coverage** on an existing rule to review and save missing Windows identifiers. Tracking and permissions remain opt-in. See [starter behavior and coverage](docs/rule-presets.md) and [native Windows app-blocking evidence](docs/windows-app-blocking.md).
 
 ## Development
 
