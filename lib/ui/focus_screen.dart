@@ -16,6 +16,8 @@ class FocusScreen extends StatelessWidget {
     required this.buildLabel,
     this.status,
     this.warning,
+    this.showBrand = true,
+    this.menuButtonKey,
   });
 
   final Duration remaining;
@@ -27,6 +29,8 @@ class FocusScreen extends StatelessWidget {
   final String buildLabel;
   final String? status;
   final String? warning;
+  final bool showBrand;
+  final Key? menuButtonKey;
 
   String get _clock {
     final seconds = (remaining.inMicroseconds / Duration.microsecondsPerSecond)
@@ -45,21 +49,24 @@ class FocusScreen extends StatelessWidget {
       children: [
         Row(
           children: [
-            const Expanded(
-              child: Text(
-                'Grindset',
-                style: TextStyle(
-                  color: Color(0xFFE5E5EA),
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: -.4,
-                ),
-              ),
+            Expanded(
+              child: showBrand
+                  ? const Text(
+                      'Grindset',
+                      style: TextStyle(
+                        color: Color(0xFFE5E5EA),
+                        fontSize: 18,
+                        fontWeight: FontWeight.w600,
+                        letterSpacing: -.4,
+                      ),
+                    )
+                  : const SizedBox.shrink(),
             ),
             Tooltip(
               message: 'More options',
               excludeFromSemantics: true,
               child: CupertinoButton(
+                key: menuButtonKey,
                 padding: EdgeInsets.zero,
                 minimumSize: const Size(48, 48),
                 color: const Color(0xFF1C1C1E),

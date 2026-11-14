@@ -24,7 +24,7 @@ The packaging script requires Inno Setup 6.4 or newer and the Visual C++ redistr
 
 The Verify workflow builds the installer and runs a silent install, the existing native startup/close-to-tray checks against the installed executable, and uninstall on an ephemeral Windows runner. It uploads `grindset-windows-installer-unsigned` alongside the portable `grindset-windows-unsigned` bundle. A runner smoke check is not a clean physical-machine certification.
 
-Existing `--data-dir` previews use explicitly selected journals. They do not register themselves for Windows sign-in startup or remove the normal installation's startup entry on reset; their tracking disclosure makes that distinction explicit. Installing the app does not silently import those folders or change the account identity. Preserve/export the old preview's data before deciding how to move it.
+For account-free native acceptance, use `--data-dir=<owned-test-folder> --local-only --no-alerts`; local-only skips cloud initialization/auth reuse, and no-alerts avoids touching the normal installation's completion-notification schedule. Existing `--data-dir` previews use explicitly selected journals. They do not register themselves for Windows sign-in startup or remove the normal installation's startup entry on reset; their tracking disclosure makes that distinction explicit. Installing the app does not silently import those folders or change the account identity. Preserve/export the old preview's data before deciding how to move it.
 
 ### Defender acceptance blocker (2026-11-13)
 

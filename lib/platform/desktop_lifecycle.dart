@@ -43,8 +43,8 @@ class DesktopLifecycle with WindowListener, TrayListener {
     await windowManager.setPreventClose(true);
     await windowManager.waitUntilReadyToShow(
       WindowOptions(
-        size: const Size(400, 600),
-        minimumSize: const Size(360, 520),
+        size: const Size(1120, 720),
+        minimumSize: const Size(840, 560),
         center: true,
         title: 'Grindset',
         backgroundColor: const Color(0xFF09090A),

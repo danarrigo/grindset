@@ -2,24 +2,24 @@
 
 A local-first focus app for **Windows + Android**, built with Flutter/Dart. The approved full v1 scope is in [docs/v1-spec.md](docs/v1-spec.md).
 
-**v1.2.0 is a personal-use release with known limitations, not physical-device certification or store-reviewed distribution.** The interface deliberately labels experimental integrations. There is no fabricated usage or pretend live-device data.
+**v1.3.0 is a personal-use release with known limitations, not physical-device certification or store-reviewed distribution.** The interface deliberately labels experimental integrations. There is no fabricated usage or pretend live-device data.
 
-Download the Windows installer, stable-key Android ARM64 APK and browser extension from [Releases](https://github.com/danarrigo/grindset-releases/releases). See the [release notes](docs/releases/v1.2.0.md) for installation and limitations. Existing app/package IDs, executable/storage identifiers and signing keys remain unchanged for compatibility with the former Lockin name.
+Download the Windows installer, stable-key Android ARM64 APK and browser extension from [Releases](https://github.com/danarrigo/grindset-releases/releases). See the [release notes](docs/releases/v1.3.0.md) for installation and limitations. Existing app/package IDs, executable/storage identifiers and signing keys remain unchanged for compatibility with the former Lockin name.
 
-![Desktop UI rendered by the widget test](test/goldens/desktop.png)
+![Desktop Rules workspace rendered by the widget test](test/goldens/desktop-rules.png)
 
 Widget-rendered previews of the real app: [desktop](test/goldens/desktop.png) · [mobile](test/goldens/mobile.png) · [menu](test/goldens/mobile-menu.png) · [active focus](test/goldens/mobile-focus.png) · [break](test/goldens/mobile-break.png) · [completed](test/goldens/mobile-complete.png) · [maximized](test/goldens/desktop-wide.png).
 
-The approved Focus design is just the time, one start/end control and a small menu. Duration, phase selection and navigation live in the menu; focused time is in Activity and individual budgets are in Rules. Focus stays dark in either system appearance, while secondary screens follow the system theme. The [throwaway comparison](https://github.com/danarrigo/grindset/tree/design/apple-focus-prototype/lib/ui/focus_prototype) remains separate from the production app.
+The approved Focus design is just the time, one start/end control and a small menu. Duration and phase selection live in the menu; desktop navigation stays in the sidebar, while phone navigation remains in the menu; focused time is in Activity and individual budgets are in Rules. Focus stays dark in either system appearance, while secondary screens follow the system theme. The [throwaway comparison](https://github.com/danarrigo/grindset/tree/design/apple-focus-prototype/lib/ui/focus_prototype) remains separate from the production app.
 
 ## What is here
 
 | Area | Current state |
 | --- | --- |
-| Interface | Approved minimal Focus screen wired to real state; immediate Lock in action; compact Windows utility window; matching phone layout; licensed Inter and Cupertino Icons |
+| Interface | Minimal Focus canvas; desktop-sized Windows workspace with persistent navigation and Ctrl+1-5 shortcuts; multi-column Rules/Settings; separate phone layout; licensed Inter and Cupertino Icons |
 | Timers | Pomodoro/custom durations, manual phase starts, deadline-based restoration, shared active session and union-accounted focus history |
 | Accounting | Cross-device interval union, account-timezone days, daylight-saving boundaries, per-device totals |
-| Rules | Nine editable starter activities with ready-made website/Android identifiers; shared daily budgets and schedules; device-local focus blocks and five-minute overrides; explicit offline conflict review |
+| Rules | Seventeen individual starters plus All social media; ready-made Windows app/web/Android identifiers where supported; explicit desktop-coverage upgrades for old rules; shared union-accounted budgets and device-local focus blocks/overrides |
 | Storage | SQLite through Drift; private JSON export, explicit device-local reset/account switching, durable outbox/history and safe upload acknowledgements |
 | Windows | Win32 foreground reader, tray/close-to-tray, preview startup isolation, interruption notices and installer; Chrome foreground idle/video checks pass, desktop-player/lock checks remain |
 | Android | Opt-in foreground service keeps one cached Flutter engine and SQLite usage journal alive after UI close; optional package-only Accessibility blocker; native validation in progress |
@@ -42,9 +42,11 @@ Install v1.2.0 manually once to gain **Settings > App updates > Check for update
 
 ## Starter activities
 
-Open **Rules** and choose Instagram, YouTube, TikTok, Reddit, X, Facebook, Snapchat, Twitch or Discord. Review the prefilled website/Android sources, suggested **30-minute daily limit** and **Block during focus**, then save. Nothing is added automatically, existing rules are preserved, and tracking/permissions remain opt-in. See [starter behavior and coverage](docs/rule-presets.md).
+Open **Rules** and choose **All social media** for one combined budget across 17 supported social/messaging/video apps, or choose individual starters. Discord now includes Windows Stable/PTB/Canary; Telegram, Signal and WhatsApp also have Windows executable coverage. Review the sources, suggested **30-minute daily limit** and **Block during focus**, then save. Old rules are preserved; use **Add desktop coverage** on an existing rule to review and save missing Windows identifiers. Tracking and permissions remain opt-in. See [starter behavior and coverage](docs/rule-presets.md).
 
 ## Development
+
+For an isolated native preview, use `--data-dir=<owned-test-folder> --local-only --no-alerts`. These flags avoid the normal journal, cloud/auth session and completion-alert schedule; they do not disable Windows security or change startup registration.
 
 Use **Flutter stable 3.47.9 / Dart 3.13.7** to reproduce the checked-in UI goldens. The session's persistent WSL SDK is `~/.local/share/lockin/flutter`. To use it in the current shell, run `export PATH="$HOME/.local/share/lockin/flutter/bin:$PATH"`. Windows builds require a separate Windows-side Flutter installation.
 

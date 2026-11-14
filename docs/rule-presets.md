@@ -1,29 +1,43 @@
-# Starter activities
+# Starter activities and desktop coverage
 
-Rules offers Instagram, YouTube, TikTok, Reddit, X, Facebook, Snapchat, Twitch and Discord without requiring anyone to look up package identifiers. These are bundled suggestions, not claims that those apps are installed or have recorded usage.
+Rules offers **All social media** plus 17 individual activities: Instagram, YouTube, TikTok, Reddit, X, Facebook, Snapchat, Twitch, Discord, WhatsApp, Telegram, Signal, Messenger, LinkedIn, Pinterest, Threads and Bluesky. The combined rule covers this supported catalog, not literally every social service or unofficial client.
 
-Selecting a starter opens the normal activity editor with its website hosts and Android packages selected, **30 minutes per day** and **Block during focus** enabled. Review or change these choices, then choose **Save activity**. Cancelling saves nothing. No rule, tracking opt-in, OS permission or cloud policy changes merely by opening Rules.
+Select a starter, review its sources, suggested **30 minutes per day** and **Block during focus**, then save. Nothing is automatically persisted or enforced. Tracking and OS permissions remain opt-in. Individual activities have separate budgets; All social media has one combined budget, unioning overlapping usage across all selected sources/devices. Existing individual restrictions still apply alongside it. There is no default recurring schedule. Focus-block flags remain device-local; daily budgets and schedules synchronize.
 
-Saved starters are ordinary editable/deletable activities with the existing shared-budget, persistence, conflict and sync behavior. The limit applies separately to each activity and unions overlapping usage across its linked sources. There is no blanket combined social-media allowance and no default recurring schedule. Existing activities are never replaced; suggestions whose sources overlap an existing activity are hidden, including matching website subdomains. Deleted activities are not automatically recreated.
+## Windows apps
 
-The editor also lists the known starter identifiers alongside observed/custom sources, with readable app names. Manual identifiers remain available for other apps, work-profile clones and variants. Nothing is fetched or installed while browsing suggestions.
+The Discord starter includes `windows:discord.exe`, `windows:discordptb.exe` and `windows:discordcanary.exe`. Telegram includes `windows:telegram.exe`; Signal includes `windows:signal.exe`; WhatsApp includes the distinct `windows:whatsapp.exe` and `windows:whatsapp.root.exe` process names. These are app-specific executable identifiers, never generic browser/WebView hosts. Windows executable matching is case-insensitive; Android package matching remains case-sensitive.
 
-## Coverage
+Windows tracking must be enabled and a focus, budget or schedule restriction active. The existing foreground restriction mechanism brings Grindset's interruption window forward; it is voluntary enforcement, not process termination or tamper/uninstall protection. Returning to a restricted app after an observed foreground transition reopens the interruption. A source-specific five-minute override still leaves other restrictions active.
 
-Website rules include subdomains and need the paired Windows extension. Android rules match exact package IDs and require the existing tracking/Accessibility opt-ins. These starters do not identify Windows desktop executables, distinguish YouTube Shorts from other YouTube use, or grant any extra enforcement capability.
+Older saved rules are not silently broadened. **Add desktop coverage** on a recognized activity opens its normal editor with missing Windows identifiers preselected. Saving preserves its ID, name, budget, schedules and local focus flag. Cancelling leaves it unchanged. The editor has readable labels, search and selected sources first.
 
-The catalog is maintained in [`lib/core/rule_presets.dart`](../lib/core/rule_presets.dart). Main Android package IDs were checked against the publishers' Google Play listings on 2026-11-14:
+Known Windows names were checked against [Discord testing clients](https://support.discord.com/hc/en-us/articles/360035675191-Discord-Testing-Clients), [Telegram's installer source](https://github.com/telegramdesktop/tdesktop/blob/dev/Telegram/build/setup.iss) and [Signal Desktop](https://github.com/signalapp/Signal-Desktop). Alternative/repackaged clients may use other identifiers; use an observed app source when necessary. Store/PWA apps using shared browser hosts are not indiscriminately blocked by executable name.
 
-| Activity | Website hosts | Official Android listing |
-| --- | --- | --- |
-| Instagram | `instagram.com` | [com.instagram.android](https://play.google.com/store/apps/details?id=com.instagram.android) |
-| YouTube | `youtube.com`, `youtu.be` | [com.google.android.youtube](https://play.google.com/store/apps/details?id=com.google.android.youtube) |
-| TikTok | `tiktok.com` | [com.zhiliaoapp.musically](https://play.google.com/store/apps/details?id=com.zhiliaoapp.musically), [com.ss.android.ugc.trill](https://play.google.com/store/apps/details?id=com.ss.android.ugc.trill) |
-| Reddit | `reddit.com`, `redd.it` | [com.reddit.frontpage](https://play.google.com/store/apps/details?id=com.reddit.frontpage) |
-| X | `x.com`, `twitter.com` | [com.twitter.android](https://play.google.com/store/apps/details?id=com.twitter.android) |
-| Facebook | `facebook.com` | [com.facebook.katana](https://play.google.com/store/apps/details?id=com.facebook.katana) |
-| Snapchat | `snapchat.com` | [com.snapchat.android](https://play.google.com/store/apps/details?id=com.snapchat.android) |
-| Twitch | `twitch.tv` | [tv.twitch.android.app](https://play.google.com/store/apps/details?id=tv.twitch.android.app) |
-| Discord | `discord.com` | [com.discord](https://play.google.com/store/apps/details?id=com.discord) |
+## Websites and Android
 
-Tests exercise the real Rules/editor/controller/SQLite flow: review/cancel, editable defaults, persistence, existing-rule preservation, overlap filtering and a short phone at double text size. A widget-rendered [Rules preview](../test/goldens/mobile-rule-starters.png) captures the initial state. Identifier catalog checks do not establish physical-device enforcement reliability.
+Website rules include subdomains and need the paired Windows browser extension. Android requires tracking and the optional Accessibility blocking service. A starter does not claim an app is installed, fabricate usage, grant permissions or inspect page/screen contents. The catalog is bundled and makes no network requests while choosing suggestions.
+
+The authoritative identifiers are in [`lib/core/rule_presets.dart`](../lib/core/rule_presets.dart). Main Android packages were checked against publisher Google Play listings:
+
+| Activity | Android package |
+| --- | --- |
+| Instagram | [com.instagram.android](https://play.google.com/store/apps/details?id=com.instagram.android) |
+| YouTube | [com.google.android.youtube](https://play.google.com/store/apps/details?id=com.google.android.youtube) |
+| TikTok | [com.zhiliaoapp.musically](https://play.google.com/store/apps/details?id=com.zhiliaoapp.musically), [com.ss.android.ugc.trill](https://play.google.com/store/apps/details?id=com.ss.android.ugc.trill) |
+| Reddit | [com.reddit.frontpage](https://play.google.com/store/apps/details?id=com.reddit.frontpage) |
+| X | [com.twitter.android](https://play.google.com/store/apps/details?id=com.twitter.android) |
+| Facebook | [com.facebook.katana](https://play.google.com/store/apps/details?id=com.facebook.katana) |
+| Snapchat | [com.snapchat.android](https://play.google.com/store/apps/details?id=com.snapchat.android) |
+| Twitch | [tv.twitch.android.app](https://play.google.com/store/apps/details?id=tv.twitch.android.app) |
+| Discord | [com.discord](https://play.google.com/store/apps/details?id=com.discord) |
+| WhatsApp | [com.whatsapp](https://play.google.com/store/apps/details?id=com.whatsapp) |
+| Telegram | [org.telegram.messenger](https://play.google.com/store/apps/details?id=org.telegram.messenger) |
+| Signal | [org.thoughtcrime.securesms](https://play.google.com/store/apps/details?id=org.thoughtcrime.securesms) |
+| Messenger | [com.facebook.orca](https://play.google.com/store/apps/details?id=com.facebook.orca) |
+| LinkedIn | [com.linkedin.android](https://play.google.com/store/apps/details?id=com.linkedin.android) |
+| Pinterest | [com.pinterest](https://play.google.com/store/apps/details?id=com.pinterest) |
+| Threads | [com.instagram.barcelona](https://play.google.com/store/apps/details?id=com.instagram.barcelona) |
+| Bluesky | [xyz.blueskyweb.app](https://play.google.com/store/apps/details?id=xyz.blueskyweb.app) |
+
+Catalog and widget/controller/SQLite tests cover combined accounting, native-source selection, explicit legacy coverage upgrades, preservation of custom rules, cancellation and desktop/mobile layouts. Native and physical-device reliability are separate from these tests.

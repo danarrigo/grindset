@@ -539,7 +539,8 @@ class AppController extends ChangeNotifier {
             _openInterval = null;
           } else {
             final previous = _previousObservation;
-            if (_openInterval?.source != current.source ||
+            final entered = _openInterval?.source != current.source;
+            if (entered ||
                 previous == null ||
                 observed.difference(previous) > const Duration(seconds: 5)) {
               _openInterval = (
@@ -558,7 +559,7 @@ class AppController extends ChangeNotifier {
                 ),
               );
             }
-            _checkBlock(current.source);
+            _checkBlock(current.source, entered: entered);
           }
           await _recordBrowser(current, observed);
           _previousObservation = observed;
@@ -566,8 +567,7 @@ class AppController extends ChangeNotifier {
           if (!backgroundTrackingRunning) {
             if (blockedSource != null) dismissBlock();
             throw StateError(
-              android?.error ??
-                  'Background tracking is stopped. Open Grindset to restart it.',
+              android?.error ?? 'Background tracking is stopped. Open Grindset to restart it.',
             );
           }
           if (tick % 15 == 0) {
@@ -731,7 +731,7 @@ class AppController extends ChangeNotifier {
     return reason;
   }
 
-  void _checkBlock(String source) {
+  void _checkBlock(String source, {bool entered = false}) {
     final reason = restrictionForSource(source);
     if (reason == null) {
       dismissBlock();
@@ -740,7 +740,7 @@ class AppController extends ChangeNotifier {
     final changed = blockedSource != source;
     blockedSource = source;
     blockMessage = reason;
-    if (changed && showBlock != null) {
+    if ((changed || entered) && showBlock != null) {
       unawaited(
         showBlock!().catchError((Object error) {
           trackingError = 'Could not show blocking screen: $error';

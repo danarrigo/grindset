@@ -13,6 +13,10 @@ String? websiteHost(String value) {
 }
 
 bool matchesSource(String ruleSource, String observedSource) {
+  if (ruleSource.startsWith('windows:') &&
+      observedSource.startsWith('windows:')) {
+    return ruleSource.toLowerCase() == observedSource.toLowerCase();
+  }
   if (!ruleSource.startsWith('web:') || !observedSource.startsWith('web:')) {
     return ruleSource == observedSource;
   }

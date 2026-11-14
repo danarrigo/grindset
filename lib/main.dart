@@ -44,7 +44,9 @@ Future<void> main(List<String> args) async {
     final controller = AppController(
       store: store,
       tracker: NativeTracker(),
-      completionAlerts: Platform.isWindows || Platform.isAndroid
+      completionAlerts:
+          !args.contains('--no-alerts') &&
+              (Platform.isWindows || Platform.isAndroid)
           ? CompletionAlerts(android: Platform.isAndroid)
           : null,
     );
@@ -55,7 +57,8 @@ Future<void> main(List<String> args) async {
     CloudSync? cloud;
     DeviceAuthStorage? authStorage;
     String? startupWarning;
-    if (url.isNotEmpty && key.isNotEmpty) {
+    // Isolated native acceptance must not reuse a real account's auth storage.
+    if (!args.contains('--local-only') && url.isNotEmpty && key.isNotEmpty) {
       try {
         authStorage = DeviceAuthStorage(
           SharedPreferencesLocalStorage(

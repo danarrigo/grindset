@@ -10,6 +10,7 @@ import 'package:lockin/core/activity.dart';
 import 'package:lockin/core/focus_session.dart';
 import 'package:lockin/data/local_store.dart';
 import 'package:lockin/platform/native_tracker.dart';
+import 'package:lockin/ui/focus_screen.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 
 class _WindowsTracker extends NativeTracker {
@@ -171,8 +172,21 @@ void main() {
     expect(find.byType(CircularProgressIndicator), findsNothing);
     expect(find.text('Focused today'), findsNothing);
     expect(find.text('Daily limits'), findsNothing);
-    expect(find.text('Activity'), findsNothing);
-    expect(find.text('Rules'), findsNothing);
+    expect(
+      find.descendant(
+        of: find.byType(FocusScreen),
+        matching: find.text('Activity'),
+      ),
+      findsNothing,
+    );
+    expect(
+      find.descendant(
+        of: find.byType(FocusScreen),
+        matching: find.text('Rules'),
+      ),
+      findsNothing,
+    );
+    expect(find.byKey(const ValueKey('nav-2')), findsOneWidget);
     await tester.tap(find.text('Lock in'));
     await tester.pumpAndSettle();
     expect(controller.session?.focusing(controller.now), isTrue);
@@ -606,6 +620,7 @@ void main() {
       expect(controller.rules, isEmpty);
       expect(controller.trackingEnabled, isFalse);
 
+      await tester.ensureVisible(find.text('Instagram'));
       await tester.tap(find.text('Instagram'));
       await tester.pumpAndSettle();
       expect(find.text('Create an activity'), findsOneWidget);
@@ -616,6 +631,7 @@ void main() {
       await tester.pumpAndSettle();
       expect(await store.rules(), isEmpty);
 
+      await tester.ensureVisible(find.text('YouTube'));
       await tester.tap(find.text('YouTube'));
       await tester.pumpAndSettle();
       expect(
@@ -714,6 +730,147 @@ void main() {
     expect(controller.rules.single.name, 'Discord');
     expect(controller.rules.single.dailyMinutes, 30);
     expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('desktop workspace exposes navigation and Discord app coverage', (
+    tester,
+  ) async {
+    final (controller, _) = await open();
+    viewport(tester, const Size(1120, 720));
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: const ValueKey('desktop-workspace'),
+        child: LockinApp(controller: controller),
+      ),
+    );
+    expect(find.byKey(const ValueKey('nav-2')), findsOneWidget);
+    await navigate(tester, 2);
+    expect(find.text('All social media'), findsOneWidget);
+    await tester.ensureVisible(find.text('Discord'));
+    await tester.tap(find.text('Discord'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Save activity'));
+    await tester.tap(find.text('Save activity'));
+    await tester.pumpAndSettle();
+    expect(
+      controller.rules.single.sources,
+      containsAll([
+        'windows:discord.exe',
+        'windows:discordptb.exe',
+        'windows:discordcanary.exe',
+      ]),
+    );
+    await expectLater(
+      find.byKey(const ValueKey('desktop-workspace')),
+      matchesGoldenFile('goldens/desktop-rules.png'),
+    );
+    await navigate(tester, 4);
+    expect(find.text('App updates'), findsOneWidget);
+    await expectLater(
+      find.byKey(const ValueKey('desktop-workspace')),
+      matchesGoldenFile('goldens/desktop-settings.png'),
+    );
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('desktop keyboard navigation preserves the running timer', (
+    tester,
+  ) async {
+    final (controller, _) = await open();
+    viewport(tester, const Size(1120, 720));
+    await controller.startSession(
+      const Duration(minutes: 25),
+      SessionPhase.focus,
+    );
+    final sessionId = controller.session!.id;
+    await tester.pumpWidget(LockinApp(controller: controller));
+    await tester.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+    await tester.sendKeyEvent(LogicalKeyboardKey.digit3);
+    await tester.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+    await tester.pumpAndSettle();
+    expect(find.text('Your rules'), findsOneWidget);
+    expect(controller.session!.id, sessionId);
+    expect(controller.session!.running(controller.now), isTrue);
+  });
+
+  testWidgets('desktop navigation stays usable with doubled text', (
+    tester,
+  ) async {
+    final (controller, _) = await open();
+    viewport(tester, const Size(1120, 600));
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await tester.pumpWidget(LockinApp(controller: controller));
+    await navigate(tester, 2);
+    await navigate(tester, 4);
+    expect(find.text('App updates'), findsOneWidget);
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('existing Discord rules can explicitly gain desktop coverage', (
+    tester,
+  ) async {
+    final (controller, store) = await open();
+    await controller.saveRule(
+      ActivityRule(
+        id: 'old-discord',
+        name: 'Work chat',
+        sources: ['web:discord.com', 'android:com.discord'],
+        dailyMinutes: 45,
+        focusBlock: false,
+      ),
+    );
+    viewport(tester, const Size(1120, 720));
+    await tester.pumpWidget(LockinApp(controller: controller));
+    await navigate(tester, 2);
+    await tester.tap(
+      find.byKey(const ValueKey('desktop-coverage-old-discord')),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      (await store.rules()).single.sources,
+      isNot(contains('windows:discord.exe')),
+    );
+    await tester.ensureVisible(find.text('Save activity'));
+    await tester.tap(find.text('Save activity'));
+    await tester.pumpAndSettle();
+    final rule = controller.rules.single;
+    expect(rule.id, 'old-discord');
+    expect(rule.name, 'Work chat');
+    expect(rule.dailyMinutes, 45);
+    expect(rule.focusBlock, isFalse);
+    expect(rule.sources, contains('windows:discord.exe'));
+    expect(
+      find.byKey(const ValueKey('desktop-coverage-old-discord')),
+      findsNothing,
+    );
+  });
+
+  testWidgets('all social media is one editable combined rule', (tester) async {
+    final (controller, _) = await open();
+    viewport(tester, const Size(1120, 720));
+    await tester.pumpWidget(LockinApp(controller: controller));
+    await navigate(tester, 2);
+    await tester.tap(find.text('All social media'));
+    await tester.pumpAndSettle();
+    expect(controller.rules, isEmpty);
+    await tester.ensureVisible(find.text('Save activity'));
+    await tester.tap(find.text('Save activity'));
+    await tester.pumpAndSettle();
+    expect(controller.rules.single.name, 'All social media');
+    expect(controller.rules.single.dailyMinutes, 30);
+    expect(
+      controller.rules.single.sources,
+      containsAll([
+        'web:instagram.com',
+        'web:youtube.com',
+        'windows:discord.exe',
+        'windows:telegram.exe',
+        'windows:signal.exe',
+        'android:com.whatsapp',
+      ]),
+    );
+    expect(controller.trackingEnabled, isFalse);
   });
 
   testWidgets('rules show individual budgets using merged device usage', (
@@ -818,7 +975,13 @@ void main() {
         expect(find.text('Lock in'), findsOneWidget);
         expect(find.text('25:00'), findsOneWidget);
         expect(find.text('Focused today'), findsNothing);
-        expect(find.text('Activity'), findsNothing);
+        expect(
+          find.descendant(
+            of: find.byType(FocusScreen),
+            matching: find.text('Activity'),
+          ),
+          findsNothing,
+        );
         expect(tester.takeException(), isNull);
         await expectLater(
           find.byKey(const ValueKey('screen')),

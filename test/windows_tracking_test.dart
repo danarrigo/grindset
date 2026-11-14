@@ -1,17 +1,20 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lockin/app_controller.dart';
+import 'package:lockin/core/activity.dart';
+import 'package:lockin/core/focus_session.dart';
 import 'package:lockin/data/local_store.dart';
 import 'package:lockin/platform/native_tracker.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 
 class _Windows extends NativeTracker {
+  String source = 'windows:player.exe';
   @override
   bool get isWindows => true;
   @override
   bool get isAndroid => false;
   @override
   ForegroundApp foreground() =>
-      const ForegroundApp('windows:player.exe', 'Player', processId: 42);
+      ForegroundApp(source, 'Test foreground app', processId: 42);
 }
 
 void main() {
@@ -102,6 +105,46 @@ void main() {
       );
       await controller.initialize(poll: false);
       expect(controller.trackingInterruption, isNull);
+    },
+  );
+
+  test(
+    'returning to a blocked desktop app shows the interruption again',
+    () async {
+      controller.dispose();
+      final tracker = _Windows()..source = 'windows:discord.exe';
+      controller = AppController(
+        store: store,
+        tracker: tracker,
+        clock: () => now,
+      );
+      await controller.initialize(poll: false);
+      await controller.saveRule(
+        ActivityRule(
+          id: 'discord',
+          name: 'Discord',
+          sources: ['windows:discord.exe'],
+        ),
+      );
+      await controller.startSession(
+        const Duration(minutes: 25),
+        SessionPhase.focus,
+      );
+      var interruptions = 0;
+      controller.showBlock = () async {
+        interruptions++;
+      };
+      await sample();
+      expect(interruptions, 1);
+      tracker.source = 'windows:lockin.exe';
+      await sample();
+      tracker.source = 'windows:discord.exe';
+      await sample();
+      expect(interruptions, 2);
+      await controller.overrideBlock();
+      await sample();
+      expect(controller.blockedSource, isNull);
+      expect(interruptions, 2);
     },
   );
 

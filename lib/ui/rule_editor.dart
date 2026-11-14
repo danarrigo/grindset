@@ -6,8 +6,10 @@ import '../core/activity.dart';
 import '../core/rule_presets.dart';
 
 String sourceName(String source) {
-  for (final preset in rulePresets) {
-    if (preset.sources.contains(source)) return preset.name;
+  for (final preset in individualRulePresets) {
+    if (preset.sources.any((candidate) => matchesSource(candidate, source))) {
+      return preset.name;
+    }
   }
   final raw = source.split(':').last;
   if (source.startsWith('windows:')) {
@@ -40,6 +42,7 @@ class _RuleEditorState extends State<RuleEditor> {
   late TimeOfDay _until;
   late Set<int> _days;
   String? _error;
+  String _sourceQuery = '';
 
   @override
   void initState() {
@@ -159,9 +162,15 @@ class _RuleEditorState extends State<RuleEditor> {
           final name = sourceName(a).compareTo(sourceName(b));
           return name == 0 ? a.compareTo(b) : name;
         });
+    final visibleSources = sources.where(
+      (source) =>
+          sourceName(source).toLowerCase().contains(_sourceQuery) ||
+          source.toLowerCase().contains(_sourceQuery),
+    );
+    final desktop = MediaQuery.sizeOf(context).width >= 840;
     return Dialog(
       child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 540),
+        constraints: BoxConstraints(maxWidth: desktop ? 720 : 540),
         child: SingleChildScrollView(
           padding: const EdgeInsets.all(24),
           child: Form(
@@ -175,8 +184,10 @@ class _RuleEditorState extends State<RuleEditor> {
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),
                 const SizedBox(height: 8),
-                const Text(
-                  'Link apps across devices to give them one shared budget.',
+                Text(
+                  widget.preset == socialMediaPreset
+                      ? 'One shared budget across the supported social, messaging and video apps below. Existing individual rules still apply. Review the list before saving.'
+                      : 'Link Windows apps, websites and Android apps with one shared budget.',
                 ),
                 const SizedBox(height: 24),
                 TextFormField(
@@ -196,12 +207,21 @@ class _RuleEditorState extends State<RuleEditor> {
                   style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 8),
+                TextField(
+                  decoration: const InputDecoration(
+                    labelText: 'Find apps and websites',
+                    prefixIcon: Icon(Icons.search_rounded),
+                  ),
+                  onChanged: (query) =>
+                      setState(() => _sourceQuery = query.trim().toLowerCase()),
+                ),
+                const SizedBox(height: 8),
                 ConstrainedBox(
-                  constraints: const BoxConstraints(maxHeight: 180),
+                  constraints: BoxConstraints(maxHeight: desktop ? 260 : 180),
                   child: ListView(
                     shrinkWrap: true,
                     children: [
-                      for (final source in sources)
+                      for (final source in visibleSources)
                         CheckboxListTile(
                           dense: true,
                           contentPadding: EdgeInsets.zero,
@@ -245,6 +265,9 @@ class _RuleEditorState extends State<RuleEditor> {
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
                   title: const Text('Block during focus'),
+                  subtitle: const Text(
+                    'On this device. Daily budgets and schedules sync.',
+                  ),
                   value: _focus,
                   onChanged: (v) => setState(() => _focus = v),
                 ),
