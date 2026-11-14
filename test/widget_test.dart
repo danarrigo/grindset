@@ -581,6 +581,141 @@ void main() {
     },
   );
 
+  testWidgets(
+    'starter activities are reviewed before saving and stay editable',
+    (tester) async {
+      final (controller, store) = await open();
+      viewport(tester, const Size(390, 844));
+      await tester.pumpWidget(
+        RepaintBoundary(
+          key: const ValueKey('starter-screen'),
+          child: LockinApp(controller: controller),
+        ),
+      );
+      await navigate(tester, 2);
+      expect(find.text('Starter activities'), findsOneWidget);
+      await expectLater(
+        find.byKey(const ValueKey('starter-screen')),
+        matchesGoldenFile('goldens/mobile-rule-starters.png'),
+      );
+      await expectLater(tester, meetsGuideline(textContrastGuideline));
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      expect(find.text('Instagram'), findsOneWidget);
+      expect(find.text('YouTube'), findsOneWidget);
+      expect(controller.rules, isEmpty);
+      expect(controller.trackingEnabled, isFalse);
+
+      await tester.tap(find.text('Instagram'));
+      await tester.pumpAndSettle();
+      expect(find.text('Create an activity'), findsOneWidget);
+      expect(find.widgetWithText(TextFormField, 'Instagram'), findsOneWidget);
+      expect(controller.rules, isEmpty);
+      await tester.ensureVisible(find.text('Cancel'));
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(await store.rules(), isEmpty);
+
+      await tester.tap(find.text('YouTube'));
+      await tester.pumpAndSettle();
+      expect(
+        tester
+            .widgetList<CheckboxListTile>(find.byType(CheckboxListTile))
+            .take(3)
+            .every((tile) => tile.value == true),
+        isTrue,
+        reason: 'The preset sources should be selected and listed first',
+      );
+      await tester.ensureVisible(find.text('Minutes per day'));
+      await tester.enterText(
+        find.widgetWithText(TextFormField, 'Minutes per day'),
+        '45',
+      );
+      await tester.ensureVisible(find.text('Save activity'));
+      await tester.tap(find.text('Save activity'));
+      await tester.pumpAndSettle();
+      final rule = controller.rules.single;
+      expect(rule.name, 'YouTube');
+      expect(rule.dailyMinutes, 45);
+      expect(rule.focusBlock, isTrue);
+      expect(rule.schedules, isEmpty);
+      expect(
+        rule.sources,
+        containsAll([
+          'web:youtube.com',
+          'web:youtu.be',
+          'android:com.google.android.youtube',
+        ]),
+      );
+      expect((await store.rules()).single.encode(), rule.encode());
+      expect(find.widgetWithText(ActionChip, 'YouTube'), findsNothing);
+      expect(controller.trackingEnabled, isFalse);
+      expect(controller.usage, isEmpty);
+
+      await tester.tap(find.text('YouTube'));
+      await tester.pumpAndSettle();
+      expect(find.text('Edit activity'), findsOneWidget);
+      expect(find.widgetWithText(TextFormField, '45'), findsOneWidget);
+      await tester.ensureVisible(find.text('Cancel'));
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(controller.rules.single.encode(), rule.encode());
+    },
+  );
+
+  testWidgets('starter suggestions respect existing custom and alias rules', (
+    tester,
+  ) async {
+    final (controller, store) = await open();
+    final original = ActivityRule(
+      id: 'my-news-rule',
+      name: 'My news habit',
+      sources: ['web:mobile.twitter.com'],
+      focusBlock: false,
+      dailyMinutes: 12,
+    );
+    await controller.saveRule(original);
+    viewport(tester, const Size(390, 844));
+    await tester.pumpWidget(LockinApp(controller: controller));
+    await navigate(tester, 2);
+    expect(find.widgetWithText(ActionChip, 'X'), findsNothing);
+    await tester.ensureVisible(find.text('Instagram'));
+    await tester.tap(find.text('Instagram'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Save activity'));
+    await tester.tap(find.text('Save activity'));
+    await tester.pumpAndSettle();
+    expect(controller.rules, hasLength(2));
+    expect(
+      (await store.rules()).singleWhere((r) => r.id == original.id).encode(),
+      original.encode(),
+    );
+    expect(find.widgetWithText(ActionChip, 'Instagram'), findsNothing);
+  });
+
+  testWidgets('starter activities fit a short phone with enlarged text', (
+    tester,
+  ) async {
+    final (controller, _) = await open();
+    viewport(tester, const Size(320, 568));
+    tester.platformDispatcher.textScaleFactorTestValue = 2;
+    addTearDown(tester.platformDispatcher.clearTextScaleFactorTestValue);
+    await tester.pumpWidget(LockinApp(controller: controller));
+    await navigate(tester, 2);
+    await tester.ensureVisible(find.text('Discord'));
+    await tester.tap(find.text('Discord'));
+    await tester.pumpAndSettle();
+    tester.view.viewInsets = const FakeViewPadding(bottom: 200);
+    addTearDown(tester.view.resetViewInsets);
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.text('Save activity'));
+    await tester.tap(find.text('Save activity'));
+    await tester.pumpAndSettle();
+    expect(controller.rules.single.name, 'Discord');
+    expect(controller.rules.single.dailyMinutes, 30);
+    expect(tester.takeException(), isNull);
+  });
+
   testWidgets('rules show individual budgets using merged device usage', (
     tester,
   ) async {

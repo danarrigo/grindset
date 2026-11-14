@@ -3,8 +3,12 @@ import 'package:flutter/services.dart';
 import 'package:uuid/uuid.dart';
 
 import '../core/activity.dart';
+import '../core/rule_presets.dart';
 
 String sourceName(String source) {
+  for (final preset in rulePresets) {
+    if (preset.sources.contains(source)) return preset.name;
+  }
   final raw = source.split(':').last;
   if (source.startsWith('windows:')) {
     return raw.replaceFirst(RegExp(r'\.exe$'), '');
@@ -14,9 +18,11 @@ String sourceName(String source) {
 }
 
 class RuleEditor extends StatefulWidget {
-  const RuleEditor({super.key, required this.sources, this.rule});
+  const RuleEditor({super.key, required this.sources, this.rule, this.preset})
+    : assert(rule == null || preset == null);
   final Set<String> sources;
   final ActivityRule? rule;
+  final RulePreset? preset;
   @override
   State<RuleEditor> createState() => _RuleEditorState();
 }
@@ -39,11 +45,14 @@ class _RuleEditorState extends State<RuleEditor> {
   void initState() {
     super.initState();
     final rule = widget.rule;
-    _name = TextEditingController(text: rule?.name);
-    _minutes = TextEditingController(text: '${rule?.dailyMinutes ?? 30}');
-    _selected = {...?rule?.sources};
+    final preset = widget.preset;
+    _name = TextEditingController(text: rule?.name ?? preset?.name);
+    _minutes = TextEditingController(
+      text: '${rule?.dailyMinutes ?? preset?.dailyMinutes ?? 30}',
+    );
+    _selected = {...?rule?.sources, ...?preset?.sources};
     _focus = rule?.focusBlock ?? true;
-    _budget = rule?.dailyMinutes != null;
+    _budget = rule?.dailyMinutes != null || preset != null;
     final schedule = rule?.schedules.firstOrNull;
     _scheduled = schedule != null;
     _from = TimeOfDay(
@@ -136,8 +145,20 @@ class _RuleEditorState extends State<RuleEditor> {
 
   @override
   Widget build(BuildContext context) {
-    final sources = {...widget.sources, ...?widget.rule?.sources}.toList()
-      ..sort();
+    final initial =
+        widget.rule?.sources ?? widget.preset?.sources ?? const <String>{};
+    final sources =
+        {
+          ...widget.sources,
+          ...?widget.rule?.sources,
+          ...rulePresets.expand((preset) => preset.sources),
+        }.toList()..sort((a, b) {
+          if (initial.contains(a) != initial.contains(b)) {
+            return initial.contains(a) ? -1 : 1;
+          }
+          final name = sourceName(a).compareTo(sourceName(b));
+          return name == 0 ? a.compareTo(b) : name;
+        });
     return Dialog(
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 540),
@@ -175,13 +196,6 @@ class _RuleEditorState extends State<RuleEditor> {
                   style: TextStyle(fontSize: 13, fontWeight: FontWeight.w500),
                 ),
                 const SizedBox(height: 8),
-                if (sources.isEmpty)
-                  const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 12),
-                    child: Text(
-                      'No apps observed yet. Enable tracking and open an app, or enter a source below.',
-                    ),
-                  ),
                 ConstrainedBox(
                   constraints: const BoxConstraints(maxHeight: 180),
                   child: ListView(
@@ -326,14 +340,15 @@ class _RuleEditorState extends State<RuleEditor> {
                     ),
                   ),
                 const SizedBox(height: 24),
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
+                Wrap(
+                  alignment: WrapAlignment.end,
+                  spacing: 8,
+                  runSpacing: 8,
                   children: [
                     TextButton(
                       onPressed: () => Navigator.pop(context),
                       child: const Text('Cancel'),
                     ),
-                    const SizedBox(width: 8),
                     FilledButton(
                       onPressed: _save,
                       child: const Text('Save activity'),

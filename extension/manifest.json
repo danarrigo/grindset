@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Grindset",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Pair with the local Grindset app to track foreground website domains and apply your focus rules.",
   "permissions": ["tabs", "storage", "alarms", "idle", "declarativeNetRequest"],
   "host_permissions": ["<all_urls>", "http://127.0.0.1:47831/*"],

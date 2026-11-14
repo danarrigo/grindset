@@ -8,6 +8,7 @@ import 'package:timezone/timezone.dart' as tz;
 import 'app_controller.dart';
 import 'core/activity.dart';
 import 'core/focus_session.dart';
+import 'core/rule_presets.dart';
 import 'data/cloud_sync.dart';
 import 'ui/appearance.dart';
 import 'ui/cloud_panel.dart';
@@ -301,12 +302,13 @@ class _HomeState extends State<_Home> {
     );
   }
 
-  Future<void> _editRule([ActivityRule? rule]) async {
+  Future<void> _editRule({ActivityRule? rule, RulePreset? preset}) async {
     final baseRevision = rule == null ? 0 : c.ruleRevision(rule.id);
     final result = await showDialog<ActivityRule>(
       context: context,
       builder: (_) => RuleEditor(
         rule: rule,
+        preset: preset,
         sources: {
           ...c.usage.map((i) => i.source),
           ...c.rules.expand((r) => r.sources),
@@ -509,7 +511,10 @@ class _HomeState extends State<_Home> {
               : CupertinoTabBar(
                   currentIndex: _page,
                   onTap: (index) => setState(() => _page = index),
-                  height: 58,
+                  height: math.max(
+                    58.0,
+                    46 + MediaQuery.textScalerOf(context).scale(12),
+                  ),
                   activeColor: colors.onSurface,
                   inactiveColor: colors.onSurfaceVariant,
                   backgroundColor: Theme.of(context).scaffoldBackgroundColor,
@@ -888,78 +893,113 @@ class _HomeState extends State<_Home> {
     );
   }
 
-  Widget _rules() => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      _heading(
-        'Rules',
-        subtitle: 'Focus blocks, daily limits and schedules.',
-        action: TextButton.icon(
-          onPressed: () => _editRule(),
-          icon: const Icon(Icons.add_rounded, size: 18),
-          label: const Text('Add activity'),
-        ),
-      ),
-      if (!c.tracker.isWindows && !c.androidBlockingEnabled) ...[
-        _notice(
-          c.tracker.isAndroid
-              ? 'App blocking requires the optional Accessibility permission in Settings.'
-              : 'Native app blocking is not connected on this platform yet.',
-        ),
-        const SizedBox(height: 20),
-      ],
-      if (c.rules.isEmpty)
-        _empty(
-          'No activities added',
-          'Add an activity to choose which apps to restrict and when.',
-        ),
-      if (c.rules.isNotEmpty)
-        _Section(
-          child: Column(
-            children: [
-              for (var i = 0; i < c.rules.length; i++) ...[
-                if (i > 0) const Divider(indent: 18, endIndent: 18),
-                ListTile(
-                  onTap: () => _editRule(c.rules[i]),
-                  title: Text(c.rules[i].name),
-                  subtitle: Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Text(
-                      [
-                        if (c.rules[i].focusBlock) 'During focus',
-                        if (c.rules[i].dailyMinutes != null)
-                          '${durationLabel(c.ruleUsage(c.rules[i]))} of ${c.rules[i].dailyMinutes} min today',
-                        if (c.rules[i].schedules.isNotEmpty) 'Scheduled',
-                      ].join(' · '),
-                    ),
-                  ),
-                  trailing: PopupMenuButton<String>(
-                    tooltip: 'Options for ${c.rules[i].name}',
-                    icon: const Icon(Icons.more_horiz_rounded, size: 21),
-                    onSelected: (value) {
-                      if (value == 'edit') {
-                        _editRule(c.rules[i]);
-                      } else {
-                        _deleteRule(c.rules[i]);
-                      }
-                    },
-                    itemBuilder: (_) => const [
-                      PopupMenuItem(value: 'edit', child: Text('Edit')),
-                      PopupMenuItem(value: 'delete', child: Text('Delete')),
-                    ],
-                  ),
-                ),
-              ],
-            ],
+  Widget _rules() {
+    final presets = rulePresets
+        .where(
+          (preset) => !c.rules.any(
+            (rule) => rule.sources.any(
+              (source) => preset.sources.any(
+                (candidate) =>
+                    matchesSource(candidate, source) ||
+                    matchesSource(source, candidate),
+              ),
+            ),
+          ),
+        )
+        .toList();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        _heading(
+          'Rules',
+          subtitle: 'Focus blocks, daily limits and schedules.',
+          action: TextButton.icon(
+            onPressed: () => _editRule(),
+            icon: const Icon(Icons.add_rounded, size: 18),
+            label: const Text('Add activity'),
           ),
         ),
-      const SizedBox(height: 20),
-      Text(
-        'Any active restriction can block an activity. Breaks pause focus rules only.',
-        style: Theme.of(context).textTheme.bodySmall,
-      ),
-    ],
-  );
+        if (!c.tracker.isWindows && !c.androidBlockingEnabled) ...[
+          _notice(
+            c.tracker.isAndroid
+                ? 'App blocking requires the optional Accessibility permission in Settings.'
+                : 'Native app blocking is not connected on this platform yet.',
+          ),
+          const SizedBox(height: 20),
+        ],
+        if (c.rules.isNotEmpty)
+          _Section(
+            child: Column(
+              children: [
+                for (var i = 0; i < c.rules.length; i++) ...[
+                  if (i > 0) const Divider(indent: 18, endIndent: 18),
+                  ListTile(
+                    onTap: () => _editRule(rule: c.rules[i]),
+                    title: Text(c.rules[i].name),
+                    subtitle: Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                        [
+                          if (c.rules[i].focusBlock) 'During focus',
+                          if (c.rules[i].dailyMinutes != null)
+                            '${durationLabel(c.ruleUsage(c.rules[i]))} of ${c.rules[i].dailyMinutes} min today',
+                          if (c.rules[i].schedules.isNotEmpty) 'Scheduled',
+                        ].join(' · '),
+                      ),
+                    ),
+                    trailing: PopupMenuButton<String>(
+                      tooltip: 'Options for ${c.rules[i].name}',
+                      icon: const Icon(Icons.more_horiz_rounded, size: 21),
+                      onSelected: (value) {
+                        if (value == 'edit') {
+                          _editRule(rule: c.rules[i]);
+                        } else {
+                          _deleteRule(c.rules[i]);
+                        }
+                      },
+                      itemBuilder: (_) => const [
+                        PopupMenuItem(value: 'edit', child: Text('Edit')),
+                        PopupMenuItem(value: 'delete', child: Text('Delete')),
+                      ],
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        if (presets.isNotEmpty) ...[
+          const SizedBox(height: 24),
+          Text(
+            'Starter activities',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Ready-made websites and Android apps. Review the suggested 30-minute daily limit and focus block before saving. Nothing is added automatically.',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final preset in presets)
+                ActionChip(
+                  avatar: const Icon(Icons.add_rounded, size: 18),
+                  label: Text(preset.name),
+                  onPressed: () => _editRule(preset: preset),
+                ),
+            ],
+          ),
+        ],
+        const SizedBox(height: 20),
+        Text(
+          'Any active restriction can block an activity. Breaks pause focus rules only.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
 
   Widget _devices() {
     final remote =
@@ -1396,7 +1436,12 @@ class _HomeState extends State<_Home> {
       Expanded(
         child: Text(
           text,
-          style: TextStyle(fontSize: 12, color: colors.tertiary, height: 1.6),
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w500,
+            color: colors.onSurfaceVariant,
+            height: 1.6,
+          ),
         ),
       ),
     ],
