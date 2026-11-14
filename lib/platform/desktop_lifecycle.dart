@@ -2,6 +2,9 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:flutter/widgets.dart';
+
+import 'native_tracker.dart';
+
 import 'package:launch_at_startup/launch_at_startup.dart';
 import 'package:tray_manager/tray_manager.dart';
 import 'package:window_manager/window_manager.dart';
@@ -71,6 +74,19 @@ class DesktopLifecycle with WindowListener, TrayListener {
     await windowManager.show();
     await windowManager.restore();
     await windowManager.focus();
+  }
+
+  Future<void> showRestriction() async {
+    await windowManager.show();
+    await windowManager.restore();
+    final focused = await NativeTracker.windowsChannel
+        .invokeMethod<bool>('focusRestriction')
+        .timeout(const Duration(seconds: 5));
+    if (focused != true) {
+      throw StateError(
+        'Windows did not allow the restriction window to gain focus.',
+      );
+    }
   }
 
   @override

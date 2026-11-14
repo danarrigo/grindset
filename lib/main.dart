@@ -164,7 +164,7 @@ Future<void> main(List<String> args) async {
       );
       try {
         await desktop.initialize(background: args.contains('--background'));
-        controller.showBlock = desktop.show;
+        controller.showBlock = desktop.showRestriction;
       } catch (error) {
         startupWarning =
             'Tray setup failed. Background operation is not ready: $error';

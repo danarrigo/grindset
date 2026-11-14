@@ -25,7 +25,7 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
-  activity_probe_ = std::make_unique<ActivityProbe>(flutter_controller_->engine()->messenger());
+  activity_probe_ = std::make_unique<ActivityProbe>(flutter_controller_->engine()->messenger(), GetHandle());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   // Dart owns visibility after tray setup. Showing here would reopen a

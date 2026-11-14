@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lockin/platform/desktop_lifecycle.dart';
+import 'package:lockin/platform/native_tracker.dart';
 import 'package:launch_at_startup/launch_at_startup.dart';
 
 class _Startup implements LaunchAtStartup {
@@ -62,6 +63,46 @@ void main() {
         await lifecycle.enableStartup();
         await lifecycle.disableStartup();
         expect(startup.calls, manageStartup ? ['enable', 'disable'] : isEmpty);
+      },
+    );
+  }
+
+  for (final focused in [true, false]) {
+    test(
+      'restriction activation ${focused ? 'verifies foreground' : 'reports Windows refusal'}',
+      () async {
+        final calls = <String>[];
+        messenger.setMockMethodCallHandler(windowChannel, (call) async {
+          calls.add(call.method);
+          return call.method == 'isMinimized' ? false : null;
+        });
+        messenger.setMockMethodCallHandler(NativeTracker.windowsChannel, (
+          call,
+        ) async {
+          expect(call.method, 'focusRestriction');
+          expect(call.arguments, isNull);
+          calls.add(call.method);
+          return focused;
+        });
+        addTearDown(() {
+          messenger.setMockMethodCallHandler(windowChannel, null);
+          messenger.setMockMethodCallHandler(
+            NativeTracker.windowsChannel,
+            null,
+          );
+        });
+        final lifecycle = DesktopLifecycle(
+          quit: () async {},
+          manageStartup: false,
+        );
+        await expectLater(
+          lifecycle.showRestriction(),
+          focused ? completes : throwsStateError,
+        );
+        expect(
+          calls,
+          containsAllInOrder(['show', 'restore', 'focusRestriction']),
+        );
       },
     );
   }

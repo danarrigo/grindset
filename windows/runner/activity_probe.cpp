@@ -89,9 +89,26 @@ bool IsPlaying(const MediaManager& manager, DWORD pid) {
   }
   return false;
 }
+// Focus only this process's restriction window. No global foreground policy,
+// synthetic keyboard input, process suspension or other app content is used.
+bool FocusRestriction(HWND window) {
+  DWORD owner = 0;
+  GetWindowThreadProcessId(window, &owner);
+  if (!IsWindow(window) || owner != GetCurrentProcessId()) return false;
+  if (GetForegroundWindow() == window) return true;
+  const DWORD current = GetCurrentThreadId();
+  const DWORD foreground = GetWindowThreadProcessId(GetForegroundWindow(), nullptr);
+  const bool attached = foreground != 0 && foreground != current &&
+      AttachThreadInput(current, foreground, TRUE) != FALSE;
+  ShowWindow(window, SW_RESTORE);
+  BringWindowToTop(window);
+  SetForegroundWindow(window);
+  if (attached) AttachThreadInput(current, foreground, FALSE);
+  return GetForegroundWindow() == window;
+}
 }  // namespace
 
-ActivityProbe::ActivityProbe(flutter::BinaryMessenger* messenger)
+ActivityProbe::ActivityProbe(flutter::BinaryMessenger* messenger, HWND window)
     : state_(std::make_shared<ActivityProbeState>()),
       channel_(std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
           messenger, "app.lockin/windows", &flutter::StandardMethodCodec::GetInstance())) {
@@ -106,7 +123,11 @@ ActivityProbe::ActivityProbe(flutter::BinaryMessenger* messenger)
       } catch (const winrt::hresult_error&) { /* Conservative idle behavior if unavailable. */ }
     });
   } catch (const winrt::hresult_error&) { /* Older Windows or denied media capability. */ }
-  channel_->SetMethodCallHandler([state](const auto& call, auto result) {
+  channel_->SetMethodCallHandler([state, window](const auto& call, auto result) {
+    if (call.method_name() == "focusRestriction") {
+      result->Success(flutter::EncodableValue(FocusRestriction(window)));
+      return;
+    }
     if (call.method_name() != "activityState") { result->NotImplemented(); return; }
     const auto* arguments = std::get_if<flutter::EncodableMap>(call.arguments());
     if (!arguments) { result->Error("INVALID_PID", "A foreground process is required."); return; }

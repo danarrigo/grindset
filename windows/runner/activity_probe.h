@@ -5,13 +5,14 @@
 #include <flutter/encodable_value.h>
 #include <flutter/method_channel.h>
 #include <memory>
+#include <windows.h>
 
 struct ActivityProbeState;
 
 // Only process identity, idle time and playback state. No window/media titles.
 class ActivityProbe {
  public:
-  explicit ActivityProbe(flutter::BinaryMessenger* messenger);
+  ActivityProbe(flutter::BinaryMessenger* messenger, HWND window);
   ~ActivityProbe();
 
  private:
