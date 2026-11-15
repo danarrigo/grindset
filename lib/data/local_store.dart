@@ -226,6 +226,8 @@ void _writeArchive(
       'timezone',
       'rules',
       'focus_flags',
+      'focus_profiles',
+      'active_focus_profile',
       'active_session',
       'preset_focus',
       'preset_rest',

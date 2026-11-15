@@ -225,6 +225,28 @@ void main() {
     },
   );
 
+  test('health confirms only a successful native presentation, not an attempted one', () async {
+    (controller.tracker as _Windows).source = 'windows:discord.exe';
+    await controller.saveRule(
+      ActivityRule(
+        id: 'discord',
+        name: 'Discord',
+        sources: ['windows:discord.exe'],
+      ),
+    );
+    await controller.startSession(
+      const Duration(minutes: 25),
+      SessionPhase.focus,
+    );
+    controller.restrictWindowsApp = (_) async => false;
+    await controller.refresh();
+    expect(controller.lastVerifiedWindowsBlockAt, isNull);
+    controller.restrictWindowsApp = (_) async => true;
+    await controller.refresh();
+    expect(controller.lastVerifiedWindowsBlockAt, now);
+    expect(controller.lastVerifiedWindowsBlockSource, 'windows:discord.exe');
+  });
+
   test(
     'inactive foreground applications are not counted after the idle threshold',
     () async {

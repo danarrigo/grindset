@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 
 import 'core/activity.dart';
 import 'core/focus_session.dart';
+import 'core/focus_profile.dart';
 import 'data/local_store.dart';
 import 'data/shared_state.dart';
 import 'platform/native_tracker.dart';
@@ -53,6 +54,29 @@ class AppController extends ChangeNotifier {
   List<ActivityRule> rules = [];
   FocusSession? session;
   List<FocusSession> history = [];
+  List<FocusProfile> focusProfiles = [];
+  String _appliedProfileId = '';
+  bool windowsForegroundEventsActive = false;
+  DateTime? runtimeCheckedAt;
+  DateTime? lastVerifiedWindowsBlockAt;
+  String? lastVerifiedWindowsBlockSource;
+
+  FocusProfile? get selectedFocusProfile {
+    final profile = focusProfiles
+        .where((p) => p.id == _appliedProfileId)
+        .firstOrNull;
+    if (profile == null ||
+        !profile.ruleIds.every((id) => rules.any((r) => r.id == id))) {
+      return null;
+    }
+    return setEquals(
+          profile.ruleIds,
+          rules.where((r) => r.focusBlock).map((r) => r.id).toSet(),
+        )
+        ? profile
+        : null;
+  }
+
   int _focusMinutes = 25;
   int _breakMinutes = 5;
   int preferredMinutes(SessionPhase phase) =>
@@ -102,6 +126,16 @@ class AppController extends ChangeNotifier {
           1440,
         );
     rules = await store.rules();
+    final profiles = await store.setting('focus_profiles');
+    focusProfiles = profiles == null
+        ? []
+        : (jsonDecode(profiles) as List)
+              .map(
+                (p) =>
+                    FocusProfile.fromJson(Map<String, dynamic>.from(p as Map)),
+              )
+              .toList();
+    _appliedProfileId = await store.setting('active_focus_profile') ?? '';
     final active = await store.setting('active_session');
     if (active != null) {
       session = FocusSession.fromJson(
@@ -156,7 +190,9 @@ class AppController extends ChangeNotifier {
     await reloadUsage();
     if (tracker.isWindows) {
       tracker.bindWindowsForeground(requestWindowsRefresh);
-      if (!await tracker.setWindowsForegroundWatch(trackingEnabled)) {
+      final watching = await tracker.setWindowsForegroundWatch(trackingEnabled);
+      windowsForegroundEventsActive = trackingEnabled && watching;
+      if (!watching) {
         throw StateError(
           'Windows foreground restriction monitoring is unavailable.',
         );
@@ -316,7 +352,9 @@ class AppController extends ChangeNotifier {
       phase: phase,
       start: started,
       end: started.add(duration),
-      label: phase == SessionPhase.focus ? 'Deep work' : 'Take a breath',
+      label: phase == SessionPhase.focus
+          ? selectedFocusProfile?.name ?? 'Deep work'
+          : 'Take a breath',
     );
     await _saveSession(next, presetMinutes: duration.inMinutes.clamp(1, 1440));
   }
@@ -354,6 +392,86 @@ class AppController extends ChangeNotifier {
     _changed();
     onSharedChange?.call();
     await _updateCompletionAlerts();
+  }
+
+  Future<void> saveFocusProfile(FocusProfile profile) async {
+    if (_resetting) throw StateError('Device reset is in progress.');
+    if (!profile.ruleIds.every((id) => rules.any((r) => r.id == id))) {
+      throw StateError('An activity was removed. Review this profile.');
+    }
+    if (focusProfiles.any(
+      (p) =>
+          p.id != profile.id &&
+          p.name.toLowerCase() == profile.name.toLowerCase(),
+    )) {
+      throw StateError('A profile with this name already exists.');
+    }
+    final next = [...focusProfiles.where((p) => p.id != profile.id), profile];
+    await store.saveSetting(
+      'focus_profiles',
+      jsonEncode(next.map((p) => p.toJson()).toList()),
+    );
+    focusProfiles = next;
+    _changed();
+  }
+
+  Future<void> deleteFocusProfile(String id) async {
+    if (_resetting) throw StateError('Device reset is in progress.');
+    final next = focusProfiles.where((p) => p.id != id).toList();
+    await store.transaction(() async {
+      await store.saveSetting(
+        'focus_profiles',
+        jsonEncode(next.map((p) => p.toJson()).toList()),
+      );
+      if (_appliedProfileId == id) {
+        await store.saveSetting('active_focus_profile', '');
+      }
+    });
+    focusProfiles = next;
+    if (_appliedProfileId == id) _appliedProfileId = '';
+    _changed();
+  }
+
+  Future<void> applyFocusProfile(String id) async {
+    if (_resetting) throw StateError('Device reset is in progress.');
+    final profile = focusProfiles.where((p) => p.id == id).firstOrNull;
+    if (profile == null) throw StateError('Profile no longer exists.');
+    await store.transaction(() async {
+      final current = await store.rules();
+      if (!profile.ruleIds.every((id) => current.any((r) => r.id == id))) {
+        throw StateError(
+          'An activity was removed. Edit this profile before using it.',
+        );
+      }
+      final next = [
+        for (final rule in current)
+          ActivityRule.fromJson({
+            ...rule.toJson(),
+            'focus_block': profile.ruleIds.contains(rule.id),
+          }),
+      ];
+      await store.saveRules(next);
+      for (final rule in next) {
+        await sharedState.rememberFocusFlag(rule);
+      }
+      await store.saveSetting('active_focus_profile', id);
+    });
+    rules = await store.rules();
+    _appliedProfileId = id;
+    if (blockedSource != null && restrictionForSource(blockedSource!) == null) {
+      dismissBlock();
+    }
+    _changed();
+    if (tracker.isWindows) {
+      requestWindowsRefresh();
+    } else {
+      await refresh();
+    }
+  }
+
+  Future<void> checkTrackingHealth() async {
+    await _refreshDone?.future;
+    await refresh();
   }
 
   Future<void> saveRule(ActivityRule rule, {int? baseRevision}) async {
@@ -407,10 +525,15 @@ class AppController extends ChangeNotifier {
       _lastWindowsCheck = null;
       await store.saveSetting('tracking_heartbeat', '');
     }
-    if (tracker.isWindows && !await tracker.setWindowsForegroundWatch(true)) {
-      throw StateError(
-        'Windows foreground restriction monitoring is unavailable.',
+    if (tracker.isWindows) {
+      windowsForegroundEventsActive = await tracker.setWindowsForegroundWatch(
+        true,
       );
+      if (!windowsForegroundEventsActive) {
+        throw StateError(
+          'Windows foreground restriction monitoring is unavailable.',
+        );
+      }
     }
     await store.saveSetting('tracking_enabled', 'true');
     trackingEnabled = true;
@@ -431,6 +554,7 @@ class AppController extends ChangeNotifier {
     trackingError = null;
     if (tracker.isWindows) {
       await tracker.setWindowsForegroundWatch(false);
+      windowsForegroundEventsActive = false;
       _lastWindowsCheck = null;
       await store.saveSetting('tracking_heartbeat', '');
     }
@@ -446,6 +570,7 @@ class AppController extends ChangeNotifier {
       await store.saveSetting('tracking_enabled', '${status.enabled}');
     }
     trackingEnabled = status.enabled;
+    runtimeCheckedAt = now;
     backgroundTrackingRunning = status.running;
     androidBlockingEnabled = status.blockingEnabled;
     trackingError = status.error;
@@ -508,6 +633,7 @@ class AppController extends ChangeNotifier {
     }
     await store.saveSetting('tracking_heartbeat', checkedAt.toIso8601String());
     _lastWindowsCheck = checkedAt;
+    runtimeCheckedAt = checkedAt;
   }
 
   Future<void> prepareForReset() async {
@@ -567,6 +693,10 @@ class AppController extends ChangeNotifier {
                 blockMessage = reason;
                 _changed();
                 final presented = await restrictWindowsApp!(current);
+                if (presented) {
+                  lastVerifiedWindowsBlockAt = now;
+                  lastVerifiedWindowsBlockSource = current.source;
+                }
                 if (!presented && blockedSource == current.source) {
                   dismissBlock();
                 }

@@ -40,6 +40,8 @@ class BrowserBridge {
   int _attempts = 0;
   final _observations = <String, BrowserObservation>{};
   int get port => _server!.port;
+  bool get isListening => _server != null;
+  DateTime? lastPolicyRequestAt;
 
   Future<void> start({int port = 47831}) async {
     if (_server != null) {
@@ -75,6 +77,7 @@ class BrowserBridge {
     await store.saveSetting('browser_pair_token', _token);
     _pairing = null;
     _observations.clear();
+    lastPolicyRequestAt = null;
   }
 
   BrowserObservation? observationFor(String foregroundSource) {
@@ -165,6 +168,7 @@ class BrowserBridge {
       }
       if (request.uri.path == '/v1/rules' && request.method == 'GET') {
         _reply(request, 200, restrictions());
+        lastPolicyRequestAt = now();
       } else if (request.uri.path == '/v1/heartbeat' &&
           request.method == 'POST') {
         final body = await _body(request);
@@ -237,6 +241,7 @@ class BrowserBridge {
 
   Future<void> close() async {
     _observations.clear();
+    lastPolicyRequestAt = null;
     await _server?.close(force: true);
     _server = null;
     await Future.wait(_requests.toList());

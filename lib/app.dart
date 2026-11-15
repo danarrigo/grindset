@@ -20,14 +20,9 @@ import 'platform/windows_apps.dart';
 import 'ui/rule_editor.dart';
 import 'ui/rule_starters.dart';
 import 'ui/updates_panel.dart';
-
-String durationLabel(Duration duration) {
-  final minutes = duration.inMinutes;
-  if (minutes < 60) return '$minutes min';
-  return minutes % 60 == 0
-      ? '${minutes ~/ 60} hr'
-      : '${minutes ~/ 60} hr ${minutes % 60} min';
-}
+import 'ui/tracking_health_panel.dart';
+import 'ui/focus_profiles_panel.dart';
+import 'ui/weekly_insights_panel.dart';
 
 class LockinApp extends StatelessWidget {
   const LockinApp({
@@ -93,6 +88,7 @@ class _HomeState extends State<_Home> {
   var _phase = SessionPhase.focus;
   bool _busy = false;
   bool _configuringNext = false;
+  bool _weeklyInsights = false;
   final _pageScroll = ScrollController();
   final _focusMenuKey = GlobalKey();
   static const _pages = ['Focus', 'Activity', 'Rules', 'Devices', 'Settings'];
@@ -741,17 +737,50 @@ class _HomeState extends State<_Home> {
     );
   }
 
+  Future<void> _showFocusProfiles([BuildContext? presentation]) =>
+      showDialog<void>(
+        context: presentation ?? context,
+        builder: (context) => Dialog(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 680),
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.all(24),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FocusProfilesPanel(controller: c),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text('Close profiles'),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      );
+
   Future<void> _focusMenu(BuildContext context, {required bool running}) async {
     final theme = CupertinoTheme.of(context);
     const textStyle = TextStyle(fontFamily: 'Inter');
     // Nonnegative choices use the existing page indices.
     const duration = -1;
     const phase = -2;
+    const profiles = -3;
     final choice = _desktopLayout
         ? await showMenu<int>(
             context: context,
             position: _desktopMenuPosition(context),
             items: [
+              PopupMenuItem(
+                value: profiles,
+                child: Text(
+                  'Focus profile · ${c.selectedFocusProfile?.name ?? 'Custom'}',
+                ),
+              ),
               PopupMenuItem(
                 value: duration,
                 enabled: !running,
@@ -778,6 +807,10 @@ class _HomeState extends State<_Home> {
                   style: textStyle.copyWith(color: const Color(0xFFE5E5EA)),
                 ),
                 actions: [
+                  CupertinoActionSheetAction(
+                    onPressed: () => Navigator.pop(sheetContext, profiles),
+                    child: const Text('Focus profiles', style: textStyle),
+                  ),
                   if (!running) ...[
                     CupertinoActionSheetAction(
                       onPressed: () => Navigator.pop(sheetContext, duration),
@@ -809,7 +842,9 @@ class _HomeState extends State<_Home> {
             ),
           );
     if (!mounted || !context.mounted || choice == null) return;
-    if (choice == duration) {
+    if (choice == profiles) {
+      await _showFocusProfiles(context);
+    } else if (choice == duration) {
       await _customDuration(context);
     } else if (choice == phase) {
       setState(() {
@@ -863,6 +898,39 @@ class _HomeState extends State<_Home> {
   );
 
   Widget _activity() {
+    final header = <Widget>[
+      _heading(
+        'Activity',
+        subtitle: _weeklyInsights
+            ? 'Recorded insights on this device'
+            : 'This device today · ${c.timezone}',
+      ),
+      Wrap(
+        spacing: 8,
+        children: [
+          ChoiceChip(
+            label: const Text('Today'),
+            selected: !_weeklyInsights,
+            onSelected: (_) => setState(() => _weeklyInsights = false),
+          ),
+          ChoiceChip(
+            label: const Text('Weekly insights'),
+            selected: _weeklyInsights,
+            onSelected: (_) => setState(() => _weeklyInsights = true),
+          ),
+        ],
+      ),
+      const SizedBox(height: 20),
+    ];
+    if (_weeklyInsights) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          ...header,
+          WeeklyInsightsPanel(controller: c),
+        ],
+      );
+    }
     final sources = c.usage
         .where((i) => i.deviceId == c.deviceId)
         .map((i) => i.source)
@@ -883,7 +951,7 @@ class _HomeState extends State<_Home> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _heading('Activity', subtitle: 'This device today · ${c.timezone}'),
+        ...header,
         for (final (label, value) in [
           ('Total usage', c.deviceUsage(c.deviceId)),
           ('Focused today', c.focusedToday),
@@ -975,13 +1043,25 @@ class _HomeState extends State<_Home> {
             label: const Text('Add activity'),
           ),
         ),
-        Align(
-          alignment: Alignment.centerLeft,
-          child: OutlinedButton.icon(
-            onPressed: () => _editRule(scheduledFocus: true),
-            icon: const Icon(Icons.schedule_rounded, size: 18),
-            label: const Text('Schedule focus hours'),
-          ),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            OutlinedButton.icon(
+              onPressed: () => _editRule(scheduledFocus: true),
+              icon: const Icon(Icons.schedule_rounded, size: 18),
+              label: const Text('Schedule focus hours'),
+            ),
+            OutlinedButton.icon(
+              onPressed: () => _showFocusProfiles(),
+              icon: const Icon(Icons.tune_rounded, size: 18),
+              label: Text(
+                MediaQuery.sizeOf(context).width < 480
+                    ? 'Profiles'
+                    : 'Focus profiles',
+              ),
+            ),
+          ],
         ),
         const SizedBox(height: 16),
         if (!c.trackingEnabled) ...[
@@ -1179,6 +1259,18 @@ class _HomeState extends State<_Home> {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       _heading('Settings'),
+      _Section(
+        padding: const EdgeInsets.all(20),
+        child: TrackingHealthPanel(
+          controller: c,
+          onTracking: _busy || !c.tracker.supported ? null : _enableTracking,
+          onBrowser: c.tracker.isWindows && c.browserBridge?.isListening == true
+              ? _pairBrowser
+              : null,
+          onAccessibility: c.tracker.isAndroid ? _enableAndroidBlocking : null,
+        ),
+      ),
+      const SizedBox(height: 20),
       LayoutBuilder(
         builder: (context, constraints) {
           final columns =

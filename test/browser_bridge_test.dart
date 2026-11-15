@@ -129,6 +129,18 @@ void main() {
         .setMockMethodCallHandler(NativeTracker.windowsChannel, null);
   });
 
+  test('health records only authenticated successful policy requests and resets on disconnect', () async {
+    expect(bridge.isListening, isTrue);
+    expect(bridge.lastPolicyRequestAt, isNull);
+    await request('/v1/rules', authorized: false);
+    expect(bridge.lastPolicyRequestAt, isNull);
+    await pair();
+    await request('/v1/rules');
+    expect(bridge.lastPolicyRequestAt, now);
+    await bridge.disconnect();
+    expect(bridge.lastPolicyRequestAt, isNull);
+  });
+
   test('pairing requires an extension origin, a live code and an authenticated token', () async {
     final code = bridge.beginPairing();
     expect(

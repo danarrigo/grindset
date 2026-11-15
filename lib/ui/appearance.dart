@@ -1,6 +1,14 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
+String durationLabel(Duration duration) {
+  final minutes = duration.inMinutes;
+  if (minutes < 60) return '$minutes min';
+  return minutes % 60 == 0
+      ? '${minutes ~/ 60} hr'
+      : '${minutes ~/ 60} hr ${minutes % 60} min';
+}
+
 ThemeData lockinTheme(Brightness brightness, {Color? accent}) {
   final dark = brightness == Brightness.dark;
   final background = dark ? const Color(0xFF111113) : const Color(0xFFF7F7F9);
