@@ -15,6 +15,8 @@ Grindset is personal-use software, not a tamper-proof lock or physical-device-ce
 3. Enable tracking in **Settings**. Review **Tracking health** and the platform permissions. Android app blocking additionally needs the optional Accessibility service; website blocking needs the paired Windows browser extension.
 4. Start a focus timer or configure **Schedule focus hours**. Keep Grindset/tracking running for restrictions to work.
 
+If Android blocks installation, keep Play Protect enabled and report the exact warning and download source. A successful build or valid signature is not Play Protect approval; see [Google's warning guidance](https://developers.google.com/android/play-protect/warning-dev-guidance). A reported Android block is currently awaiting reproduction details.
+
 Cloud sign-in is optional. Local timers, rules and recorded usage work without an account. Signing in synchronizes shared rules, daily budgets, schedules, timezone, the active timer and confirmed usage. Manual-focus selections, profiles, overrides and notification preferences remain device-local.
 
 ## Features
