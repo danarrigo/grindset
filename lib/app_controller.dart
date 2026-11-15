@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 import 'core/activity.dart';
 import 'core/focus_session.dart';
 import 'core/focus_profile.dart';
+import 'core/budget_warning.dart';
 import 'data/local_store.dart';
 import 'data/shared_state.dart';
 import 'platform/native_tracker.dart';
@@ -28,6 +29,19 @@ class AppController extends ChangeNotifier {
   final NativeTracker tracker;
   final CompletionAlerts? completionAlerts;
   bool completionAlertsEnabled = false;
+  bool budgetWarningsEnabled = false;
+  String? budgetWarningsNotice;
+  String _budgetWarningDay = '';
+  final Set<String> _budgetWarnedRules = {};
+  List<BudgetWarning> get budgetWarnings =>
+      !budgetWarningsEnabled || !trackingEnabled
+      ? []
+      : nearBudgetWarnings(
+          rules: rules,
+          intervals: usage,
+          now: now,
+          location: location,
+        );
   String? completionAlertsNotice;
   String? _alertKey;
   int _alertGeneration = 0;
@@ -183,6 +197,13 @@ class AppController extends ChangeNotifier {
         }
       };
     }
+    budgetWarningsEnabled =
+        await store.setting('budget_warnings_enabled') == 'true';
+    _budgetWarningDay = await store.setting('budget_warning_day') ?? '';
+    final warned = await store.setting('budget_warning_rules');
+    if (warned != null) {
+      _budgetWarnedRules.addAll((jsonDecode(warned) as List).cast<String>());
+    }
     completionAlertsEnabled =
         await store.setting('completion_alerts_enabled') == 'true';
     await _updateCompletionAlerts();
@@ -244,6 +265,64 @@ class AppController extends ChangeNotifier {
     });
     await _updateCompletionAlerts();
     await reloadUsage();
+  }
+
+  Future<void> setBudgetWarningsEnabled(bool enabled) async {
+    await store.saveSetting('budget_warnings_enabled', '$enabled');
+    budgetWarningsEnabled = enabled;
+    budgetWarningsNotice = null;
+    _changed();
+    if (enabled && completionAlerts != null) {
+      try {
+        await completionAlerts!.requestPermission(exactAlarm: false);
+      } catch (error) {
+        budgetWarningsNotice =
+            'System warnings unavailable; on-screen warnings remain: $error';
+      }
+    }
+    if (tracker.isWindows) {
+      requestWindowsRefresh();
+    } else {
+      await refresh();
+    }
+    _changed();
+  }
+
+  Future<void> _checkBudgetWarnings() async {
+    if (!budgetWarningsEnabled || !trackingEnabled || _resetting || _disposed) {
+      return;
+    }
+    try {
+      final day = accountDay(now, location).$1.toIso8601String();
+      if (_budgetWarningDay != day) {
+        _budgetWarningDay = day;
+        _budgetWarnedRules.clear();
+      }
+      final warnings = budgetWarnings
+          .where((w) => !_budgetWarnedRules.contains(w.ruleId))
+          .toList();
+      if (warnings.isEmpty) return;
+      _budgetWarnedRules.addAll(warnings.map((w) => w.ruleId));
+      await store.transaction(() async {
+        await store.saveSetting('budget_warning_day', day);
+        await store.saveSetting(
+          'budget_warning_rules',
+          jsonEncode(_budgetWarnedRules.toList()),
+        );
+      });
+      if (!budgetWarningsEnabled || !trackingEnabled || _disposed) return;
+      budgetWarningsNotice = await completionAlerts?.showBudgetWarnings(
+        warnings,
+        enabled: () =>
+            budgetWarningsEnabled &&
+            trackingEnabled &&
+            !_disposed &&
+            !_resetting,
+      );
+    } catch (error) {
+      budgetWarningsNotice =
+          'System warnings unavailable; on-screen warnings remain: $error';
+    }
   }
 
   Future<void> setCompletionAlertsEnabled(bool enabled) async {
@@ -790,6 +869,7 @@ class AppController extends ChangeNotifier {
         }
       }
       if (tick % 5 == 0) await reloadUsage();
+      await _checkBudgetWarnings();
       if (tracker.isWindows && trackingEnabled) await _recordWindowsCheck();
       trackingError = android?.error;
     } catch (error) {

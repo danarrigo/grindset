@@ -1,106 +1,87 @@
 # Grindset
 
-A local-first focus app for **Windows + Android**, built with Flutter/Dart. The approved full v1 scope is in [docs/v1-spec.md](docs/v1-spec.md).
+A local-first focus and activity tracker for **Windows and Android**. Set distraction budgets, schedule focus hours, and see recorded usage without collecting window titles, screenshots or keystrokes.
 
-**v1.3.0 is a personal-use release with known limitations, not physical-device certification or store-reviewed distribution.** The interface deliberately labels experimental integrations. There is no fabricated usage or pretend live-device data.
+**[Download the latest release](https://github.com/danarrigo/grindset-releases/releases/latest)** · [Release notes](docs/releases/) · [Public website](https://danarrigo.github.io/grindset-releases/)
 
-Download the Windows installer, stable-key Android ARM64 APK and browser extension from [Releases](https://github.com/danarrigo/grindset-releases/releases). See the [release notes](docs/releases/v1.3.0.md) for installation and limitations. Existing app/package IDs, executable/storage identifiers and signing keys remain unchanged for compatibility with the former Lockin name.
+Grindset is personal-use software, not a tamper-proof lock or physical-device-certified blocker. Existing package IDs, storage identities and signing keys are retained from its former Lockin name so updates preserve data.
 
-![Desktop Rules workspace rendered by the widget test](test/goldens/desktop-rules.png)
+![Desktop Rules workspace, rendered from the real app by widget tests](test/goldens/desktop-rules.png)
 
-Widget-rendered previews of the real app: [desktop](test/goldens/desktop.png) · [mobile](test/goldens/mobile.png) · [menu](test/goldens/mobile-menu.png) · [active focus](test/goldens/mobile-focus.png) · [break](test/goldens/mobile-break.png) · [completed](test/goldens/mobile-complete.png) · [maximized](test/goldens/desktop-wide.png).
+## Get started
 
-The approved Focus design is just the time, one start/end control and a small menu. Duration and phase selection live in the menu; desktop navigation stays in the sidebar, while phone navigation remains in the menu; focused time is in Activity and individual budgets are in Rules. Focus stays dark in either system appearance, while secondary screens follow the system theme. The [throwaway comparison](https://github.com/danarrigo/grindset/tree/design/apple-focus-prototype/lib/ui/focus_prototype) remains separate from the production app.
+1. Install the Windows x64 installer or release-signed Android ARM64 APK. Install updates over the existing app rather than uninstalling and losing local data.
+2. Use **Rules** to select a starter, create an activity, or choose **All social media** for a combined budget across 17 supported services. Review and save; nothing is automatically enabled.
+3. Enable tracking in **Settings**. Review **Tracking health** and the platform permissions. Android app blocking additionally needs the optional Accessibility service; website blocking needs the paired Windows browser extension.
+4. Start a focus timer or configure **Schedule focus hours**. Keep Grindset/tracking running for restrictions to work.
 
-## What is here
+Cloud sign-in is optional. Local timers, rules and recorded usage work without an account. Signing in synchronizes shared rules, daily budgets, schedules, timezone, the active timer and confirmed usage. Manual-focus selections, profiles, overrides and notification preferences remain device-local.
 
-| Area | Current state |
+## Features
+
+| Feature | Where and how |
 | --- | --- |
-| Interface | Minimal Focus canvas; desktop-sized Windows workspace with persistent navigation and Ctrl+1-5 shortcuts; multi-column Rules/Settings; separate phone layout; licensed Inter and Cupertino Icons |
-| Timers | Pomodoro/custom durations, manual phase starts, deadline-based restoration, shared active session and union-accounted focus history |
-| Accounting | Cross-device interval union, account-timezone days, daylight-saving boundaries, per-device totals |
-| Rules | Seventeen individual starters plus All social media; ready-made Windows app/web/Android identifiers where supported; explicit desktop-coverage upgrades for old rules; shared union-accounted budgets and device-local focus blocks/overrides |
-| Storage | SQLite through Drift; private JSON export, explicit device-local reset/account switching, durable outbox/history and safe upload acknowledgements |
-| Windows | Win32 foreground reader, tray/close-to-tray, preview startup isolation, interruption notices and installer; Chrome foreground idle/video checks pass, desktop-player/lock checks remain |
-| Android | Opt-in foreground service keeps one cached Flutter engine and SQLite usage journal alive after UI close; optional package-only Accessibility blocker; native validation in progress |
-| Browsers | Actual Chrome/Edge blocking and overrides pass; Chrome website accounting and idle/video checks pass; Edge foreground accounting and manual browser onboarding remain |
-| Supabase | Inbox confirmation and installed Windows/Android-emulator login, timezone/session/rule/budget/usage sync verified; hosted RLS/offline recovery verified separately; confirmation redirect now targets the public Grindset page |
+| Focus timers | Minimal dark Focus screen, custom durations and manual focus/break starts. Timers restore from their deadlines. |
+| Daily budgets | Link app/domain identifiers into an activity. Overlapping recorded intervals count once, including across devices. |
+| Budget warnings | Optional **Settings > Budget warnings**: an on-screen heads-up at 80% of a daily budget, plus system notifications where permitted. Once per activity/account day; does not change limits or blocking. |
+| Scheduled focus hours | **Rules > Schedule focus hours**. Multiple weekday/time windows, overnight hours and a visible account timezone; no timer needs to run. |
+| Windows app selection | **Find apps on this PC** lists running/registered apps. Search/filter sources or browse for a local `.exe` without launching it. This is not a complete installed-package inventory. |
+| Focus profiles | Work, Study, Sleep or custom groups of saved activities. Saving is inert; applying requires confirmation and changes only local manual-focus flags. Budgets, schedules and timer deadlines stay intact. |
+| Tracking health | Observed collector checks, permissions/service state, Windows monitoring and authenticated browser contact. Unknown or unverified states are labeled, not presented as working protection. |
+| Weekly insights | **Activity > Weekly insights**. Confirmed device-local trends, top app/site observations and transparent comparisons against current budgets. Missing days are unknown, not invented zeroes or productivity scores. |
+| Data controls | Explicit private export and device-local reset. Reset does not delete cloud records. |
+| Updates | **Settings > App updates > Check for updates**. Explicit checks and browser downloads, never silent installation. Versions before v1.2.0 need one manual update to obtain this feature. |
 
-### Known limitations and deferred acceptance
+Windows uses a desktop-sized workspace, persistent sidebar, Ctrl+1-5 navigation and responsive multi-column screens. The mobile layout keeps navigation in the Focus menu and bottom tabs on secondary pages.
 
-- Physical Android/OEM validation, Android post-reset redownload. Export/document-picker, local reset and the patched identifier-entry form now pass on the emulator. Background collection, process/reboot recovery, permission loss, lock boundaries, blocking and completion delivery still have bounded emulator evidence, not physical-device certification. See [Android runtime](docs/android-runtime.md).
-- The app-owned [confirmation page](https://danarrigo.github.io/grindset-releases/confirmed/) is deployed, and signup/resend explicitly request it. The owner updated the hosted Auth Site URL; the live verification endpoint now redirects to this HTTPS page instead of localhost. Invalid-link routing and the page are verified; a fresh inbox-confirmation round trip has not been repeated. Inbox confirmation, native Windows/Android-emulator password login and shared timezone/timer/history/rules/budgets/usage now pass. Installed offline-conflict flows remain separate from the hosted-client recovery checks. See [deployment evidence](docs/supabase-deployment.md) and [shared sync](docs/shared-sync.md).
-- Native Edge foreground accounting, Windows desktop-player media and screen-lock boundaries, and manual extension onboarding. Actual restriction pages and five-minute overrides now pass in both Chrome and Edge; Chrome's real foreground website accounting and idle/video behavior also pass. The rebuilt preview also tracks without changing startup or triggering a new Defender detection with real-time protection on. See [packaging](docs/packaging.md) and [browser integration](docs/browser-extension.md).
-- Windows interruption restart/dismissal acceptance and visible completion-notification delivery. The native interruption notice and its persisted journal state are verified, without invented usage in the observed gap. Native early-end and alerts-off cancellation now pass against the actual OS schedule; Windows export/reset passed on an isolated local-mode preview and installer smoke checks passed in CI. See [completion alerts](docs/completion-alerts.md) and [data controls](docs/data-controls.md).
-- Public distribution still needs separate privacy/policy review; no Windows trust certificate has been purchased. The Android signing backup is now encrypted in Google Drive and recovery-verified, with the passphrase held separately by the owner. See [packaging](docs/packaging.md).
+### Restriction behavior
 
-No claim of continuous background enforcement is justified until these paths pass physical-device and Windows tests. Force-stop, permission revocation, uninstalling and OS restrictions can still stop a consumer app.
+- **Windows apps:** restricted foreground apps are minimized and a borderless explanation covers their monitor. Returning through Alt-Tab reapplies enforcement. Allowed apps restore the ordinary workspace; Windows recovery controls and deliberate quitting remain available. This does not kill or suspend app processes.
+- **Websites:** the paired Chrome/Edge extension enforces host-based rules. Shared-host/PWA clients may need website rules instead of an executable rule.
+- **Android:** opt-in background tracking uses a visible foreground service; optional Accessibility blocking uses package identifiers, not screen contents.
+- A source-specific five-minute override leaves other restrictions in place. Offline devices can consume shared budgets before their confirmed records synchronize.
 
-## Updates
+For existing activities created before Windows coverage was added, **Add desktop coverage** opens a reviewable edit. Sources, budgets and schedules are never silently broadened.
 
-Install v1.2.0 manually once to gain **Settings > App updates > Check for updates**. Checks are explicit, show release notes and open the platform's public download in your browser. Run the Windows installer or approve Android's APK update over the existing release. This is not silent/background installation. Source stays private; the [public distribution repository](https://github.com/danarrigo/grindset-releases) contains only the website, feed and release files. See [update behavior](docs/app-updates.md).
+## Guides
 
-## Starter activities
+- [Starter activities, Windows app selection and coverage](docs/rule-presets.md)
+- [Scheduled focus hours](docs/scheduled-focus-hours.md) · [Focus profiles](docs/focus-profiles.md)
+- [Tracking health](docs/tracking-health.md) · [Recorded weekly insights](docs/recorded-insights.md)
+- [Browser extension](docs/browser-extension.md) · [Android runtime](docs/android-runtime.md)
+- [Completion notifications](docs/completion-alerts.md) · [Budget warnings](docs/budget-warnings.md)
+- [Data controls](docs/data-controls.md) · [Shared sync](docs/shared-sync.md)
+- [Packaging and update compatibility](docs/packaging.md) · [App updates](docs/app-updates.md)
 
-Open **Rules** and choose **All social media** for one combined budget across 17 supported social/messaging/video apps, or choose individual starters. Discord now includes Windows Stable/PTB/Canary; Telegram, Signal and WhatsApp also have Windows executable coverage. Review the sources, suggested **30-minute daily limit** and **Block during focus**, then save. Old rules are preserved; use **Add desktop coverage** on an existing rule to review and save missing Windows identifiers. Tracking and permissions remain opt-in. See [starter behavior and coverage](docs/rule-presets.md) and [native Windows app-blocking evidence](docs/windows-app-blocking.md).
+## Reliability and privacy boundaries
 
-## Health, profiles and insights
+Automated builds/tests are not device-level certification. Controlled Windows checks cover restriction presentation, Alt-Tab return, overrides and scheduled blocking without a timer. Physical Android/OEM background recovery, comprehensive native-client/multi-monitor behavior and visible Windows notification delivery remain separate checks. OS permissions, notification settings, force-stop, quitting or uninstalling can stop a consumer app. A successful notification request does not prove visible delivery.
 
-Use **Settings > Tracking health** for [observed checks and setup](docs/tracking-health.md), **Rules > Focus profiles** for [explicit device-local Work/Study/Sleep selections](docs/focus-profiles.md), and **Activity > Weekly insights** for [recorded trends and current-budget comparisons](docs/recorded-insights.md). Missing observations are unknown, not invented zeroes or productivity scores. Profiles never silently override budgets, schedules or timers.
+See [Windows acceptance](docs/windows-app-blocking.md), [Android evidence](docs/android-runtime.md) and [completion-alert evidence](docs/completion-alerts.md). The Windows installer is not trust-certificate signed; never disable security software to run it. Stable Android release APKs retain the owner signing key; short-lived CI debug APKs do not provide that update guarantee.
+
+Cloud usage contains app/domain identifiers and timestamps, never full URLs, window titles, screenshots, keystrokes or executable paths. App selection reads static executable metadata, not window contents; installation paths are not saved as rule identifiers. Android automatic app-data backup is disabled. Exports are explicit and private. Local history stays bound to its first cloud account; export/reset before switching accounts. See [data controls](docs/data-controls.md).
 
 ## Development
 
-For an isolated native preview, use `--data-dir=<owned-test-folder> --local-only --no-alerts`. These flags avoid the normal journal, cloud/auth session and completion-alert schedule; they do not disable Windows security or change startup registration.
-
-Use **Flutter stable 3.47.9 / Dart 3.13.7** to reproduce the checked-in UI goldens. The session's persistent WSL SDK is `~/.local/share/lockin/flutter`. To use it in the current shell, run `export PATH="$HOME/.local/share/lockin/flutter/bin:$PATH"`. Windows builds require a separate Windows-side Flutter installation.
+Use Flutter stable satisfying [pubspec.yaml](pubspec.yaml). Checked-in UI goldens use Flutter **3.47.9 / Dart 3.13.7**. In this WSL environment: `export PATH="$HOME/.local/share/lockin/flutter/bin:$PATH"`.
 
 ```sh
 flutter pub get
 flutter analyze
 flutter test
-node --test extension/*.test.js
+node --test extension/*.test.js test/site/*.test.mjs
 ```
 
-Run on Windows with `flutter run -d windows`, or on an attached Android device with `flutter run -d <device-id>`.
+Windows builds require Windows-side Flutter, Visual Studio's Desktop development with C++ workload and Developer Mode for plugin symlinks. Linux Flutter cannot build the Windows executable. Android builds require the Java/Android SDK toolchain for the environment running Flutter. The compatible win32 5.x/plugin dependency family is intentional; upgrade it together and revalidate native behavior.
 
-### Windows and WSL
+For isolated native tests, use `--data-dir=<owned-test-folder> --local-only --no-alerts`. These avoid the normal journal, cloud/auth storage and OS alert requests; they do not weaken Windows security or change sign-in startup. Never test resets against a personal installation.
 
-Editing in WSL/Neovim is fine. Windows builds require **Windows-side Flutter** and Visual Studio 2022's **Desktop development with C++** workload; Linux Flutter cannot build the Windows executable. Enable Windows Developer Mode for plugin symlinks. Android builds need the Java/Android SDK toolchain in the environment running Flutter, plus a device/emulator for end-to-end validation. Windows Android Studio's `.exe` tools are not a Linux Android toolchain.
+### Optional Supabase setup
 
-The compatible `win32` 5.x / desktop-plugin dependency family is intentional: `launch_at_startup` currently depends on the 5.x registry bindings. Upgrade these together and revalidate native behavior, rather than forcing incompatible major versions.
+Apply [migrations](supabase/migrations/) in filename order for a new project. For the existing deployment, consult [deployment history](docs/supabase-deployment.md) rather than replaying migrations blindly. Copy `config.example.json` to ignored `config.local.json` and supply only the project URL and **public publishable/anon key**, never a service-role key. Run with `--dart-define-from-file=config.local.json`. Email-confirmation delivery/redirect configuration belongs to the hosted project; see [deployment guidance](docs/supabase-deployment.md).
 
-### Supabase (optional; local mode needs no credentials)
+[GitHub Actions](.github/workflows/verify.yml) checks Flutter, extension/site behavior, real PostgreSQL migrations/RLS and native builds. Widget/OS-channel mocks do not prove physical delivery or background reliability. Review regenerated goldens before accepting them. Detailed feature evidence and remaining checks live in the linked guides and release notes, not in fabricated live-device data.
 
-1. For a new project, apply all files in [supabase/migrations/](supabase/migrations/) in filename order, using the Supabase CLI or SQL editor. This repository's project is already deployed; check [migration history](docs/supabase-deployment.md) before replaying anything.
-2. Copy `config.example.json` to `config.local.json` and fill in your project URL and **public publishable key**. An older public anon key also works. Never use a service-role key.
-3. Run `flutter run -d windows --dart-define-from-file=config.local.json` (or choose your Android device).
-4. In Settings, create/confirm an account and sign in on each device. Account state and confirmed usage then synchronize automatically; **Sync now** retries immediately. Email confirmation/delivery settings belong to your Supabase project.
+## Licensing
 
-Usage sync uploads confirmed intervals idempotently and downloads today's data with explicit pagination. It does not extrapolate offline device activity. Device heartbeats are labelled **last contacted**, not proof of fresh activity. Global budgets can overshoot while disconnected. Shared rules, timezone, the active session and timer history synchronize through a revisioned outbox. Confirmed policy wins stale edits; Settings retains conflicting rule/timezone edits for explicit review. Focus blocklists and overrides stay device-local. Sync runs every 30 seconds with prompt requests after local changes and retry backoff. Android background operation requires its visible foreground service.
-
-Local history is bound to its first cloud account. Uploading it to a different account is refused. Settings provides **Export data** and **Reset this device**: reset stops collectors/alerts, drains sync, signs out locally, clears this device's history/account link and closes the app. Cloud records remain untouched. Reopen before using another account. See [device data controls](docs/data-controls.md).
-
-Push/PR CI Android APKs are debug previews, not stable release-signed installers. GitHub release APKs are built separately with the retained owner signing key. Their signing key can change between runner images, preventing an in-place upgrade. Do not uninstall a personal installation merely to upgrade without preserving its data. Stable-key Android release configuration and a per-user Windows installer are implemented; actual signing credentials remain owner-controlled. See [packaging and update behavior](docs/packaging.md).
-
-## Completion notifications
-
-Enable **Completion notifications** in Settings. Alerts are independent of activity tracking and use the OS scheduler, so closing the UI does not require a second tracking service. An early finish, a changed shared session, or disabling alerts cancels the previous deadline. Phases still start manually. Android asks for notification and exact-alarm permission; without exact-alarm permission it schedules an inexact alert and reports that delivery may be delayed. Windows uses toast notifications. OS notification settings, battery restrictions and force-stop can suppress delivery. Android delivery after UI close and process death is emulator-verified; Windows OS scheduling and native early-end/alerts-off cancellation are verified, but visual delivery and physical-device behavior still need checks. See [completion-alert evidence](docs/completion-alerts.md).
-
-Notifications use the maintained 23.x plugin with Android compile SDK 37 and AGP 9.1.1. The older Windows implementation failed on current MSVC; upgrading avoids patching generated/vendor sources. The app's target SDK still follows Flutter's target. Do not suppress permission failures or label an alert delivered merely because scheduling returned successfully.
-
-## Verification
-
-- `flutter analyze` checks the Dart/Flutter code.
-- `flutter test` exercises public timer/editor flows, actual SQLite close/reopen behavior, interval union, schedules, DST, override expiry and upload races.
-- App-level widget tests cover immediate starts, deadline accuracy, real SQLite session restoration, immediately saved, independently remembered focus/break durations, manual phases, navigation during a timer, individual union-accounted budgets, and the blocking/override UI. They also cover keyboard-open forms, a 320-pixel short screen with doubled text and a warning, contrast, labeled controls and mobile tap targets. Idle, menu, running, break and completion goldens are generated by `flutter test --update-goldens`; inspect changes before accepting them.
-- Browser bridge tests use actual loopback HTTP and the controller/SQLite journal to verify pairing, host-only payloads, stale observations, native-foreground matching and disabled-gap accounting. Extension policy tests cover domain matching and override priority. Actual Chrome/native checks found and fixed privileged GET origin handling and verified blocking, overrides and eventual disconnect recovery. Windows idle/media tests still mock the OS channel; see [native browser evidence and remaining checks](docs/browser-extension.md).
-- Android bridge tests exercise the real controller/store against a mocked OS method channel. Sync tests use a local HTTP server to exercise the actual Supabase client, pagination, retries, overlapping uploads and account binding. These do not prove Android OS behavior or server-side RLS.
-- Completion tests exercise the actual controller and notification SDK at a mocked OS channel: opt-in, UTC deadlines rounded up (never early), early cancellation, disabled/denied permissions, delayed fallback, shared-session changes, restart restoration, retries and in-flight scheduling races. These do not prove OS delivery.
-- Shared-state tests cover two independent device databases, timer completion, focus-blocklist scope, revision pagination, conflicting edits, upload races, schema-one migration and durable outbox restoration. PostgreSQL 16 runs the actual migrations and tests the RPC and two-user RLS using a fixture Auth boundary. The opt-in `test/live_cloud_sync_test.dart` separately passed against deployed Supabase with real Auth and independent journals; see [setup and evidence limits](docs/supabase-deployment.md).
-- Native Android/Windows builds and database checks run in [GitHub Actions](.github/workflows/verify.yml), which publishes short-lived per-ABI debug APKs and unsigned Windows artifacts. Use the ARM64 APK for a compatible phone and x64 for the test emulator; separate artifacts avoid downloading both engines. Build success is not device-level enforcement verification.
-
-## Privacy and licensing
-
-Cloud usage records contain app/domain identifiers and timestamps, never window titles, full URLs, screenshots, keystrokes or executable paths. Android automatic app-data backup is disabled. Local database/configuration files are ignored by git. Each cloud row is scoped to its authenticated owner.
-
-Inter is bundled under its [SIL Open Font License](assets/fonts/OFL.txt). Symbols use the licensed Flutter Cupertino Icons package, not a proprietary Apple font.
+Inter is bundled under its [SIL Open Font License](assets/fonts/OFL.txt). Symbols use the licensed Flutter Cupertino Icons package, not a proprietary Apple font. App source remains private; the [public distribution repository](https://github.com/danarrigo/grindset-releases) contains the website, feed and release assets only.

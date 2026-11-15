@@ -693,7 +693,11 @@ class _HomeState extends State<_Home> {
     final completed =
         active != null && !now.isBefore(active.end) && !_configuringNext;
     final phase = running ? active!.phase : _phase;
+    final budgetWarnings = c.budgetWarnings;
     final warnings = [
+      for (final warning in budgetWarnings.take(2)) warning.message,
+      if (budgetWarnings.length > 2)
+        'More activities are near their budgets. Review Rules.',
       widget.startupWarning,
       c.trackingError,
       if (c.trackingInterruption != null)
@@ -1064,6 +1068,12 @@ class _HomeState extends State<_Home> {
           ],
         ),
         const SizedBox(height: 16),
+        if (c.budgetWarnings.isNotEmpty) ...[
+          _notice(
+            c.budgetWarnings.map((warning) => warning.message).join('\n'),
+          ),
+          const SizedBox(height: 16),
+        ],
         if (!c.trackingEnabled) ...[
           _notice(
             'Tracking is off. Enable tracking in Settings to enforce these rules.',
@@ -1362,6 +1372,36 @@ class _HomeState extends State<_Home> {
             'No screenshots, page titles or keystrokes.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
+        ],
+      ),
+    ),
+    _Section(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: const Text('Budget warnings'),
+            value: c.budgetWarningsEnabled,
+            onChanged: _busy
+                ? null
+                : (value) => _run(() => c.setBudgetWarningsEnabled(value)),
+          ),
+          const Text(
+            'Optional heads-up at 80% of a daily shared budget, once per activity per account day. Tracking must be on. Limits and blocking are unchanged.',
+          ),
+          const SizedBox(height: 8),
+          Text(
+            c.completionAlerts == null
+                ? 'On-screen warnings only in this preview.'
+                : 'On-screen warnings plus system notifications where permitted. Separate from timer completion alerts; no exact-alarm permission is needed.',
+          ),
+          if (c.budgetWarningsNotice != null)
+            Text(
+              c.budgetWarningsNotice!,
+              style: TextStyle(color: colors.error),
+            ),
         ],
       ),
     ),

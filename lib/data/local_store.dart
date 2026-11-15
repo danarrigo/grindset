@@ -234,6 +234,7 @@ void _writeArchive(
       'overrides',
       'tracking_enabled',
       'completion_alerts_enabled',
+      'budget_warnings_enabled',
       'android_imported_until',
       'tracking_interruption',
     };

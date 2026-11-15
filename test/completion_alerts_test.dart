@@ -6,6 +6,7 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lockin/app_controller.dart';
 import 'package:lockin/core/focus_session.dart';
+import 'package:lockin/core/budget_warning.dart';
 import 'package:lockin/data/local_store.dart';
 import 'package:lockin/platform/completion_alerts.dart';
 import 'package:lockin/platform/native_tracker.dart';
@@ -65,6 +66,8 @@ void main() {
             case 'cancel':
               scheduled = null;
               return null;
+            case 'show':
+              return null;
             case 'zonedSchedule':
               if (!(scheduleArrived?.isCompleted ?? true)) {
                 scheduleArrived!.complete();
@@ -94,6 +97,65 @@ void main() {
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(channel, null);
     debugDefaultTargetPlatformOverride = null;
+  });
+
+  test('budget opt-in never requests exact-alarm permission or enables completion alerts', () async {
+    await controller.setBudgetWarningsEnabled(true);
+    expect(
+      calls.any((c) => c.method == 'requestNotificationsPermission'),
+      isTrue,
+    );
+    expect(
+      calls.any(
+        (c) =>
+            c.method == 'requestExactAlarmsPermission' ||
+            c.method == 'canScheduleExactNotifications',
+      ),
+      isFalse,
+    );
+    expect(controller.completionAlertsEnabled, isFalse);
+  });
+  test(
+    'budget notifications use a separate ID and do not cancel the timer alarm',
+    () async {
+      await controller.startSession(
+        const Duration(minutes: 25),
+        SessionPhase.focus,
+      );
+      await controller.setCompletionAlertsEnabled(true);
+      final alarm = scheduled;
+      calls.clear();
+      await controller.completionAlerts!.showBudgetWarnings([
+        const BudgetWarning(
+          ruleId: 'a',
+          name: 'A',
+          used: Duration(minutes: 40),
+          limit: Duration(minutes: 50),
+        ),
+      ]);
+      expect(
+        (calls.singleWhere((c) => c.method == 'show').arguments as Map)['id'],
+        4303,
+      );
+      expect(
+        calls.any((c) => c.method == 'cancel' || c.method == 'zonedSchedule'),
+        isFalse,
+      );
+      expect(scheduled, alarm);
+    },
+  );
+  test('denied budget notifications report an on-screen fallback', () async {
+    permission = false;
+    final notice = await controller.completionAlerts!.showBudgetWarnings([
+      const BudgetWarning(
+        ruleId: 'a',
+        name: 'A',
+        used: Duration(minutes: 40),
+        limit: Duration(minutes: 50),
+      ),
+    ]);
+    expect(notice, contains('remain visible'));
+    expect(calls.any((c) => c.method == 'show'), isFalse);
   });
 
   test(

@@ -2,8 +2,10 @@ import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:timezone/timezone.dart' as tz;
 
 import '../core/focus_session.dart';
+import '../core/budget_warning.dart';
 
-/// One replaceable OS alarm, independent of activity tracking and cloud access.
+/// Shared notification identity for the replaceable timer alarm and optional
+/// immediate budget warnings. Budget warnings never modify the timer alarm.
 class CompletionAlerts {
   CompletionAlerts({required this.android, DateTime Function()? clock})
     : _clock = clock ?? DateTime.now;
@@ -35,7 +37,7 @@ class CompletionAlerts {
         Error.throwWithStackTrace(error, trace);
       });
 
-  Future<void> requestPermission() async {
+  Future<void> requestPermission({bool exactAlarm = true}) async {
     await _initialize();
     if (!android) return;
     final implementation = _plugin
@@ -43,9 +45,48 @@ class CompletionAlerts {
           AndroidFlutterLocalNotificationsPlugin
         >()!;
     if (await implementation.requestNotificationsPermission() != true) return;
-    if (await implementation.canScheduleExactNotifications() != true) {
+    if (exactAlarm &&
+        await implementation.canScheduleExactNotifications() != true) {
       await implementation.requestExactAlarmsPermission();
     }
+  }
+
+  Future<String?> showBudgetWarnings(
+    List<BudgetWarning> warnings, {
+    bool Function()? enabled,
+  }) async {
+    if (warnings.isEmpty) return null;
+    await _initialize();
+    if (enabled?.call() == false) return null;
+    if (android &&
+        await _plugin
+                .resolvePlatformSpecificImplementation<
+                  AndroidFlutterLocalNotificationsPlugin
+                >()!
+                .areNotificationsEnabled() !=
+            true) {
+      return 'System notifications are blocked. Budget warnings remain visible in Grindset.';
+    }
+    if (enabled?.call() == false) return null;
+    await _plugin.show(
+      id: 4303,
+      title: 'Daily budget running low',
+      body: warnings.length == 1
+          ? warnings.single.message
+          : '${warnings.length} activities have used at least 80% of their daily budgets. Open Grindset Rules for remaining time.',
+      notificationDetails: const NotificationDetails(
+        android: AndroidNotificationDetails(
+          'lockin_budget',
+          'Budget warnings',
+          channelDescription:
+              'Optional warnings before a daily activity limit.',
+          importance: Importance.high,
+          priority: Priority.high,
+        ),
+        windows: WindowsNotificationDetails(),
+      ),
+    );
+    return null;
   }
 
   Future<String?> synchronize({required bool enabled, FocusSession? session}) {

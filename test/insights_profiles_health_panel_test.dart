@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lockin/app_controller.dart';
+import 'package:lockin/app.dart';
 import 'package:lockin/core/activity.dart';
 import 'package:lockin/data/local_store.dart';
 import 'package:lockin/platform/native_tracker.dart';
@@ -51,6 +52,42 @@ void main() {
     );
     await tester.pumpAndSettle();
   }
+
+  testWidgets(
+    'opt-in budget warning appears in Focus without changing the limit',
+    (tester) async {
+      await c.saveRule(
+        ActivityRule(
+          id: 'budget',
+          name: 'Social',
+          sources: ['windows:discord.exe'],
+          dailyMinutes: 50,
+        ),
+      );
+      await store.putUsage(
+        UsageInterval(
+          id: 'near-budget',
+          deviceId: c.deviceId,
+          source: 'windows:discord.exe',
+          start: now.subtract(const Duration(minutes: 40)),
+          end: now,
+        ),
+      );
+      await c.reloadUsage();
+      c.trackingEnabled = true;
+      await tester.pumpWidget(LockinApp(controller: c));
+      await tester.pumpAndSettle();
+      expect(find.textContaining('left in the daily budget'), findsNothing);
+      await c.setBudgetWarningsEnabled(true);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('left in the daily budget'), findsOneWidget);
+      expect(c.rules.single.dailyMinutes, 50);
+      expect(c.completionAlertsEnabled, isFalse);
+      await c.setBudgetWarningsEnabled(false);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('left in the daily budget'), findsNothing);
+    },
+  );
 
   testWidgets(
     'health distinguishes off, fresh prerequisites and an unverified native block',
