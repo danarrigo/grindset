@@ -207,7 +207,7 @@ class _WeeklyInsightsPanelState extends State<WeeklyInsightsPanel> {
                         ),
                       ),
                       const SizedBox(width: 8),
-                      Flexible(
+                      Expanded(
                         child: Text(
                           day.hasRecords
                               ? _usageLabel(day.usage)
@@ -270,7 +270,7 @@ class _WeeklyInsightsPanelState extends State<WeeklyInsightsPanel> {
                     children: [
                       Expanded(child: Text(sourceName(item.source))),
                       const SizedBox(width: 8),
-                      Flexible(
+                      Expanded(
                         child: Text(
                           _usageLabel(item.duration),
                           textAlign: TextAlign.end,
