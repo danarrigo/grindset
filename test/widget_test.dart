@@ -170,7 +170,7 @@ void main() {
     viewport(tester, const Size(800, 900));
     await tester.pumpWidget(LockinApp(controller: controller));
     await navigate(tester, 4);
-    await tester.tap(find.text('Turn on tracking'));
+    await tester.tap(find.text('Turn on'));
     await tester.pumpAndSettle();
     expect(
       find.textContaining(

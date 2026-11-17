@@ -76,6 +76,8 @@ class RuleStarters extends StatelessWidget {
         children: [
           for (final preset in presets)
             ActionChip(
+              backgroundColor: colors.surfaceContainerHighest,
+              side: BorderSide.none,
               avatar: const Icon(Icons.add_rounded, size: 18),
               label: Text(preset.name),
               onPressed: () => onSelected(preset),

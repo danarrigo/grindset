@@ -11,8 +11,8 @@ Grindset is personal-use software, not a tamper-proof lock or physical-device-ce
 ## Get started
 
 1. Install the Windows x64 installer or release-signed Android ARM64 APK. Install updates over the existing app rather than uninstalling and losing local data.
-2. Use **Rules** to select a starter, create an activity, or choose **All social media** for a combined budget across 17 supported services. Review and save; nothing is automatically enabled.
-3. Enable tracking in **Settings**. Review **Tracking health** and the platform permissions. Android app blocking additionally needs the optional Display over other apps permission; website blocking needs the paired Windows browser extension.
+2. Use **Rules** to pick a suggested app, create an activity, or choose **All social media** for a combined budget across 17 supported services. Review and save; nothing is automatically enabled.
+3. Enable tracking in **Settings**. Follow the **Setup** checklist there. Android app blocking additionally needs the optional Display over other apps permission; website blocking needs the paired Windows browser extension.
 4. Start a focus timer or configure **Schedule focus hours**. Keep Grindset/tracking running for restrictions to work.
 
 If Android blocks installation, keep Play Protect enabled and report the exact warning and download source. A successful build or valid signature is not Play Protect approval; see [Google's warning guidance](https://developers.google.com/android/play-protect/warning-dev-guidance). Earlier Android builds were blocked with "This app can request access to sensitive data" because they declared an Accessibility service; current builds do not declare one.
@@ -29,7 +29,7 @@ Cloud sign-in is optional. Local timers, rules and recorded usage work without a
 | Scheduled focus hours | **Rules > Schedule focus hours**. Multiple weekday/time windows, overnight hours and a visible account timezone; no timer needs to run. |
 | Windows app selection | **Find apps on this PC** lists running/registered apps. Search/filter sources or browse for a local `.exe` without launching it. This is not a complete installed-package inventory. |
 | Focus profiles | Work, Study, Sleep or custom groups of saved activities. Saving is inert; applying requires confirmation and changes only local manual-focus flags. Budgets, schedules and timer deadlines stay intact. |
-| Tracking health | Observed collector checks, permissions/service state, Windows monitoring and authenticated browser contact. Unknown or unverified states are labeled, not presented as working protection. |
+| Setup checklist | **Settings > Setup** shows each step (tracking, app blocking, browser extension on Windows, a first rule) as done, needing one tap, or broken. Focus shows **Finish setup** until complete. |
 | Weekly insights | **Activity > Weekly insights**. Confirmed device-local trends, top app/site observations and transparent comparisons against current budgets. Missing days are unknown, not invented zeroes or productivity scores. |
 | Data controls | Explicit private export and device-local reset. Reset does not delete cloud records. |
 | Updates | **Settings > App updates > Check for updates**. Explicit checks and browser downloads, never silent installation. Versions before v1.2.0 need one manual update to obtain this feature. |
@@ -49,7 +49,7 @@ For existing activities created before Windows coverage was added, **Add desktop
 
 - [Starter activities, Windows app selection and coverage](docs/rule-presets.md)
 - [Scheduled focus hours](docs/scheduled-focus-hours.md) · [Focus profiles](docs/focus-profiles.md)
-- [Tracking health](docs/tracking-health.md) · [Recorded weekly insights](docs/recorded-insights.md)
+- [Setup checklist](docs/setup-checklist.md) · [Recorded weekly insights](docs/recorded-insights.md)
 - [Browser extension](docs/browser-extension.md) · [Android runtime](docs/android-runtime.md)
 - [Completion notifications](docs/completion-alerts.md) · [Budget warnings](docs/budget-warnings.md)
 - [Data controls](docs/data-controls.md) · [Shared sync](docs/shared-sync.md)

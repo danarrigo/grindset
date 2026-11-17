@@ -1116,58 +1116,7 @@ class _HomeState extends State<_Home> {
         children: [
           for (var i = 0; i < c.rules.length; i++) ...[
             if (i > 0) const Divider(indent: 18, endIndent: 18),
-            ListTile(
-              onTap: () => _editRule(rule: c.rules[i]),
-              title: Text(c.rules[i].name),
-              subtitle: Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      [
-                        [
-                          if (c.rules[i].sources.any(
-                            (s) => s.startsWith('windows:'),
-                          ))
-                            'Windows apps',
-                          if (c.rules[i].sources.any(
-                            (s) => s.startsWith('web:'),
-                          ))
-                            'Websites',
-                          if (c.rules[i].sources.any(
-                            (s) => s.startsWith('android:'),
-                          ))
-                            'Android apps',
-                        ].join(' + '),
-                        if (c.rules[i].focusBlock) 'Blocked during focus',
-                        for (final window in c.rules[i].schedules.take(2))
-                          scheduleSummary(context, window),
-                        if (c.rules[i].schedules.length > 2)
-                          '+${c.rules[i].schedules.length - 2} more windows',
-                      ].join(' · '),
-                    ),
-                    if (c.rules[i].dailyMinutes case final limit?)
-                      _budgetBar(c.ruleUsage(c.rules[i]), limit),
-                  ],
-                ),
-              ),
-              trailing: PopupMenuButton<String>(
-                tooltip: 'Options for ${c.rules[i].name}',
-                icon: const Icon(Icons.more_horiz_rounded, size: 21),
-                onSelected: (value) {
-                  if (value == 'edit') {
-                    _editRule(rule: c.rules[i]);
-                  } else {
-                    _deleteRule(c.rules[i]);
-                  }
-                },
-                itemBuilder: (_) => const [
-                  PopupMenuItem(value: 'edit', child: Text('Edit')),
-                  PopupMenuItem(value: 'delete', child: Text('Delete')),
-                ],
-              ),
-            ),
+            _ruleCard(c.rules[i]),
             if (missingDesktopSources(c.rules[i].sources).isNotEmpty)
               Padding(
                 padding: const EdgeInsets.fromLTRB(18, 0, 18, 12),
@@ -1191,6 +1140,83 @@ class _HomeState extends State<_Home> {
               ),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _ruleCard(ActivityRule rule) {
+    final platform = c.tracker.isAndroid ? 'android:' : 'windows:';
+    final iconSource = rule.sources.firstWhere(
+      (s) => s.startsWith(platform),
+      orElse: () => rule.sources.first,
+    );
+    c.requestAppDetails([iconSource]);
+    final summary = [
+      [
+        if (rule.sources.any((s) => s.startsWith('windows:'))) 'Windows apps',
+        if (rule.sources.any((s) => s.startsWith('web:'))) 'Websites',
+        if (rule.sources.any((s) => s.startsWith('android:'))) 'Android apps',
+      ].join(' + '),
+      if (rule.focusBlock) 'Blocked during focus',
+      for (final window in rule.schedules.take(2))
+        scheduleSummary(context, window),
+      if (rule.schedules.length > 2)
+        '+${rule.schedules.length - 2} more windows',
+    ].join(' · ');
+    return InkWell(
+      onTap: () => _editRule(rule: rule),
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(18, 14, 6, 16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                SourceIcon(controller: c, source: iconSource, size: 36),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        rule.name,
+                        style: Theme.of(context).textTheme.bodyLarge
+                            ?.copyWith(fontWeight: FontWeight.w600),
+                      ),
+                      Text(
+                        summary,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                PopupMenuButton<String>(
+                  tooltip: 'Options for ${rule.name}',
+                  icon: const Icon(Icons.more_horiz_rounded, size: 21),
+                  onSelected: (value) {
+                    if (value == 'edit') {
+                      _editRule(rule: rule);
+                    } else {
+                      _deleteRule(rule);
+                    }
+                  },
+                  itemBuilder: (_) => const [
+                    PopupMenuItem(value: 'edit', child: Text('Edit')),
+                    PopupMenuItem(value: 'delete', child: Text('Delete')),
+                  ],
+                ),
+              ],
+            ),
+            if (rule.dailyMinutes case final limit?)
+              Padding(
+                padding: const EdgeInsets.only(right: 12),
+                child: _budgetBar(c.ruleUsage(rule), limit),
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -1345,68 +1371,70 @@ class _HomeState extends State<_Home> {
   );
 
   List<Widget> _settingsCards() => [
-    _Section(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Activity tracking',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            !c.tracker.supported
-                ? 'Tracking needs Windows or Android.'
-                : !c.trackingEnabled
-                ? 'Off. Nothing is recorded.'
-                : !c.accessGranted
-                ? 'Waiting for permission.'
-                : c.tracker.isAndroid && !c.backgroundTrackingRunning
-                ? 'Stopped. Turn it on again to resume.'
-                : 'On. Grindset records which app is open and for how long.',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          if (c.trackingInterruption != null) ...[
+    // While tracking is off, the setup checklist above covers turning it on.
+    if (c.trackingEnabled || !c.tracker.supported)
+      _Section(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'Activity tracking',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             const SizedBox(height: 12),
-            Text(c.trackingInterruption!),
-            TextButton(
-              onPressed: _busy
-                  ? null
-                  : () => _run(c.dismissTrackingInterruption),
-              child: const Text('Dismiss'),
+            Text(
+              !c.tracker.supported
+                  ? 'Tracking needs Windows or Android.'
+                  : !c.trackingEnabled
+                  ? 'Off. Nothing is recorded.'
+                  : !c.accessGranted
+                  ? 'Waiting for permission.'
+                  : c.tracker.isAndroid && !c.backgroundTrackingRunning
+                  ? 'Stopped. Turn it on again to resume.'
+                  : 'On. Grindset records which app is open and for how long.',
+              style: Theme.of(context).textTheme.bodyMedium,
+            ),
+            if (c.trackingInterruption != null) ...[
+              const SizedBox(height: 12),
+              Text(c.trackingInterruption!),
+              TextButton(
+                onPressed: _busy
+                    ? null
+                    : () => _run(c.dismissTrackingInterruption),
+                child: const Text('Dismiss'),
+              ),
+            ],
+            const SizedBox(height: 14),
+            Wrap(
+              spacing: 12,
+              runSpacing: 8,
+              children: [
+                OutlinedButton(
+                  onPressed: _busy || !c.tracker.supported
+                      ? null
+                      : _enableTracking,
+                  child: Text(
+                    c.trackingEnabled ? 'Permissions' : 'Turn on tracking',
+                  ),
+                ),
+                if (c.trackingEnabled)
+                  TextButton(
+                    onPressed: _busy
+                        ? null
+                        : () => _run(() => c.disableTracking()),
+                    child: const Text('Stop tracking'),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Text(
+              'Grindset never sees your screen, what you type, or page contents.',
+              style: Theme.of(context).textTheme.bodySmall,
             ),
           ],
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 12,
-            runSpacing: 8,
-            children: [
-              OutlinedButton(
-                onPressed: _busy || !c.tracker.supported
-                    ? null
-                    : _enableTracking,
-                child: Text(
-                  c.trackingEnabled ? 'Permissions' : 'Turn on tracking',
-                ),
-              ),
-              if (c.trackingEnabled)
-                TextButton(
-                  onPressed: _busy
-                      ? null
-                      : () => _run(() => c.disableTracking()),
-                  child: const Text('Stop tracking'),
-                ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Grindset never sees your screen, what you type, or page contents.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-        ],
+        ),
       ),
-    ),
     _Section(
       padding: const EdgeInsets.all(20),
       child: Column(

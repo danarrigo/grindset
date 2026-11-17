@@ -161,6 +161,8 @@ class _TrackingHealthPanelState extends State<TrackingHealthPanel> {
         onRules: widget.onRules,
       );
       final done = steps.where((s) => s.done).length;
+      // Only the first unfinished step gets the prominent button.
+      final next = steps.indexWhere((s) => !s.done && s.action != null);
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -219,10 +221,15 @@ class _TrackingHealthPanelState extends State<TrackingHealthPanel> {
                   ),
                   if (step.action != null && step.onAction != null) ...[
                     const SizedBox(width: 12),
-                    FilledButton.tonal(
-                      onPressed: step.onAction,
-                      child: Text(step.action!),
-                    ),
+                    i == next
+                        ? FilledButton(
+                            onPressed: step.onAction,
+                            child: Text(step.action!),
+                          )
+                        : OutlinedButton(
+                            onPressed: step.onAction,
+                            child: Text(step.action!),
+                          ),
                   ],
                 ],
               ),
