@@ -326,6 +326,13 @@ class _HomeState extends State<_Home> {
         timezone: c.location.name,
         loadWindowsApps: c.tracker.isWindows ? WindowsApps.list : null,
         browseWindowsApp: c.tracker.isWindows ? WindowsApps.browse : null,
+        iconFor: (source) {
+          c.requestAppDetails([source]);
+          return ListenableBuilder(
+            listenable: c,
+            builder: (_, _) => SourceIcon(controller: c, source: source),
+          );
+        },
         sources: {
           ...c.usage.map((i) => i.source),
           ...c.rules.expand((r) => r.sources),
@@ -668,7 +675,7 @@ class _HomeState extends State<_Home> {
     final warnings = [
       for (final warning in budgetWarnings.take(2)) warning.message,
       if (budgetWarnings.length > 2)
-        'More activities are near their budgets. Review Rules.',
+        'More rules are near their daily limits. Review Rules.',
       widget.startupWarning,
       c.trackingError,
       if (c.trackingInterruption != null)
@@ -1034,7 +1041,7 @@ class _HomeState extends State<_Home> {
           action: TextButton.icon(
             onPressed: () => _editRule(),
             icon: const Icon(Icons.add_rounded, size: 18),
-            label: const Text('Add activity'),
+            label: const Text('Add rule'),
           ),
         ),
         Wrap(
@@ -1149,17 +1156,17 @@ class _HomeState extends State<_Home> {
       orElse: () => rule.sources.first,
     );
     c.requestAppDetails([iconSource]);
+    // What the rule does, in the editor's words. The daily limit has its own
+    // bar below, so it is only named here when nothing else blocks.
     final summary = [
-      [
-        if (rule.sources.any((s) => s.startsWith('windows:'))) 'Windows apps',
-        if (rule.sources.any((s) => s.startsWith('web:'))) 'Websites',
-        if (rule.sources.any((s) => s.startsWith('android:'))) 'Android apps',
-      ].join(' + '),
-      if (rule.focusBlock) 'Blocked during focus',
+      if (rule.focusBlock) 'Blocked while you focus',
       for (final window in rule.schedules.take(2))
-        scheduleSummary(context, window),
-      if (rule.schedules.length > 2)
-        '+${rule.schedules.length - 2} more windows',
+        'Blocked ${scheduleSummary(context, window)}',
+      if (rule.schedules.length > 2) '+${rule.schedules.length - 2} more times',
+      if (!rule.focusBlock &&
+          rule.schedules.isEmpty &&
+          rule.dailyMinutes == null)
+        'Tracked only, never blocked',
     ].join(' · ');
     return InkWell(
       onTap: () => _editRule(rule: rule),
@@ -1181,13 +1188,14 @@ class _HomeState extends State<_Home> {
                         style: Theme.of(context).textTheme.bodyLarge
                             ?.copyWith(fontWeight: FontWeight.w600),
                       ),
-                      Text(
-                        summary,
-                        style: TextStyle(
-                          fontSize: 13,
-                          color: colors.onSurfaceVariant,
+                      if (summary.isNotEmpty)
+                        Text(
+                          summary,
+                          style: TextStyle(
+                            fontSize: 13,
+                            color: colors.onSurfaceVariant,
+                          ),
                         ),
-                      ),
                     ],
                   ),
                 ),

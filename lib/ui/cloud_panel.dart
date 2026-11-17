@@ -296,7 +296,7 @@ class _CloudPanelState extends State<CloudPanel> {
                   conflict.change.kind == 'setting'
                       ? 'Account timezone'
                       : (conflict.change.value?['name'] as String? ??
-                            'Deleted activity'),
+                            'Deleted rule'),
                 ),
                 subtitle: const Text(
                   'Confirmed state is in use. Your edit is saved for review.',

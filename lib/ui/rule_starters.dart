@@ -66,7 +66,7 @@ class RuleStarters extends StatelessWidget {
         ),
       ],
       Text(
-        'Or pick one app. Starts at 30 min a day and blocked during focus; you can change it before saving.',
+        'Or pick one app. It starts blocked while you focus and limited to 30 min a day. You can change this before saving.',
         style: Theme.of(context).textTheme.bodySmall,
       ),
       const SizedBox(height: 12),

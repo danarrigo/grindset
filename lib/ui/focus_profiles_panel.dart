@@ -77,7 +77,7 @@ class _FocusProfilesPanelState extends State<FocusProfilesPanel> {
           ),
           const SizedBox(height: 12),
           const Text(
-            'On this device. Profiles select which saved activities block during a manual focus timer. They do not change budgets, schedules or timer duration.',
+            'A profile picks which rules block while you focus on this device. Daily limits and set times stay as they are.',
           ),
           const SizedBox(height: 12),
           Text(
@@ -87,7 +87,7 @@ class _FocusProfilesPanelState extends State<FocusProfilesPanel> {
             const Padding(
               padding: EdgeInsets.symmetric(vertical: 12),
               child: Text(
-                'Create an activity in Rules before configuring a profile.',
+                'Add a rule first, then pick which ones each profile blocks.',
               ),
             ),
           for (final profile in c.focusProfiles)
@@ -109,7 +109,7 @@ class _FocusProfilesPanelState extends State<FocusProfilesPanel> {
                                     .where((r) => r.id == id)
                                     .firstOrNull
                                     ?.name ??
-                                'Removed activity',
+                                'Deleted rule',
                           )
                           .join(', '),
                     ),
@@ -191,7 +191,7 @@ class _FocusProfilesPanelState extends State<FocusProfilesPanel> {
             ),
           const SizedBox(height: 12),
           const Text(
-            'Saving or editing a profile never applies it automatically. New or changed activities may make the current selection Custom.',
+            'Saving a profile does not switch to it. Tap Use when you want it.',
             style: TextStyle(fontSize: 12),
           ),
         ],
@@ -248,7 +248,7 @@ class _ProfileEditorState extends State<_ProfileEditor> {
               maxLength: 60,
             ),
             const Text(
-              'Select saved activities to block during manual focus. Other activities keep their budgets and schedules.',
+              'Pick the rules to block while you focus. Other rules keep their daily limits and set times.',
             ),
             for (final rule in widget.rules)
               CheckboxListTile(
@@ -269,7 +269,7 @@ class _ProfileEditorState extends State<_ProfileEditor> {
                     .where((id) => !widget.rules.any((r) => r.id == id))
                     .toList())
               CheckboxListTile(
-                title: const Text('Removed activity (uncheck to save)'),
+                title: const Text('Deleted rule (uncheck to save)'),
                 value: true,
                 onChanged: (_) => setState(() => _selected.remove(id)),
               ),
@@ -292,7 +292,7 @@ class _ProfileEditorState extends State<_ProfileEditor> {
                       if (_selected.any(
                         (id) => !widget.rules.any((r) => r.id == id),
                       )) {
-                        throw StateError('Remove missing activities first.');
+                        throw StateError('Uncheck deleted rules first.');
                       }
                       Navigator.pop(
                         context,

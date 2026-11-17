@@ -179,7 +179,7 @@ class _WeeklyInsightsPanelState extends State<WeeklyInsightsPanel> {
                     : _usageLabel(report.total),
               ),
               _stat(
-                'Usage matching current activities',
+                'Time on apps in your rules',
                 report.recordedDays == 0
                     ? 'Not recorded'
                     : _usageLabel(report.matched),

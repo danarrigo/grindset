@@ -70,7 +70,7 @@ void main() {
         RuleEditor(sources: {}, rule: rule, timezone: 'Europe/London'),
         (value) => saved = value,
       );
-      await tap(tester, 'Save activity');
+      await tap(tester, 'Save rule');
       expect(saved!.toJson(), rule.toJson());
     },
   );
@@ -88,18 +88,22 @@ void main() {
         (value) => saved = value,
       );
       await tester.enterText(
-        find.widgetWithText(TextField, 'Find apps and websites'),
-        'windows:discord.exe',
+        find.widgetWithText(TextField, 'Search apps'),
+        'discord',
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.byType(CheckboxListTile).first);
+      // Picking an app by name picks all of it: its apps and its website.
+      await tester.tap(find.widgetWithText(CheckboxListTile, 'Discord'));
       await tester.pumpAndSettle();
-      await tap(tester, 'Add time window');
-      await tap(tester, 'Save activity');
+      await tap(tester, 'Add more times');
+      await tap(tester, 'Save rule');
       expect(saved!.name, 'Focus hours');
       expect(saved!.focusBlock, isFalse);
       expect(saved!.dailyMinutes, isNull);
-      expect(saved!.sources, {'windows:discord.exe'});
+      expect(
+        saved!.sources,
+        containsAll(['windows:discord.exe', 'web:discord.com']),
+      );
       expect(saved!.schedules, hasLength(2));
       expect(saved!.schedules.first.weekdays, {1, 2, 3, 4, 5});
       expect(saved!.schedules.first.startMinute, 540);
@@ -116,11 +120,11 @@ void main() {
         RuleEditor(sources: {}, rule: rule),
         (value) => saved = value,
       );
-      await tester.ensureVisible(find.byTooltip('Remove time window 1'));
+      await tester.ensureVisible(find.byTooltip('Remove these times').first);
       await tester.pumpAndSettle();
-      await tester.tap(find.byTooltip('Remove time window 1'));
+      await tester.tap(find.byTooltip('Remove these times').first);
       await tester.pumpAndSettle();
-      await tap(tester, 'Save activity');
+      await tap(tester, 'Save rule');
       expect(saved!.schedules.single.toJson(), rule.schedules.last.toJson());
       expect(saved!.dailyMinutes, 47);
       expect(saved!.focusBlock, isFalse);
@@ -143,8 +147,8 @@ void main() {
         RuleEditor(sources: {}, rule: rule),
         (value) => saved = value,
       );
-      await tap(tester, 'Mon');
-      await tap(tester, 'Save activity');
+      await tap(tester, 'M');
+      await tap(tester, 'Save rule');
       expect(saved, isNull);
       expect(find.textContaining('Choose weekdays'), findsOneWidget);
       expect(rule.schedules.single.weekdays, {1});
@@ -174,16 +178,16 @@ void main() {
         (value) => saved = value,
       );
       expect(loads, 0);
-      await tap(tester, 'Find apps on this PC');
+      await tap(tester, 'Show apps on this PC');
       expect(loads, 1);
       await tester.enterText(
-        find.widgetWithText(TextField, 'Find apps and websites'),
+        find.widgetWithText(TextField, 'Search apps'),
         'Test App',
       );
       await tester.pumpAndSettle();
       await tester.tap(find.widgetWithText(CheckboxListTile, 'Test App'));
       await tester.pumpAndSettle();
-      await tap(tester, 'Save activity');
+      await tap(tester, 'Save rule');
       expect(saved!.name, 'Test App');
       expect(saved!.sources, {'windows:test app.exe'});
     },
@@ -202,10 +206,11 @@ void main() {
         ),
         (value) => saved = value,
       );
-      await tap(tester, 'Find apps on this PC');
+      await tap(tester, 'Add another app or website');
+      await tap(tester, 'Show apps on this PC');
       expect(find.textContaining('Scan unavailable'), findsOneWidget);
-      await tap(tester, 'Browse for .exe');
-      await tap(tester, 'Save activity');
+      await tap(tester, 'Browse');
+      await tap(tester, 'Save rule');
       expect(saved!.toJson(), existing().toJson());
     },
   );
@@ -224,8 +229,8 @@ void main() {
       ),
       (value) => saved = value,
     );
-    await tap(tester, 'Browse for .exe');
-    await tap(tester, 'Save activity');
+    await tap(tester, 'Browse');
+    await tap(tester, 'Save rule');
     expect(saved!.sources, {'windows:code.exe'});
     expect(saved!.name, 'Visual Studio Code');
   });
