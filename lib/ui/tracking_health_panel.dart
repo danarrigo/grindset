@@ -252,7 +252,7 @@ class _TrackingHealthPanelState extends State<TrackingHealthPanel> {
     decoration: BoxDecoration(
       shape: BoxShape.circle,
       color: step.done
-          ? const Color(0xFF30D158)
+          ? colors.primary
           : step.broken
           ? colors.error
           : null,
@@ -261,7 +261,7 @@ class _TrackingHealthPanelState extends State<TrackingHealthPanel> {
           : Border.all(color: colors.outline, width: 1.5),
     ),
     child: step.done
-        ? const Icon(Icons.check_rounded, size: 18, color: Colors.white)
+        ? Icon(Icons.check_rounded, size: 18, color: colors.onPrimary)
         : step.broken
         ? Icon(Icons.priority_high_rounded, size: 18, color: colors.onError)
         : Text(

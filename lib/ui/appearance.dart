@@ -9,22 +9,19 @@ String durationLabel(Duration duration) {
       : '${minutes ~/ 60} hr ${minutes % 60} min';
 }
 
-ThemeData lockinTheme(Brightness brightness, {Color? accent}) {
+ThemeData lockinTheme(Brightness brightness) {
   final dark = brightness == Brightness.dark;
   final background = dark ? const Color(0xFF111113) : const Color(0xFFF7F7F9);
   final ink = dark ? const Color(0xFFF5F5F7) : const Color(0xFF1D1D1F);
   final secondary = dark ? const Color(0xFFB1B1B7) : const Color(0xFF55555B);
   final colors =
       ColorScheme.fromSeed(
-        seedColor: const Color(0xFF0066CC),
+        seedColor: const Color(0xFF1A7F37),
         brightness: brightness,
       ).copyWith(
-        primary:
-            accent ??
-            (dark ? const Color(0xFF74B3FF) : const Color(0xFF0066CC)),
-        onPrimary: accent != null
-            ? Colors.black
-            : (dark ? const Color(0xFF002C59) : Colors.white),
+        // Brand green: the only accent (see the Grindset brand guide).
+        primary: dark ? const Color(0xFF30D158) : const Color(0xFF1A7F37),
+        onPrimary: dark ? const Color(0xFF05210C) : Colors.white,
         surface: dark ? const Color(0xFF1C1C1E) : Colors.white,
         onSurface: ink,
         onSurfaceVariant: secondary,
@@ -32,11 +29,13 @@ ThemeData lockinTheme(Brightness brightness, {Color? accent}) {
             ? const Color(0xFF303034)
             : const Color(0xFFE9E9ED),
         surfaceContainerLow: background,
-        outline: dark ? const Color(0xFF65656C) : const Color(0xFF98989E),
+        outline: dark ? const Color(0xFF75757C) : const Color(0xFF86868C),
         outlineVariant: dark
             ? const Color(0xFF353539)
             : const Color(0xFFDDDDE2),
         tertiary: dark ? const Color(0xFFE5C07B) : const Color(0xFF85570D),
+        error: dark ? const Color(0xFFFF6961) : const Color(0xFFD70015),
+        onError: dark ? Colors.black : Colors.white,
       );
   final base = ThemeData(
     useMaterial3: true,

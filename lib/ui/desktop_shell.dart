@@ -87,10 +87,10 @@ class DesktopShell extends StatelessWidget {
                                           vertical: 14,
                                         ),
                                         foregroundColor: selected == i
-                                            ? colors.onPrimaryContainer
+                                            ? colors.onSurface
                                             : colors.onSurfaceVariant,
                                         backgroundColor: selected == i
-                                            ? colors.primaryContainer
+                                            ? colors.surfaceContainerHighest
                                             : Colors.transparent,
                                         shape: RoundedRectangleBorder(
                                           borderRadius: BorderRadius.circular(

@@ -542,10 +542,8 @@ class _HomeState extends State<_Home> {
   }
 
   Widget _focusHome() {
-    final theme = lockinTheme(
-      Brightness.dark,
-      accent: const Color(0xFFFF9F0A),
-    ).copyWith(scaffoldBackgroundColor: const Color(0xFF09090A));
+    final theme = lockinTheme(Brightness.dark)
+        .copyWith(scaffoldBackgroundColor: const Color(0xFF09090A));
     return Theme(
       data: theme,
       child: CupertinoTheme(
@@ -589,7 +587,7 @@ class _HomeState extends State<_Home> {
     final statusColor = broken
         ? colors.error
         : ready
-        ? const Color(0xFF30D158)
+        ? colors.primary
         : colors.onSurfaceVariant;
     return Container(
       decoration: BoxDecoration(
