@@ -1,6 +1,6 @@
 # Android background runtime
 
-Tracking is opt-in. Enable Usage Access and notifications in Settings. Grindset starts a `specialUse` foreground service with a persistent notification and a stop action. Force-stop, system termination, uninstall and permission revocation can still interrupt it. The foreground-service declaration and Accessibility use require policy review before Play distribution.
+Tracking is opt-in. Enable Usage Access and notifications in Settings. Grindset starts a `specialUse` foreground service with a persistent notification and a stop action. Force-stop, system termination, uninstall and permission revocation can still interrupt it. The foreground-service declaration and overlay permission require policy review before Play distribution.
 
 ## Ownership
 
@@ -14,17 +14,17 @@ Usage Access, app-wide notifications, and the tracking notification channel must
 
 ## Optional blocking
 
-Enable **Grindset app blocking** yourself in Android Accessibility settings, after the in-app disclosure. The service requests only window-state events and reads package identifiers. It does not retrieve a window content tree, text, screenshots, keystrokes or gestures.
+After the in-app disclosure, allow Grindset to **Display over other apps** yourself in Android Settings. While tracking runs, Grindset reads the latest foreground activity's package identifier from Usage Access events about once a second. It does not read screen contents, text, screenshots, keystrokes or gestures. Because detection is polled, a restricted app can be visible for up to about a second before the restriction screen covers it.
 
-The existing Dart policy evaluates focus blocks, union-accounted daily budgets and account-timezone schedules. An active restriction displays a native accessibility overlay. A five-minute override is committed for one source on this device before the overlay is dismissed. Android Settings, the launcher, permission/install interfaces and Grindset remain accessible. This is voluntary enforcement, not tamper or uninstall protection.
+Grindset does not declare an Accessibility service. Google's sideloading fraud protection blocks internet-downloaded APKs that declare one ("This app can request access to sensitive data"), even when the service is never enabled. v1.5 and earlier v1.6 builds declared it.
+
+The existing Dart policy evaluates focus blocks, union-accounted daily budgets and account-timezone schedules. An active restriction displays a native full-screen overlay window above the app. System bars stay usable. A five-minute override is committed for one source on this device before the overlay is dismissed. Android Settings, the launcher, permission/install interfaces and Grindset remain accessible. This is voluntary enforcement, not tamper or uninstall protection.
 
 ## Verification status
 
 Controller/SQLite tests cover repeated imports, checkpoint failure, native stop authority, policy decisions, source-specific overrides, interruption reasons surviving refresh/reopen, and requesting only missing Usage Access. Those tests mock the OS boundary.
 
 The debug APK was installed on the isolated API 36.1 emulator. Actual UI checks verified Usage Access and notification consent, the visible foreground service, journal writes after closing/reopening the activity, a native focus-blocking overlay, a persisted source-specific override, and stopping tracking from the real notification. A screen-off check confirmed the Chrome interval ended at 12:33:12.739 UTC while the next import completed at 12:33:29.103 UTC, without adding the locked interval. Accessibility reported package-only window events with capabilities=0. This is emulator evidence, not physical-device or store approval.
-
-Do not use `uiautomator dump` to verify a live Accessibility overlay: its UiAutomation connection suppresses other accessibility services during the dump. Use the real screen and OS diagnostics instead.
 
 Completion-alert delivery with tracking disabled, the UI closed and the background process killed is emulator-verified. See [completion alerts](completion-alerts.md) for exact evidence and limits.
 

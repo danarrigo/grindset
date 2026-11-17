@@ -1,0 +1,156 @@
+package app.lockin.lockin
+
+import android.app.KeyguardManager
+import android.app.usage.UsageEvents
+import android.app.usage.UsageStatsManager
+import android.content.Context
+import android.content.Intent
+import android.content.res.ColorStateList
+import android.graphics.Color
+import android.graphics.PixelFormat
+import android.graphics.Typeface
+import android.graphics.drawable.GradientDrawable
+import android.graphics.drawable.RippleDrawable
+import android.os.Build
+import android.os.PowerManager
+import android.provider.Settings
+import android.view.Gravity
+import android.view.View
+import android.view.WindowManager
+import android.view.inputmethod.InputMethodManager
+import android.widget.Button
+import android.widget.LinearLayout
+import android.widget.TextView
+
+/**
+ * Identifies the foreground app from Usage Access activity events and covers a
+ * restricted app with a "Display over other apps" window. Package identifiers
+ * only; never screen contents. Must be called on the main thread.
+ */
+object AppBlocker {
+    private var overlay: View? = null
+    private var blocked: String? = null
+    private var foreground: String? = null
+    private var scannedUntil = 0L
+    private val protectedPackages = setOf(
+        "com.android.settings", "com.android.systemui", "com.android.permissioncontroller",
+        "com.google.android.permissioncontroller", "com.android.packageinstaller",
+        "com.google.android.packageinstaller",
+    )
+
+    fun permitted(context: Context): Boolean = Settings.canDrawOverlays(context)
+
+    private fun windows(context: Context) =
+        context.applicationContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+
+    /** Applies new activity events since the last scan; the latest event wins. */
+    private fun scan(context: Context) {
+        val now = System.currentTimeMillis()
+        // Seed from the last day once, then re-read a short overlap in case an
+        // event becomes queryable slightly after its timestamp. Replaying events
+        // in order is idempotent for "latest foreground app".
+        val from = if (scannedUntil == 0L) now - 86_400_000L else scannedUntil - 5_000L
+        val manager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
+        val events = manager.queryEvents(from, now) ?: return
+        val event = UsageEvents.Event()
+        while (events.hasNextEvent()) {
+            events.getNextEvent(event)
+            when (event.eventType) {
+                UsageEvents.Event.ACTIVITY_RESUMED -> foreground = event.packageName
+                UsageEvents.Event.ACTIVITY_PAUSED -> if (event.packageName == foreground) foreground = null
+            }
+        }
+        scannedUntil = now
+    }
+
+    fun foregroundSource(context: Context): String? {
+        if (!TrackingRuntime.enabled(context) || !permitted(context) || !UsageReader.hasAccess(context)) {
+            foreground = null
+            scannedUntil = 0L
+            hideBlock(context)
+            return null
+        }
+        val power = context.getSystemService(Context.POWER_SERVICE) as PowerManager
+        val keyguard = context.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
+        if (!power.isInteractive || keyguard.isKeyguardLocked) { hideBlock(context); return null }
+        scan(context)
+        val pkg = foreground
+        val inputs = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+        val home = context.packageManager.resolveActivity(
+            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0,
+        )?.activityInfo?.packageName
+        val source = if (pkg == null || pkg == context.packageName || pkg == home || pkg in protectedPackages ||
+            inputs.enabledInputMethodList.any { it.packageName == pkg }) null else "android:$pkg"
+        if (source != blocked) hideBlock(context)
+        return source
+    }
+
+    /** Grindset itself is in front: no app can be restricted behind it. */
+    fun enteredLockin(context: Context) {
+        foreground = context.packageName
+        hideBlock(context)
+        TrackingRuntime.dismissRequested()
+    }
+
+    fun showBlock(context: Context, target: String, message: String) {
+        require(target.startsWith("android:")) { "Only Android apps can be blocked here." }
+        check(permitted(context)) { "Allow Grindset to display over other apps to block apps." }
+        if (foregroundSource(context) != target) return
+        if (overlay != null && blocked == target) return
+        hideBlock(context)
+        val app = context.applicationContext
+        val density = app.resources.displayMetrics.density
+        val padding = (24 * density).toInt()
+        val font = try { Typeface.createFromAsset(app.assets, "flutter_assets/assets/fonts/Inter.ttf") } catch (_: Exception) { Typeface.DEFAULT }
+        val content = LinearLayout(app).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            setPadding(padding, padding, padding, padding)
+            setBackgroundColor(Color.rgb(9, 9, 10))
+        }
+        fun text(value: String, size: Float) = TextView(app).apply {
+            text = value; textSize = size; setTextColor(Color.WHITE); typeface = font
+            gravity = Gravity.CENTER; setPadding(0, padding / 2, 0, padding / 2)
+        }
+        content.addView(text("App restricted", 26f))
+        content.addView(text(message, 16f))
+        fun action(label: String, primary: Boolean, click: () -> Unit) = Button(app).apply {
+            text = label; typeface = font; textSize = 16f; isAllCaps = false
+            minHeight = (48 * density).toInt()
+            setPadding((16 * density).toInt(), (12 * density).toInt(), (16 * density).toInt(), (12 * density).toInt())
+            setTextColor(if (primary) Color.rgb(48, 209, 88) else Color.rgb(229, 229, 234))
+            backgroundTintList = null
+            background = RippleDrawable(ColorStateList.valueOf(Color.argb(40, 255, 255, 255)), GradientDrawable().apply {
+                cornerRadius = 12 * density
+                setColor(if (primary) Color.rgb(7, 59, 29) else Color.rgb(28, 28, 30))
+            }, null)
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = (8 * density).toInt() }
+            setOnClickListener { click() }
+        }
+        content.addView(action("Go home", false) {
+            hideBlock(app)
+            foreground = null
+            TrackingRuntime.dismissRequested()
+            app.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+        })
+        content.addView(action("Allow this app for 5 minutes", true) { TrackingRuntime.overrideRequested() })
+        content.addView(text("Tracking stays on. Other restrictions remain active.", 13f))
+        val type = if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else {
+            @Suppress("DEPRECATION")
+            WindowManager.LayoutParams.TYPE_PHONE
+        }
+        val params = WindowManager.LayoutParams(
+            WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.MATCH_PARENT,
+            type, WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN, PixelFormat.OPAQUE,
+        )
+        windows(app).addView(content, params)
+        blocked = target
+        overlay = content
+    }
+
+    fun hideBlock(context: Context) {
+        overlay?.let { windows(context).removeView(it) }
+        overlay = null
+        blocked = null
+    }
+}

@@ -153,7 +153,7 @@ class _HomeState extends State<_Home> {
             '${c.tracker.isWindows && widget.enableStartup == null ? 'This isolated preview does not change Windows sign-in startup.' : 'Windows will start Grindset at sign-in and keep it in the tray.'} '
             'Android requires Usage Access and notifications, '
             'then keeps a visible background service running when you close the UI. You can stop it from Settings or its notification. '
-            'App blocking requires a separate, optional Accessibility permission.\n\n'
+            'App blocking requires a separate, optional Display over other apps permission.\n\n'
             'History is stored locally. Cloud uploads require configured Supabase and sign-in.',
           ),
         ),
@@ -184,10 +184,10 @@ class _HomeState extends State<_Home> {
         title: const Text('Enable app blocking?'),
         content: const SingleChildScrollView(
           child: Text(
-            'Grindset uses Accessibility only to identify the foreground app package and display a blocking screen when one of your rules applies. '
-            'It does not read screen contents, typed text, screenshots or keystrokes.\n\n'
-            'This is voluntary enforcement. You can disable Accessibility, stop tracking or uninstall Grindset at any time. Android Settings remains accessible.\n\n'
-            'After continuing, choose Grindset app blocking in Android Accessibility settings and enable it yourself.',
+            'Grindset uses Usage Access to identify the foreground app package, and Display over other apps to show a blocking screen when one of your rules applies. '
+            'It does not read screen contents, typed text, screenshots or keystrokes. A blocked app may be visible for about a second before the screen appears.\n\n'
+            'This is voluntary enforcement. You can turn off the permission, stop tracking or uninstall Grindset at any time. Android Settings remains accessible.\n\n'
+            'After continuing, allow Grindset to display over other apps in Android Settings yourself.',
           ),
         ),
         actions: [
@@ -413,7 +413,7 @@ class _HomeState extends State<_Home> {
             'Windows foreground tracking and interruption-based blocking still need native device testing. '
             'The idle/media probe needs native validation; crash recovery is unfinished.\n\n'
             'Android uses an opt-in foreground service and a persistent background journal. '
-            'App blocking requires the separate Accessibility service. Both remain subject to Android stopping the process or permissions being revoked.\n\n'
+            'App blocking requires the separate Display over other apps permission. Both remain subject to Android stopping the process or permissions being revoked.\n\n'
             'Windows websites require the paired Chrome/Edge extension. Account state and confirmed usage sync automatically while signed in. Offline rule conflicts require review; the confirmed shared focus session wins.\n\n'
             'No activity is invented for disconnected devices.',
           ),
@@ -1082,7 +1082,7 @@ class _HomeState extends State<_Home> {
         ],
         if (c.tracker.isAndroid && !c.androidBlockingEnabled) ...[
           _notice(
-            'Android app blocking also needs the Accessibility permission in Settings.',
+            'Android app blocking also needs the Display over other apps permission in Settings.',
           ),
           const SizedBox(height: 20),
         ],
@@ -1277,7 +1277,7 @@ class _HomeState extends State<_Home> {
           onBrowser: c.tracker.isWindows && c.browserBridge?.isListening == true
               ? _pairBrowser
               : null,
-          onAccessibility: c.tracker.isAndroid ? _enableAndroidBlocking : null,
+          onAppBlocking: c.tracker.isAndroid ? _enableAndroidBlocking : null,
         ),
       ),
       const SizedBox(height: 20),
@@ -1497,7 +1497,7 @@ class _HomeState extends State<_Home> {
             const SizedBox(height: 12),
             Text(
               c.androidBlockingEnabled
-                  ? 'Accessibility service is connected. Tracking must also be enabled for rules to apply.'
+                  ? 'Display over other apps is allowed. Tracking must also be enabled for rules to apply.'
                   : 'Not enabled. Usage Access alone cannot block apps.',
             ),
             const SizedBox(height: 14),
@@ -1505,7 +1505,7 @@ class _HomeState extends State<_Home> {
               onPressed: _busy ? null : _enableAndroidBlocking,
               child: Text(
                 c.androidBlockingEnabled
-                    ? 'Review Accessibility'
+                    ? 'Review permission'
                     : 'Enable app blocking',
               ),
             ),

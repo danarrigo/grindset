@@ -12,7 +12,7 @@ Grindset is personal-use software, not a tamper-proof lock or physical-device-ce
 
 1. Install the Windows x64 installer or release-signed Android ARM64 APK. Install updates over the existing app rather than uninstalling and losing local data.
 2. Use **Rules** to select a starter, create an activity, or choose **All social media** for a combined budget across 17 supported services. Review and save; nothing is automatically enabled.
-3. Enable tracking in **Settings**. Review **Tracking health** and the platform permissions. Android app blocking additionally needs the optional Accessibility service; website blocking needs the paired Windows browser extension.
+3. Enable tracking in **Settings**. Review **Tracking health** and the platform permissions. Android app blocking additionally needs the optional Display over other apps permission; website blocking needs the paired Windows browser extension.
 4. Start a focus timer or configure **Schedule focus hours**. Keep Grindset/tracking running for restrictions to work.
 
 If Android blocks installation, keep Play Protect enabled and report the exact warning and download source. A successful build or valid signature is not Play Protect approval; see [Google's warning guidance](https://developers.google.com/android/play-protect/warning-dev-guidance). A reported Android block is currently awaiting reproduction details.
@@ -40,7 +40,7 @@ Windows uses a desktop-sized workspace, persistent sidebar, Ctrl+1-5 navigation 
 
 - **Windows apps:** restricted foreground apps are minimized and a borderless explanation covers their monitor. Returning through Alt-Tab reapplies enforcement. Allowed apps restore the ordinary workspace; Windows recovery controls and deliberate quitting remain available. This does not kill or suspend app processes.
 - **Websites:** the paired Chrome/Edge extension enforces host-based rules. Shared-host/PWA clients may need website rules instead of an executable rule.
-- **Android:** opt-in background tracking uses a visible foreground service; optional Accessibility blocking uses package identifiers, not screen contents.
+- **Android:** opt-in background tracking uses a visible foreground service; optional blocking reads the foreground package from Usage Access, not screen contents, and covers restricted apps using Display over other apps. A blocked app can be visible for about a second before the screen appears.
 - A source-specific five-minute override leaves other restrictions in place. Offline devices can consume shared budgets before their confirmed records synchronize.
 
 For existing activities created before Windows coverage was added, **Add desktop coverage** opens a reviewable edit. Sources, budgets and schedules are never silently broadened.

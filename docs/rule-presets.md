@@ -24,7 +24,7 @@ Known Windows names were checked against [Discord testing clients](https://suppo
 
 ## Websites and Android
 
-Website rules include subdomains and need the paired Windows browser extension. Android requires tracking and the optional Accessibility blocking service. A starter does not claim an app is installed, fabricate usage, grant permissions or inspect page/screen contents. The catalog is bundled and makes no network requests while choosing suggestions.
+Website rules include subdomains and need the paired Windows browser extension. Android requires tracking and the optional Display over other apps permission for blocking. A starter does not claim an app is installed, fabricate usage, grant permissions or inspect page/screen contents. The catalog is bundled and makes no network requests while choosing suggestions.
 
 The authoritative identifiers are in [`lib/core/rule_presets.dart`](../lib/core/rule_presets.dart). Main Android packages were checked against publisher Google Play listings:
 

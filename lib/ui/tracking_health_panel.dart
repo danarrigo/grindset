@@ -13,12 +13,12 @@ class TrackingHealthPanel extends StatefulWidget {
     required this.controller,
     this.onTracking,
     this.onBrowser,
-    this.onAccessibility,
+    this.onAppBlocking,
   });
   final AppController controller;
   final VoidCallback? onTracking;
   final VoidCallback? onBrowser;
-  final VoidCallback? onAccessibility;
+  final VoidCallback? onAppBlocking;
   @override
   State<TrackingHealthPanel> createState() => _TrackingHealthPanelState();
 }
@@ -170,9 +170,9 @@ class _TrackingHealthPanelState extends State<TrackingHealthPanel> {
             _row(
               'Android app blocking',
               c.androidBlockingEnabled
-                  ? 'Accessibility connected'
-                  : 'Accessibility not connected',
-              'Usage Access alone cannot block apps. Connection does not certify delivery or OEM background reliability.',
+                  ? 'Display over other apps allowed'
+                  : 'Display over other apps not allowed',
+              'Usage Access alone cannot block apps. Permission does not certify delivery or OEM background reliability.',
               c.androidBlockingEnabled ? _Health.ready : _Health.attention,
             ),
           if (c.tracker.isWindows)
@@ -236,9 +236,9 @@ class _TrackingHealthPanelState extends State<TrackingHealthPanel> {
                   onPressed: widget.onBrowser,
                   child: const Text('Browser setup'),
                 ),
-              if (widget.onAccessibility != null)
+              if (widget.onAppBlocking != null)
                 TextButton(
-                  onPressed: widget.onAccessibility,
+                  onPressed: widget.onAppBlocking,
                   child: const Text('App blocking setup'),
                 ),
             ],

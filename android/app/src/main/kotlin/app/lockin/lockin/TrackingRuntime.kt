@@ -100,7 +100,7 @@ object TrackingRuntime {
         // Keep the opt-in, but never backfill a permission-disabled window.
         prefs.edit().remove("enabled_since").putString("error", error)
             .putLong("collection_generation", prefs.getLong("collection_generation", 0L) + 1L).apply()
-        AppBlockingService.instance?.hideBlock()
+        AppBlocker.hideBlock(context)
         context.stopService(Intent(context, TrackingService::class.java))
     }
 
@@ -151,7 +151,7 @@ object TrackingRuntime {
         val prefs = preferences(context)
         prefs.edit().putBoolean("enabled", false).remove("error").remove("enabled_since")
             .putLong("collection_generation", prefs.getLong("collection_generation", 0L) + 1L).apply()
-        AppBlockingService.instance?.hideBlock()
+        AppBlocker.hideBlock(context)
         context.stopService(Intent(context, TrackingService::class.java))
         channel?.invokeMethod("trackingStopped", null)
     }
@@ -159,7 +159,7 @@ object TrackingRuntime {
     private fun status(context: Context) = mapOf(
         "enabled" to enabled(context),
         "running" to serviceRunning(context),
-        "blockingEnabled" to (AppBlockingService.instance != null),
+        "blockingEnabled" to AppBlocker.permitted(context),
         "error" to preferences(context).getString("error", null),
     )
 
@@ -199,17 +199,18 @@ object TrackingRuntime {
                 }
                 "requestBlockingAccess" -> {
                     val host = checkNotNull(activity.get()) { "Open Grindset to enable app blocking." }
-                    host.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                    host.startActivity(Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+                        data = android.net.Uri.parse("package:${context.packageName}")
+                    })
                     result.success(null)
                 }
-                "foregroundSource" -> result.success(AppBlockingService.instance?.foregroundSource())
+                "foregroundSource" -> result.success(AppBlocker.foregroundSource(context))
                 "showBlock" -> {
-                    val service = checkNotNull(AppBlockingService.instance) { "Enable Grindset in Accessibility settings to block apps." }
-                    service.showBlock(checkNotNull(call.argument<String>("source")), call.argument<String>("message") ?: "An activity rule is active.")
+                    AppBlocker.showBlock(context, checkNotNull(call.argument<String>("source")), call.argument<String>("message") ?: "An activity rule is active.")
                     result.success(null)
                 }
                 "hideBlock" -> {
-                    AppBlockingService.instance?.hideBlock()
+                    AppBlocker.hideBlock(context)
                     result.success(null)
                 }
                 "readUsage" -> {
