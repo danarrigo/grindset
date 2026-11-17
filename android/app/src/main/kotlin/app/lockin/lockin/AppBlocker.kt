@@ -25,14 +25,17 @@ import android.widget.TextView
 /**
  * Identifies the foreground app from Usage Access activity events and covers a
  * restricted app with a "Display over other apps" window. Package identifiers
- * only; never screen contents. Must be called on the main thread.
+ * only; never screen contents. [detect] runs on a background thread; everything
+ * that touches the overlay runs on the main thread.
  */
 object AppBlocker {
     private var overlay: View? = null
-    private var blocked: String? = null
-    private var foreground: String? = null
-    private var scannedUntil = 0L
-    private var blockedSince = 0L
+    @Volatile private var blocked: String? = null
+    @Volatile private var foreground: String? = null
+    @Volatile private var scannedUntil = 0L
+    @Volatile private var lastSource: String? = null
+    @Volatile private var system: Pair<Long, Set<String>>? = null
+    @Volatile private var blockedSince = 0L
     private const val PERIODS = "blocked_periods"
     private const val KEEP_MS = 3 * 86_400_000L
     private val protectedPackages = setOf(
@@ -46,12 +49,14 @@ object AppBlocker {
      * Includes every installed launcher, not only the current default.
      */
     fun systemPackages(context: Context): Set<String> {
+        val now = System.currentTimeMillis()
+        system?.let { (at, packages) -> if (now - at < 60_000L) return packages }
         val launchers = context.packageManager.queryIntentActivities(
             Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0,
         ).map { it.activityInfo.packageName }
         val inputs = (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
             .enabledInputMethodList.map { it.packageName }
-        return protectedPackages + launchers + inputs + context.packageName
+        return (protectedPackages + launchers + inputs + context.packageName).also { system = now to it }
     }
 
     private fun prefs(context: Context) =
@@ -105,26 +110,31 @@ object AppBlocker {
         scannedUntil = now
     }
 
-    fun foregroundSource(context: Context): String? {
+    /** The restrictable foreground app, or null. Background thread only. */
+    fun detect(context: Context): String? {
         if (!TrackingRuntime.enabled(context) || !permitted(context) || !UsageReader.hasAccess(context)) {
             foreground = null
             scannedUntil = 0L
-            hideBlock(context)
             return null
         }
         val power = context.getSystemService(Context.POWER_SERVICE) as PowerManager
         val keyguard = context.getSystemService(Context.KEYGUARD_SERVICE) as KeyguardManager
-        if (!power.isInteractive || keyguard.isKeyguardLocked) { hideBlock(context); return null }
+        if (!power.isInteractive || keyguard.isKeyguardLocked) return null
         scan(context)
         val pkg = foreground
-        val source = if (pkg == null || pkg in systemPackages(context)) null else "android:$pkg"
+        return if (pkg == null || pkg in systemPackages(context)) null else "android:$pkg"
+    }
+
+    /** Applies a [detect] result on the main thread. */
+    fun applyDetected(context: Context, source: String?) {
+        lastSource = source
         if (source != blocked) hideBlock(context)
-        return source
     }
 
     /** Grindset itself is in front: no app can be restricted behind it. */
     fun enteredLockin(context: Context) {
         foreground = context.packageName
+        lastSource = null
         hideBlock(context)
         TrackingRuntime.dismissRequested()
     }
@@ -132,7 +142,7 @@ object AppBlocker {
     fun showBlock(context: Context, target: String, message: String) {
         require(target.startsWith("android:")) { "Only Android apps can be blocked here." }
         check(permitted(context)) { "Allow Grindset to display over other apps to block apps." }
-        if (foregroundSource(context) != target) return
+        if (lastSource != target) return
         if (overlay != null && blocked == target) return
         hideBlock(context)
         val app = context.applicationContext
@@ -167,6 +177,7 @@ object AppBlocker {
         content.addView(action("Go home", false) {
             hideBlock(app)
             foreground = null
+            lastSource = null
             TrackingRuntime.dismissRequested()
             app.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         })

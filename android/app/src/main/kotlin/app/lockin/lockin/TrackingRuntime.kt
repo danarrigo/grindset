@@ -211,7 +211,14 @@ object TrackingRuntime {
                         main.post { result.success(details) }
                     }
                 }
-                "foregroundSource" -> result.success(AppBlocker.foregroundSource(context))
+                "foregroundSource" -> executor.execute {
+                    // Usage-event queries are binder calls: keep them off the UI thread.
+                    val source = try { AppBlocker.detect(context) } catch (_: Exception) { null }
+                    main.post {
+                        AppBlocker.applyDetected(context, source)
+                        result.success(source)
+                    }
+                }
                 "showBlock" -> {
                     AppBlocker.showBlock(context, checkNotNull(call.argument<String>("source")), call.argument<String>("message") ?: "An activity rule is active.")
                     result.success(null)
