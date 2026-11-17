@@ -90,31 +90,36 @@ void main() {
   );
 
   testWidgets(
-    'health distinguishes off, fresh prerequisites and an unverified native block',
+    'setup checklist shows off, ready and broken steps in plain words',
     (tester) async {
-      await show(tester, TrackingHealthPanel(controller: c));
-      expect(find.text('Collector: Off'), findsOneWidget);
+      await show(
+        tester,
+        TrackingHealthPanel(controller: c, onTracking: () {}, onRules: () {}),
+      );
       expect(
-        find.text('Browser extension: Bridge unavailable'),
+        find.text('Off. Rules only work while this is on.'),
         findsOneWidget,
       );
+      expect(find.text('Turn on'), findsOneWidget);
+      expect(find.text('Unavailable. Restart Grindset.'), findsOneWidget);
+      expect(find.text('Starts when tracking is on.'), findsOneWidget);
+      expect(find.text('Setup · 0 of 4 done'), findsOneWidget);
       c.trackingEnabled = true;
       c.accessGranted = true;
       c.windowsForegroundEventsActive = true;
-      c.runtimeCheckedAt = now;
-      await show(tester, TrackingHealthPanel(controller: c));
-      expect(find.text('Collector: Recent check'), findsOneWidget);
-      expect(
-        find.text('Windows app blocking: Monitor enabled'),
-        findsOneWidget,
+      await show(
+        tester,
+        TrackingHealthPanel(controller: c, onTracking: () {}, onRules: () {}),
       );
-      expect(
-        find.textContaining('No confirmed restriction presentation'),
-        findsOneWidget,
+      expect(find.text('Turn on'), findsNothing);
+      expect(find.text('Ready'), findsOneWidget);
+      expect(find.text('Setup · 2 of 4 done'), findsOneWidget);
+      c.windowsForegroundEventsActive = false;
+      await show(
+        tester,
+        TrackingHealthPanel(controller: c, onTracking: () {}, onRules: () {}),
       );
-      now = now.add(const Duration(seconds: 20));
-      await show(tester, TrackingHealthPanel(controller: c));
-      expect(find.text('Collector: Not recently verified'), findsOneWidget);
+      expect(find.text('Not working. Restart Grindset.'), findsOneWidget);
     },
   );
   testWidgets(

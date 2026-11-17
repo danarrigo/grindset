@@ -12,8 +12,8 @@ class FocusScreen extends StatelessWidget {
     required this.actionLabel,
     required this.onAction,
     required this.onMenu,
-    required this.onStatus,
-    required this.buildLabel,
+    this.setupLabel,
+    this.onSetup,
     this.status,
     this.warning,
     this.showBrand = true,
@@ -25,8 +25,10 @@ class FocusScreen extends StatelessWidget {
   final String actionLabel;
   final VoidCallback? onAction;
   final VoidCallback? onMenu;
-  final VoidCallback onStatus;
-  final String buildLabel;
+
+  /// Shown until tracking, blocking and a first rule are set up.
+  final String? setupLabel;
+  final VoidCallback? onSetup;
   final String? status;
   final String? warning;
   final bool showBrand;
@@ -191,16 +193,44 @@ class FocusScreen extends StatelessWidget {
             ),
           ),
         ),
-        CupertinoButton(
-          padding: const EdgeInsets.symmetric(horizontal: 12),
-          minimumSize: const Size(48, 48),
-          onPressed: onStatus,
-          child: Text(
-            buildLabel,
-            textAlign: TextAlign.center,
-            style: const TextStyle(color: Color(0xFF8E8E93), fontSize: 11),
+        if (setupLabel != null)
+          Padding(
+            padding: const EdgeInsets.only(bottom: 8),
+            child: CupertinoButton(
+              padding: const EdgeInsets.symmetric(horizontal: 18),
+              minimumSize: const Size(48, 44),
+              color: const Color(0xFF1C1C1E),
+              borderRadius: BorderRadius.circular(22),
+              onPressed: onSetup,
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(
+                    CupertinoIcons.checkmark_circle,
+                    color: Color(0xFFFF9F0A),
+                    size: 18,
+                  ),
+                  const SizedBox(width: 8),
+                  Flexible(
+                    child: Text(
+                      setupLabel!,
+                      style: const TextStyle(
+                        color: Color(0xFFE5E5EA),
+                        fontSize: 14,
+                        fontWeight: FontWeight.w500,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 4),
+                  const Icon(
+                    CupertinoIcons.chevron_right,
+                    color: Color(0xFF8E8E93),
+                    size: 14,
+                  ),
+                ],
+              ),
+            ),
           ),
-        ),
       ],
     ),
   );

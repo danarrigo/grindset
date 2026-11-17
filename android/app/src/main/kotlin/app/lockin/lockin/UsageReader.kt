@@ -38,6 +38,8 @@ object UsageReader {
         }
         val event = UsageEvents.Event()
         val records = mutableListOf<Map<String, Any>>()
+        val system = AppBlocker.systemPackages(context)
+        val blocked = AppBlocker.blockedPeriods(context)
         var foreground: String? = null
         var began = from
         var unlocked = true
@@ -48,9 +50,19 @@ object UsageReader {
             // consent window so stopped or permission-disabled gaps stay empty.
             val start = maxOf(began, consentFrom)
             val end = minOf(at, until)
-            if (pkg != null && pkg != context.packageName &&
-                pkg != "com.android.systemui" && end > start && end > from) {
-                records.add(mapOf("source" to "android:$pkg", "start" to start, "end" to end))
+            if (pkg != null && pkg !in system && end > start && end > from) {
+                // Time behind a restriction screen is not app use.
+                var pieces = listOf(start to end)
+                for ((blockedPkg, blockStart, blockEnd) in blocked) {
+                    if (blockedPkg != pkg) continue
+                    pieces = pieces.flatMap { (a, b) ->
+                        listOfNotNull(
+                            if (blockStart > a) a to minOf(b, blockStart) else null,
+                            if (blockEnd < b) maxOf(a, blockEnd) to b else null,
+                        ).filter { it.second > it.first }
+                    }
+                }
+                for ((a, b) in pieces) records.add(mapOf("source" to "android:$pkg", "start" to a, "end" to b))
             }
             foreground = null
         }

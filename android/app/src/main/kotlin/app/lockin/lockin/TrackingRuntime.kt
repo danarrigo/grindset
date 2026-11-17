@@ -204,6 +204,13 @@ object TrackingRuntime {
                     })
                     result.success(null)
                 }
+                "appDetails" -> {
+                    val packages = checkNotNull(call.argument<List<String>>("packages"))
+                    executor.execute {
+                        val details = packages.associateWith { AppDetails.load(context, it) }.filterValues { it != null }
+                        main.post { result.success(details) }
+                    }
+                }
                 "foregroundSource" -> result.success(AppBlocker.foregroundSource(context))
                 "showBlock" -> {
                     AppBlocker.showBlock(context, checkNotNull(call.argument<String>("source")), call.argument<String>("message") ?: "An activity rule is active.")

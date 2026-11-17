@@ -106,6 +106,34 @@ class AppController extends ChangeNotifier {
   String? blockedSource;
   String? blockMessage;
   Future<void> Function()? showBlock;
+
+  /// Installed app names and icons for display, keyed by source.
+  final Map<String, ({String label, Uint8List icon})> appDetails = {};
+  final Set<String> _requestedAppDetails = {};
+
+  /// Loads names and icons for Android sources not yet requested.
+  void requestAppDetails(Iterable<String> sources) {
+    if (!tracker.isAndroid) return;
+    final missing = sources
+        .where((s) => s.startsWith('android:'))
+        .where(_requestedAppDetails.add)
+        .toList();
+    if (missing.isEmpty) return;
+    unawaited(
+      tracker
+          .androidAppDetails([for (final s in missing) s.substring(8)])
+          .then((details) {
+            for (final MapEntry(:key, :value) in details.entries) {
+              appDetails['android:$key'] = value;
+            }
+            if (details.isNotEmpty) _changed();
+          })
+          .catchError((Object _) {
+            _requestedAppDetails.removeAll(missing);
+          }),
+    );
+  }
+
   Future<bool> Function(ForegroundApp app)? restrictWindowsApp;
   Future<void> Function(String source)? restoreWindowsApp;
   VoidCallback? onSharedChange;

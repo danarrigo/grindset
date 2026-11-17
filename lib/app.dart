@@ -16,6 +16,7 @@ import 'ui/duration_dialog.dart';
 import 'ui/desktop_shell.dart';
 import 'ui/focus_screen.dart';
 import 'ui/schedule_summary.dart';
+import 'ui/source_label.dart';
 import 'platform/windows_apps.dart';
 import 'ui/rule_editor.dart';
 import 'ui/rule_starters.dart';
@@ -145,16 +146,16 @@ class _HomeState extends State<_Home> {
     final allowed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Enable activity tracking?'),
+        title: const Text('Turn on activity tracking?'),
         content: SingleChildScrollView(
           child: Text(
-            'Grindset reads foreground app identifiers and usage timestamps throughout the day. '
-            'It does not read page titles, screenshots, keystrokes or window contents.\n\n'
-            '${c.tracker.isWindows && widget.enableStartup == null ? 'This isolated preview does not change Windows sign-in startup.' : 'Windows will start Grindset at sign-in and keep it in the tray.'} '
-            'Android requires Usage Access and notifications, '
-            'then keeps a visible background service running when you close the UI. You can stop it from Settings or its notification. '
-            'App blocking requires a separate, optional Display over other apps permission.\n\n'
-            'History is stored locally. Cloud uploads require configured Supabase and sign-in.',
+            'Grindset records which app is open and for how long, so your limits and focus rules can work. '
+            'It never sees your screen, what you type, or page contents. History stays on this device unless you sign in to sync.\n\n'
+            '${c.tracker.isAndroid
+                ? 'Next, Android asks for two permissions: Usage access (find Grindset and turn it on) and notifications. A small notification stays while tracking runs; you can stop it from there.'
+                : widget.enableStartup == null
+                ? 'This preview does not change Windows sign-in startup.'
+                : 'Grindset will start when you sign in to Windows and stay in the tray.'}',
           ),
         ),
         actions: [
@@ -164,7 +165,7 @@ class _HomeState extends State<_Home> {
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Enable tracking'),
+            child: const Text('Continue'),
           ),
         ],
       ),
@@ -181,13 +182,12 @@ class _HomeState extends State<_Home> {
     final allowed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('Enable app blocking?'),
+        title: const Text('Set up app blocking'),
         content: const SingleChildScrollView(
           child: Text(
-            'Grindset uses Usage Access to identify the foreground app package, and Display over other apps to show a blocking screen when one of your rules applies. '
-            'It does not read screen contents, typed text, screenshots or keystrokes. A blocked app may be visible for about a second before the screen appears.\n\n'
-            'This is voluntary enforcement. You can turn off the permission, stop tracking or uninstall Grindset at any time. Android Settings remains accessible.\n\n'
-            'After continuing, allow Grindset to display over other apps in Android Settings yourself.',
+            'When a rule applies, Grindset covers the app with a "restricted" screen. To do that, Android needs you to allow it to display over other apps.\n\n'
+            'On the next screen, tap Grindset, then turn on "Allow display over other apps". Come back here when done.\n\n'
+            'You can turn this off any time.',
           ),
         ),
         actions: [
@@ -402,32 +402,6 @@ class _HomeState extends State<_Home> {
     if (yes == true && mounted) await _run(c.endSession);
   }
 
-  void _buildStatus([BuildContext? dialogContext]) {
-    showDialog<void>(
-      context: dialogContext ?? context,
-      builder: (context) => AlertDialog(
-        title: const Text('Preview build'),
-        content: const SingleChildScrollView(
-          child: Text(
-            'Timers, local storage and usage accounting are implemented.\n\n'
-            'Windows foreground tracking and interruption-based blocking still need native device testing. '
-            'The idle/media probe needs native validation; crash recovery is unfinished.\n\n'
-            'Android uses an opt-in foreground service and a persistent background journal. '
-            'App blocking requires the separate Display over other apps permission. Both remain subject to Android stopping the process or permissions being revoked.\n\n'
-            'Windows websites require the paired Chrome/Edge extension. Account state and confirmed usage sync automatically while signed in. Offline rule conflicts require review; the confirmed shared focus session wins.\n\n'
-            'No activity is invented for disconnected devices.',
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            child: const Text('Done'),
-          ),
-        ],
-      ),
-    );
-  }
-
   String _time(DateTime instant) =>
       TimeOfDay.fromDateTime(tz.TZDateTime.from(instant, c.location))
           .format(context);
@@ -527,17 +501,6 @@ class _HomeState extends State<_Home> {
                                     ],
                                   ),
                                 ),
-                                const SizedBox(height: 28),
-                                TextButton(
-                                  onPressed: _buildStatus,
-                                  style: TextButton.styleFrom(
-                                    foregroundColor: colors.onSurfaceVariant,
-                                  ),
-                                  child: const Text(
-                                    'Preview build',
-                                    style: TextStyle(fontSize: 12),
-                                  ),
-                                ),
                               ],
                             ),
                           ),
@@ -552,31 +515,29 @@ class _HomeState extends State<_Home> {
             ],
           ),
         ),
-        bottomNavigationBar: desktop
-            ? null
-            : CupertinoTabBar(
-                currentIndex: _page,
-                onTap: (index) => setState(() => _page = index),
-                height: math.max(
-                  58.0,
-                  46 + MediaQuery.textScalerOf(context).scale(12),
-                ),
-                activeColor: colors.onSurface,
-                inactiveColor: colors.onSurfaceVariant,
-                backgroundColor: Theme.of(context).scaffoldBackgroundColor,
-                border: Border(
-                  top: BorderSide(color: colors.outlineVariant, width: .5),
-                ),
-                iconSize: 22,
-                items: [
-                  for (var i = 0; i < _pages.length; i++)
-                    BottomNavigationBarItem(
-                      icon: Icon(_icons[i], key: ValueKey('nav-$i')),
-                      label: _pages[i],
-                    ),
-                ],
-              ),
+        bottomNavigationBar: desktop ? null : _tabBar(context),
       ),
+    );
+  }
+
+  Widget _tabBar(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    return CupertinoTabBar(
+      currentIndex: _page,
+      onTap: (index) => setState(() => _page = index),
+      height: math.max(58.0, 46 + MediaQuery.textScalerOf(context).scale(12)),
+      activeColor: colors.onSurface,
+      inactiveColor: colors.onSurfaceVariant,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      border: Border(top: BorderSide(color: colors.outlineVariant, width: .5)),
+      iconSize: 22,
+      items: [
+        for (var i = 0; i < _pages.length; i++)
+          BottomNavigationBarItem(
+            icon: Icon(_icons[i], key: ValueKey('nav-$i')),
+            label: _pages[i],
+          ),
+      ],
     );
   }
 
@@ -606,6 +567,7 @@ class _HomeState extends State<_Home> {
                   ],
                 ),
               ),
+              bottomNavigationBar: _desktopLayout ? null : _tabBar(context),
             ),
           ),
         ),
@@ -614,15 +576,21 @@ class _HomeState extends State<_Home> {
   }
 
   Widget _toolbar() {
-    final status = c.trackingError != null
-        ? 'Tracking interrupted'
-        : !c.tracker.supported
+    final setup = setupSteps(c);
+    final broken = setup.any((s) => s.broken);
+    final ready = setup.isNotEmpty && setup.every((s) => s.done);
+    final status = !c.tracker.supported
         ? 'Timer only'
-        : !c.trackingEnabled
-        ? 'Tracking off'
-        : !c.accessGranted
-        ? 'Permission needed'
-        : 'Usage access on';
+        : broken
+        ? 'Needs attention'
+        : ready
+        ? 'Tracking on'
+        : 'Finish setup';
+    final statusColor = broken
+        ? colors.error
+        : ready
+        ? const Color(0xFF30D158)
+        : colors.onSurfaceVariant;
     return Container(
       decoration: BoxDecoration(
         border: Border(
@@ -658,13 +626,16 @@ class _HomeState extends State<_Home> {
                       child: TextButton.icon(
                         onPressed: () => setState(() => _page = 4),
                         icon: Icon(
-                          c.trackingError != null
+                          broken
                               ? Icons.error_outline_rounded
+                              : ready
+                              ? Icons.circle
                               : Icons.circle_outlined,
-                          size: 13,
+                          size: broken ? 15 : 10,
+                          color: statusColor,
                         ),
                         style: TextButton.styleFrom(
-                          foregroundColor: c.trackingError != null
+                          foregroundColor: broken
                               ? colors.error
                               : colors.onSurfaceVariant,
                         ),
@@ -693,6 +664,8 @@ class _HomeState extends State<_Home> {
     final completed =
         active != null && !now.isBefore(active.end) && !_configuringNext;
     final phase = running ? active!.phase : _phase;
+    final setup = setupSteps(c);
+    final setupDone = setup.where((s) => s.done).length;
     final budgetWarnings = c.budgetWarnings;
     final warnings = [
       for (final warning in budgetWarnings.take(2)) warning.message,
@@ -701,13 +674,13 @@ class _HomeState extends State<_Home> {
       widget.startupWarning,
       c.trackingError,
       if (c.trackingInterruption != null)
-        'A tracking interruption needs review in Settings.',
+        'Tracking was interrupted. See Settings.',
     ].nonNulls;
     return FocusScreen(
       showBrand: !_desktopLayout,
       menuButtonKey: _focusMenuKey,
       remaining: completed
-          ? Duration.zero
+          ? Duration(minutes: _minutes)
           : running
           ? active!.remaining(now)
           : Duration(minutes: _minutes),
@@ -721,14 +694,10 @@ class _HomeState extends State<_Home> {
           : 'Start break',
       status: completed ? 'Session complete' : null,
       warning: warnings.isEmpty ? null : warnings.join('\n\n'),
-      buildLabel:
-          c.trackingEnabled &&
-              c.accessGranted &&
-              (c.tracker.isWindows ||
-                  (c.backgroundTrackingRunning && c.androidBlockingEnabled))
-          ? 'Preview build'
-          : 'Timer only · Preview build',
-      onStatus: () => _buildStatus(context),
+      setupLabel: setupDone == setup.length
+          ? null
+          : 'Finish setup · $setupDone of ${setup.length} done',
+      onSetup: () => setState(() => _page = 4),
       onMenu: _busy ? null : () => _focusMenu(context, running: running),
       onAction: _busy
           ? null
@@ -830,13 +799,6 @@ class _HomeState extends State<_Home> {
                       ),
                     ),
                   ],
-                  if (!_desktopLayout)
-                    for (var i = 1; i < _pages.length; i++)
-                      CupertinoActionSheetAction(
-                        key: ValueKey('nav-$i'),
-                        onPressed: () => Navigator.pop(sheetContext, i),
-                        child: Text(_pages[i], style: textStyle),
-                      ),
                 ],
                 cancelButton: CupertinoActionSheetAction(
                   onPressed: () => Navigator.pop(sheetContext),
@@ -906,8 +868,8 @@ class _HomeState extends State<_Home> {
       _heading(
         'Activity',
         subtitle: _weeklyInsights
-            ? 'Recorded insights on this device'
-            : 'This device today · ${c.timezone}',
+            ? 'This week on this device'
+            : 'Today on this device',
       ),
       Wrap(
         spacing: 8,
@@ -952,67 +914,96 @@ class _HomeState extends State<_Home> {
           ),
         ),
     ]..sort((a, b) => b.used.compareTo(a.used));
+    c.requestAppDetails(sources);
+    final longest = totals.isEmpty ? Duration.zero : totals.first.used;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         ...header,
-        for (final (label, value) in [
-          ('Total usage', c.deviceUsage(c.deviceId)),
-          ('Focused today', c.focusedToday),
-        ])
-          Padding(
-            padding: const EdgeInsets.only(bottom: 18),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Expanded(
-                  child: Text(
-                    label,
-                    style: TextStyle(color: colors.onSurfaceVariant),
+        Row(
+          children: [
+            for (final (i, (label, value)) in [
+              ('Screen time', c.deviceUsage(c.deviceId)),
+              ('Focused', c.focusedToday),
+            ].indexed) ...[
+              if (i > 0) const SizedBox(width: 12),
+              Expanded(
+                child: _Section(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        label,
+                        style: TextStyle(
+                          fontSize: 13,
+                          color: colors.onSurfaceVariant,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        durationLabel(value),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 16),
-                Flexible(
-                  child: Text(
-                    durationLabel(value),
-                    textAlign: TextAlign.end,
-                    style: Theme.of(context).textTheme.titleLarge,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        const Divider(),
+              ),
+            ],
+          ],
+        ),
+        const SizedBox(height: 12),
         if (totals.isEmpty)
           _empty(
             'No activity yet',
             'Enable tracking to see time spent in foreground apps.',
           ),
         for (final item in totals)
-          Column(
-            children: [
-              ListTile(
-                contentPadding: const EdgeInsets.symmetric(vertical: 8),
-                leading: Icon(
-                  Icons.apps_rounded,
-                  size: 20,
-                  color: colors.onSurfaceVariant,
-                ),
-                title: Text(sourceName(item.source)),
-                trailing: Text(
-                  durationLabel(item.used),
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-              ),
-              const Divider(),
-            ],
-          ),
-        if (totals.isNotEmpty)
           Padding(
-            padding: const EdgeInsets.only(top: 18),
-            child: Text(
-              'Foreground usage only. Focus time and device usage are reported separately.',
-              style: Theme.of(context).textTheme.bodySmall,
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            child: Row(
+              children: [
+                SourceIcon(controller: c, source: item.source, size: 36),
+                const SizedBox(width: 14),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              displayName(c, item.source),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.bodyLarge,
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Text(
+                            durationLabel(item.used),
+                            style: Theme.of(context).textTheme.bodyMedium,
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 6),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(2),
+                        child: LinearProgressIndicator(
+                          value: longest == Duration.zero
+                              ? 0
+                              : item.used.inSeconds / longest.inSeconds,
+                          minHeight: 4,
+                          backgroundColor: colors.surfaceContainerHighest,
+                          color: colors.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
             ),
           ),
       ],
@@ -1026,13 +1017,14 @@ class _HomeState extends State<_Home> {
         Text('Your rules', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 12),
         if (c.rules.isEmpty)
-          _empty('No saved rules', 'Choose a starter or add your own activity.')
+          _empty('No rules yet', 'Pick a suggested app or add your own.')
         else
           _savedRules(),
       ],
     );
     final starters = RuleStarters(
       rules: c.rules,
+      collapsed: c.rules.isNotEmpty,
       onSelected: (preset) => _editRule(preset: preset),
     );
     return Column(
@@ -1040,7 +1032,7 @@ class _HomeState extends State<_Home> {
       children: [
         _heading(
           'Rules',
-          subtitle: 'Control apps and websites across your devices.',
+          subtitle: 'Limit apps and websites on all your devices.',
           action: TextButton.icon(
             onPressed: () => _editRule(),
             icon: const Icon(Icons.add_rounded, size: 18),
@@ -1076,14 +1068,12 @@ class _HomeState extends State<_Home> {
         ],
         if (!c.trackingEnabled) ...[
           _notice(
-            'Tracking is off. Enable tracking in Settings to enforce these rules.',
+            'Rules only work while tracking is on. Turn it on in Settings.',
           ),
           const SizedBox(height: 20),
         ],
         if (c.tracker.isAndroid && !c.androidBlockingEnabled) ...[
-          _notice(
-            'Android app blocking also needs the Display over other apps permission in Settings.',
-          ),
+          _notice('To block apps, finish app blocking setup in Settings.'),
           const SizedBox(height: 20),
         ],
         LayoutBuilder(
@@ -1106,14 +1096,15 @@ class _HomeState extends State<_Home> {
                   )
                 : Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [saved, const SizedBox(height: 24), starters],
+                    children: [
+                      if (c.rules.isNotEmpty) ...[
+                        saved,
+                        const SizedBox(height: 24),
+                      ],
+                      starters,
+                    ],
                   );
           },
-        ),
-        const SizedBox(height: 20),
-        Text(
-          'Any active restriction can block an activity. Existing individual limits still apply alongside a combined rule.',
-          style: Theme.of(context).textTheme.bodySmall,
         ),
       ],
     );
@@ -1130,29 +1121,35 @@ class _HomeState extends State<_Home> {
               title: Text(c.rules[i].name),
               subtitle: Padding(
                 padding: const EdgeInsets.only(top: 6),
-                child: Text(
-                  [
-                    [
-                      if (c.rules[i].sources.any(
-                        (s) => s.startsWith('windows:'),
-                      ))
-                        'Windows apps',
-                      if (c.rules[i].sources.any((s) => s.startsWith('web:')))
-                        'Websites',
-                      if (c.rules[i].sources.any(
-                        (s) => s.startsWith('android:'),
-                      ))
-                        'Android apps',
-                    ].join(' + '),
-                    if (c.rules[i].focusBlock) 'During focus',
-                    if (c.rules[i].dailyMinutes != null)
-                      '${durationLabel(c.ruleUsage(c.rules[i]))} of ${c.rules[i].dailyMinutes} min today',
-                    for (final window in c.rules[i].schedules.take(2))
-                      scheduleSummary(context, window),
-                    if (c.rules[i].schedules.length > 2)
-                      '+${c.rules[i].schedules.length - 2} more windows',
-                    if (c.rules[i].schedules.isNotEmpty) c.location.name,
-                  ].join(' · '),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      [
+                        [
+                          if (c.rules[i].sources.any(
+                            (s) => s.startsWith('windows:'),
+                          ))
+                            'Windows apps',
+                          if (c.rules[i].sources.any(
+                            (s) => s.startsWith('web:'),
+                          ))
+                            'Websites',
+                          if (c.rules[i].sources.any(
+                            (s) => s.startsWith('android:'),
+                          ))
+                            'Android apps',
+                        ].join(' + '),
+                        if (c.rules[i].focusBlock) 'Blocked during focus',
+                        for (final window in c.rules[i].schedules.take(2))
+                          scheduleSummary(context, window),
+                        if (c.rules[i].schedules.length > 2)
+                          '+${c.rules[i].schedules.length - 2} more windows',
+                      ].join(' · '),
+                    ),
+                    if (c.rules[i].dailyMinutes case final limit?)
+                      _budgetBar(c.ruleUsage(c.rules[i]), limit),
+                  ],
                 ),
               ),
               trailing: PopupMenuButton<String>(
@@ -1193,6 +1190,42 @@ class _HomeState extends State<_Home> {
                 ),
               ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _budgetBar(Duration used, int limitMinutes) {
+    final limit = Duration(minutes: limitMinutes);
+    final over = used >= limit;
+    final color = over ? colors.error : colors.primary;
+    return Padding(
+      padding: const EdgeInsets.only(top: 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(3),
+            child: LinearProgressIndicator(
+              value: limit == Duration.zero
+                  ? 1
+                  : (used.inSeconds / limit.inSeconds).clamp(0, 1),
+              minHeight: 6,
+              backgroundColor: colors.surfaceContainerHighest,
+              color: color,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            over
+                ? 'Daily limit reached · ${durationLabel(used)} of ${durationLabel(limit)}'
+                : '${durationLabel(limit - used)} left today · ${durationLabel(used)} of ${durationLabel(limit)}',
+            style: TextStyle(
+              fontSize: 13,
+              color: over ? colors.error : colors.onSurfaceVariant,
+              fontWeight: over ? FontWeight.w600 : FontWeight.w400,
+            ),
+          ),
         ],
       ),
     );
@@ -1278,6 +1311,7 @@ class _HomeState extends State<_Home> {
               ? _pairBrowser
               : null,
           onAppBlocking: c.tracker.isAndroid ? _enableAndroidBlocking : null,
+          onRules: () => setState(() => _page = 2),
         ),
       ),
       const SizedBox(height: 20),
@@ -1305,7 +1339,7 @@ class _HomeState extends State<_Home> {
       ),
       const SizedBox(height: 24),
       _notice(
-        'Background operation and blocking are experimental and can be interrupted by the OS, force-stop or permission revocation. Website blocking needs the paired extension. Enforcement is voluntary, not tamper-proof.',
+        'Blocking helps you keep your own rules. It is not a lock: you can always turn it off, and your phone or PC may stop Grindset in the background.',
       ),
     ],
   );
@@ -1323,16 +1357,14 @@ class _HomeState extends State<_Home> {
           const SizedBox(height: 12),
           Text(
             !c.tracker.supported
-                ? 'Native tracking requires Windows or Android.'
+                ? 'Tracking needs Windows or Android.'
                 : !c.trackingEnabled
-                ? 'Not enabled. No usage is being collected.'
+                ? 'Off. Nothing is recorded.'
                 : !c.accessGranted
-                ? 'Waiting for system permission.'
-                : c.tracker.isAndroid
-                ? c.backgroundTrackingRunning
-                      ? 'Background service is running.'
-                      : 'Background service is stopped.'
-                : 'Foreground activity tracking is enabled.',
+                ? 'Waiting for permission.'
+                : c.tracker.isAndroid && !c.backgroundTrackingRunning
+                ? 'Stopped. Turn it on again to resume.'
+                : 'On. Grindset records which app is open and for how long.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           if (c.trackingInterruption != null) ...[
@@ -1342,7 +1374,7 @@ class _HomeState extends State<_Home> {
               onPressed: _busy
                   ? null
                   : () => _run(c.dismissTrackingInterruption),
-              child: const Text('Dismiss interruption notice'),
+              child: const Text('Dismiss'),
             ),
           ],
           const SizedBox(height: 14),
@@ -1355,7 +1387,7 @@ class _HomeState extends State<_Home> {
                     ? null
                     : _enableTracking,
                 child: Text(
-                  c.trackingEnabled ? 'Review permission' : 'Enable tracking',
+                  c.trackingEnabled ? 'Permissions' : 'Turn on tracking',
                 ),
               ),
               if (c.trackingEnabled)
@@ -1369,7 +1401,7 @@ class _HomeState extends State<_Home> {
           ),
           const SizedBox(height: 12),
           Text(
-            'No screenshots, page titles or keystrokes.',
+            'Grindset never sees your screen, what you type, or page contents.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
@@ -1382,20 +1414,17 @@ class _HomeState extends State<_Home> {
         children: [
           SwitchListTile(
             contentPadding: EdgeInsets.zero,
-            title: const Text('Budget warnings'),
+            title: Text(
+              'Budget warnings',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
             value: c.budgetWarningsEnabled,
             onChanged: _busy
                 ? null
                 : (value) => _run(() => c.setBudgetWarningsEnabled(value)),
           ),
           const Text(
-            'Optional heads-up at 80% of a daily shared budget, once per activity per account day. Tracking must be on. Limits and blocking are unchanged.',
-          ),
-          const SizedBox(height: 8),
-          Text(
-            c.completionAlerts == null
-                ? 'On-screen warnings only in this preview.'
-                : 'On-screen warnings plus system notifications where permitted. Separate from timer completion alerts; no exact-alarm permission is needed.',
+            'A heads-up once a day when an app reaches 80% of its daily limit.',
           ),
           if (c.budgetWarningsNotice != null)
             Text(
@@ -1413,15 +1442,16 @@ class _HomeState extends State<_Home> {
           children: [
             SwitchListTile(
               contentPadding: EdgeInsets.zero,
-              title: const Text('Completion notifications'),
+              title: Text(
+                'Timer notifications',
+                style: Theme.of(context).textTheme.titleLarge,
+              ),
               value: c.completionAlertsEnabled,
               onChanged: _busy
                   ? null
                   : (value) => _run(() => c.setCompletionAlertsEnabled(value)),
             ),
-            const Text(
-              'An OS-scheduled alert when your focus or break timer finishes. This does not enable activity tracking or start the next phase.',
-            ),
+            const Text('Notify me when a focus or break timer ends.'),
             if (c.completionAlertsNotice != null) ...[
               const SizedBox(height: 12),
               Text(
@@ -1435,14 +1465,9 @@ class _HomeState extends State<_Home> {
                 onPressed: _busy
                     ? null
                     : () => _run(() => c.setCompletionAlertsEnabled(true)),
-                child: const Text('Review notification permission'),
+                child: const Text('Notification permission'),
               ),
             ],
-            const SizedBox(height: 12),
-            Text(
-              'Delivery depends on OS notification settings and battery restrictions. Android exact alarms need separate permission; otherwise alerts may arrive late.',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
           ],
         ),
       ),
@@ -1459,7 +1484,7 @@ class _HomeState extends State<_Home> {
             ),
             const SizedBox(height: 12),
             const Text(
-              'Pair Chrome or Edge to track foreground website hosts and apply your website rules. No titles, paths, queries or complete URLs are sent.',
+              'Pair Chrome or Edge to track and block websites. Only the site name is shared, never full addresses or page titles.',
             ),
             const SizedBox(height: 14),
             Wrap(
@@ -1478,42 +1503,6 @@ class _HomeState extends State<_Home> {
                 ),
               ],
             ),
-            const SizedBox(height: 12),
-            Text(
-              'The native app and extension must remain connected for website blocking. Internet access is not required for local rules.',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
-      ),
-    ],
-    if (c.tracker.isAndroid) ...[
-      _Section(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text('App blocking', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 12),
-            Text(
-              c.androidBlockingEnabled
-                  ? 'Display over other apps is allowed. Tracking must also be enabled for rules to apply.'
-                  : 'Not enabled. Usage Access alone cannot block apps.',
-            ),
-            const SizedBox(height: 14),
-            OutlinedButton(
-              onPressed: _busy ? null : _enableAndroidBlocking,
-              child: Text(
-                c.androidBlockingEnabled
-                    ? 'Review permission'
-                    : 'Enable app blocking',
-              ),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Package identifiers only, never screen contents. This is voluntary and can be disabled in Android Settings.',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
           ],
         ),
       ),
@@ -1526,7 +1515,7 @@ class _HomeState extends State<_Home> {
           Text('Timezone', style: Theme.of(context).textTheme.titleLarge),
           const SizedBox(height: 10),
           Text(
-            'Daily limits and schedules use this account timezone. It synchronizes while signed in; offline changes reconcile on connection.',
+            'Daily limits reset at midnight in this timezone. Schedules use it too.',
             style: Theme.of(context).textTheme.bodySmall,
           ),
           const SizedBox(height: 16),
@@ -1570,7 +1559,7 @@ class _HomeState extends State<_Home> {
           ),
           const SizedBox(height: 12),
           const Text(
-            'Signing out keeps local history linked to its original account. To use a different account, export what you need, then reset this device and reopen Grindset.',
+            'Export a copy of your history and rules, or erase everything on this device. To switch accounts, export first, then reset.',
           ),
           const SizedBox(height: 14),
           Wrap(
@@ -1592,11 +1581,6 @@ class _HomeState extends State<_Home> {
                 child: const Text('Reset this device'),
               ),
             ],
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'The JSON archive includes history, rules and saved offline edits, but no auth credentials or browser pairing keys. It contains private app/domain identifiers and timestamps; store it securely.',
-            style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
       ),
@@ -1623,7 +1607,7 @@ class _HomeState extends State<_Home> {
                 ),
                 const SizedBox(height: 22),
                 Text(
-                  '${sourceName(c.blockedSource!)} is restricted',
+                  '${displayName(c, c.blockedSource!)} is restricted',
                   textAlign: TextAlign.center,
                   style: Theme.of(context).textTheme.headlineSmall,
                 ),

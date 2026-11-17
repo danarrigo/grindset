@@ -8,8 +8,12 @@ class RuleStarters extends StatelessWidget {
     super.key,
     required this.rules,
     required this.onSelected,
+    this.collapsed = false,
   });
   final List<ActivityRule> rules;
+
+  /// Folded behind a heading once the user has their own rules.
+  final bool collapsed;
   final ValueChanged<RulePreset> onSelected;
 
   @override
@@ -44,65 +48,66 @@ class RuleStarters extends StatelessWidget {
             : 1;
       });
     }
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: colors.surface,
-        borderRadius: BorderRadius.circular(14),
+    final body = <Widget>[
+      if (showGroup) ...[
+        Text(
+          'One daily limit shared by 17 social, messaging and video apps.',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 12),
+        FilledButton.icon(
+          onPressed: () => onSelected(socialMediaPreset),
+          icon: const Icon(Icons.shield_outlined, size: 18),
+          label: const Text('All social media'),
+        ),
+        const Padding(
+          padding: EdgeInsets.symmetric(vertical: 18),
+          child: Divider(),
+        ),
+      ],
+      Text(
+        'Or pick one app. Starts at 30 min a day and blocked during focus; you can change it before saving.',
+        style: Theme.of(context).textTheme.bodySmall,
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      const SizedBox(height: 12),
+      Wrap(
+        spacing: 8,
+        runSpacing: 8,
         children: [
-          Text(
-            'Starter activities',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 10),
-          if (showGroup) ...[
-            Text(
-              'One shared budget across 17 supported social, messaging and video apps.',
-              style: Theme.of(context).textTheme.bodySmall,
+          for (final preset in presets)
+            ActionChip(
+              avatar: const Icon(Icons.add_rounded, size: 18),
+              label: Text(preset.name),
+              onPressed: () => onSelected(preset),
             ),
-            const SizedBox(height: 12),
-            FilledButton.icon(
-              onPressed: () => onSelected(socialMediaPreset),
-              icon: const Icon(Icons.shield_outlined, size: 18),
-              label: const Text('All social media'),
-            ),
-            const Padding(
-              padding: EdgeInsets.symmetric(vertical: 18),
-              child: Divider(),
-            ),
-          ],
-          Text(
-            'Or choose individual apps',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 8),
-          Text(
-            'Windows apps where supported, websites and Android apps. Suggested: 30 min/day and focus blocking. Edit before saving.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final preset in presets)
-                ActionChip(
-                  avatar: const Icon(Icons.add_rounded, size: 18),
-                  label: Text(preset.name),
-                  onPressed: () => onSelected(preset),
-                ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Text(
-            'Websites need the paired browser extension. Windows app blocking shows an interruption; it is not a process lock.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
         ],
       ),
+    ];
+    final title = Text(
+      'Suggested apps',
+      style: Theme.of(context).textTheme.titleMedium,
+    );
+    return Material(
+      color: colors.surface,
+      borderRadius: BorderRadius.circular(14),
+      clipBehavior: Clip.antiAlias,
+      child: collapsed
+          ? ExpansionTile(
+              title: title,
+              shape: const Border(),
+              collapsedShape: const Border(),
+              tilePadding: const EdgeInsets.symmetric(horizontal: 20),
+              childrenPadding: const EdgeInsets.fromLTRB(20, 0, 20, 20),
+              expandedCrossAxisAlignment: CrossAxisAlignment.stretch,
+              children: body,
+            )
+          : Padding(
+              padding: const EdgeInsets.all(20),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [title, const SizedBox(height: 10), ...body],
+              ),
+            ),
     );
   }
 }

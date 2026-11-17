@@ -170,19 +170,19 @@ void main() {
     viewport(tester, const Size(800, 900));
     await tester.pumpWidget(LockinApp(controller: controller));
     await navigate(tester, 4);
-    await tester.tap(find.text('Enable tracking'));
+    await tester.tap(find.text('Turn on tracking'));
     await tester.pumpAndSettle();
     expect(
       find.textContaining(
-        'This isolated preview does not change Windows sign-in startup.',
+        'This preview does not change Windows sign-in startup.',
       ),
       findsOneWidget,
     );
     expect(
-      find.textContaining('Windows will start Grindset at sign-in'),
+      find.textContaining('start when you sign in to Windows'),
       findsNothing,
     );
-    await tester.tap(find.widgetWithText(FilledButton, 'Enable tracking'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Continue'));
     await tester.pumpAndSettle();
     expect(controller.trackingEnabled, isTrue);
     expect(tester.takeException(), isNull);
@@ -199,7 +199,7 @@ void main() {
     expect(find.byTooltip('More options'), findsOneWidget);
     expect(find.byType(CupertinoTabBar), findsNothing);
     expect(find.byType(CircularProgressIndicator), findsNothing);
-    expect(find.text('Focused today'), findsNothing);
+    expect(find.text('Focused'), findsNothing);
     expect(find.text('Daily limits'), findsNothing);
     expect(
       find.descendant(
@@ -245,7 +245,9 @@ void main() {
       now = controller.session!.end;
       await controller.refresh();
       await tester.pumpAndSettle();
-      expect(find.text('0:00'), findsOneWidget);
+      // A finished session resets to the next duration instead of 0:00.
+      expect(find.text('0:00'), findsNothing);
+      expect(find.text('25:00'), findsOneWidget);
       expect(find.text('Session complete'), findsOneWidget);
     },
   );
@@ -375,11 +377,11 @@ void main() {
     await tester.tap(find.text('Cancel'));
     await tester.pumpAndSettle();
     await navigate(tester, 1);
-    expect(find.text('Focused today'), findsOneWidget);
+    expect(find.text('Focused'), findsOneWidget);
     expect(find.text('7 min'), findsOneWidget);
     await navigate(tester, 0);
     expect(find.text('18:00'), findsOneWidget);
-    expect(find.text('Focused today'), findsNothing);
+    expect(find.text('Focused'), findsNothing);
     expect(controller.session!.id, sessionId);
   });
 
@@ -563,7 +565,7 @@ void main() {
       now = now.add(const Duration(minutes: 26));
       await controller.refresh();
       await tester.pumpAndSettle();
-      expect(find.text('0:00'), findsOneWidget);
+      expect(find.text('25:00'), findsOneWidget);
       expect(find.text('Session complete'), findsOneWidget);
       await expectLater(
         find.byKey(const ValueKey('screen')),
@@ -636,7 +638,7 @@ void main() {
         ),
       );
       await navigate(tester, 2);
-      expect(find.text('Starter activities'), findsOneWidget);
+      expect(find.text('Suggested apps'), findsOneWidget);
       await expectLater(
         find.byKey(const ValueKey('starter-screen')),
         matchesGoldenFile('goldens/mobile-rule-starters.png'),
@@ -723,6 +725,11 @@ void main() {
     viewport(tester, const Size(390, 844));
     await tester.pumpWidget(LockinApp(controller: controller));
     await navigate(tester, 2);
+    // With rules saved, suggestions are folded until opened.
+    expect(find.text('Instagram'), findsNothing);
+    await tester.ensureVisible(find.text('Suggested apps'));
+    await tester.tap(find.text('Suggested apps'));
+    await tester.pumpAndSettle();
     expect(find.widgetWithText(ActionChip, 'X'), findsNothing);
     await tester.ensureVisible(find.text('Instagram'));
     await tester.tap(find.text('Instagram'));
@@ -954,31 +961,25 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Social'), findsNothing);
     await navigate(tester, 2);
-    expect(find.textContaining('8 min of 10 min today'), findsOneWidget);
+    expect(find.textContaining('8 min of 10 min'), findsOneWidget);
     expect(find.text('Social'), findsOneWidget);
     await controller.deleteRule('social');
     await tester.pumpAndSettle();
     expect(
-      find.textContaining('15 min of 30 min today'),
+      find.textContaining('15 min of 30 min'),
       findsOneWidget,
       reason: 'The overlapping YouTube minutes must count once',
     );
   });
 
-  testWidgets('preview status keeps unfinished blocking and sync explicit', (
+  testWidgets('timer-only previews show no build label or setup prompt', (
     tester,
   ) async {
     final (controller, _) = await open();
     viewport(tester, const Size(390, 844));
     await tester.pumpWidget(LockinApp(controller: controller));
-    expect(find.text('Timer only · Preview build'), findsOneWidget);
-    await tester.tap(find.textContaining('Preview build'));
-    await tester.pumpAndSettle();
-    expect(find.byType(AlertDialog), findsOneWidget);
-    expect(
-      find.textContaining('persistent background journal'),
-      findsOneWidget,
-    );
+    expect(find.textContaining('Preview build'), findsNothing);
+    expect(find.textContaining('Finish setup'), findsNothing);
   });
 
   testWidgets(
@@ -1003,7 +1004,7 @@ void main() {
         expect(find.text('Grindset'), findsOneWidget);
         expect(find.text('Lock in'), findsOneWidget);
         expect(find.text('25:00'), findsOneWidget);
-        expect(find.text('Focused today'), findsNothing);
+        expect(find.text('Focused'), findsNothing);
         expect(
           find.descendant(
             of: find.byType(FocusScreen),

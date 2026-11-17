@@ -32,11 +32,53 @@ object AppBlocker {
     private var blocked: String? = null
     private var foreground: String? = null
     private var scannedUntil = 0L
+    private var blockedSince = 0L
+    private const val PERIODS = "blocked_periods"
+    private const val KEEP_MS = 3 * 86_400_000L
     private val protectedPackages = setOf(
         "com.android.settings", "com.android.systemui", "com.android.permissioncontroller",
         "com.google.android.permissioncontroller", "com.android.packageinstaller",
         "com.google.android.packageinstaller",
     )
+
+    /**
+     * Android's own surfaces: never restricted and never reported as app usage.
+     * Includes every installed launcher, not only the current default.
+     */
+    fun systemPackages(context: Context): Set<String> {
+        val launchers = context.packageManager.queryIntentActivities(
+            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0,
+        ).map { it.activityInfo.packageName }
+        val inputs = (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+            .enabledInputMethodList.map { it.packageName }
+        return protectedPackages + launchers + inputs + context.packageName
+    }
+
+    private fun prefs(context: Context) =
+        context.getSharedPreferences("lockin_runtime", Context.MODE_PRIVATE)
+
+    /**
+     * Periods when a restriction screen covered an app, as (package, start, end).
+     * The covered app stays "resumed" to Android, so usage import subtracts these.
+     */
+    fun blockedPeriods(context: Context): List<Triple<String, Long, Long>> {
+        val stored = prefs(context).getString(PERIODS, "") ?: ""
+        val periods = stored.split(";").mapNotNull { item ->
+            val parts = item.split(",")
+            if (parts.size != 3) null
+            else Triple(parts[0], parts[1].toLongOrNull() ?: return@mapNotNull null, parts[2].toLongOrNull() ?: return@mapNotNull null)
+        }.toMutableList()
+        val pkg = blocked?.removePrefix("android:")
+        if (pkg != null && blockedSince > 0L) periods.add(Triple(pkg, blockedSince, Long.MAX_VALUE))
+        return periods
+    }
+
+    private fun recordPeriod(context: Context, pkg: String, start: Long, end: Long) {
+        val cutoff = end - KEEP_MS
+        val kept = blockedPeriods(context).filter { it.third != Long.MAX_VALUE && it.third > cutoff }
+        val all = kept + Triple(pkg, start, end)
+        prefs(context).edit().putString(PERIODS, all.joinToString(";") { "${it.first},${it.second},${it.third}" }).apply()
+    }
 
     fun permitted(context: Context): Boolean = Settings.canDrawOverlays(context)
 
@@ -75,12 +117,7 @@ object AppBlocker {
         if (!power.isInteractive || keyguard.isKeyguardLocked) { hideBlock(context); return null }
         scan(context)
         val pkg = foreground
-        val inputs = context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-        val home = context.packageManager.resolveActivity(
-            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME), 0,
-        )?.activityInfo?.packageName
-        val source = if (pkg == null || pkg == context.packageName || pkg == home || pkg in protectedPackages ||
-            inputs.enabledInputMethodList.any { it.packageName == pkg }) null else "android:$pkg"
+        val source = if (pkg == null || pkg in systemPackages(context)) null else "android:$pkg"
         if (source != blocked) hideBlock(context)
         return source
     }
@@ -145,12 +182,16 @@ object AppBlocker {
         )
         windows(app).addView(content, params)
         blocked = target
+        blockedSince = System.currentTimeMillis()
         overlay = content
     }
 
     fun hideBlock(context: Context) {
         overlay?.let { windows(context).removeView(it) }
+        val pkg = blocked?.removePrefix("android:")
+        if (pkg != null && blockedSince > 0L) recordPeriod(context, pkg, blockedSince, System.currentTimeMillis())
         overlay = null
         blocked = null
+        blockedSince = 0L
     }
 }

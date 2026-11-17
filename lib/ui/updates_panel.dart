@@ -99,7 +99,7 @@ class _UpdatesPanelState extends State<UpdatesPanel> {
         Text('App updates', style: Theme.of(context).textTheme.titleLarge),
         const SizedBox(height: 12),
         const Text(
-          'Check for a new release, then download it through your browser. You choose when to install; existing release data stays in place. Nothing is silently installed.',
+          'Updates never install on their own. Install them over this version to keep your data.',
         ),
         const SizedBox(height: 14),
         OutlinedButton.icon(
@@ -127,11 +127,6 @@ class _UpdatesPanelState extends State<UpdatesPanel> {
           const SizedBox(height: 12),
           SelectableText(_message!),
         ],
-        const SizedBox(height: 12),
-        Text(
-          'Android release APKs cannot replace differently signed debug previews. Export before changing signing identities. Windows installers remain unsigned; do not disable security protections.',
-          style: Theme.of(context).textTheme.bodySmall,
-        ),
       ],
     );
   }

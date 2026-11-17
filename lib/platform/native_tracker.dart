@@ -188,6 +188,23 @@ class NativeTracker {
     });
   }
 
+  /// Installed Android app labels and PNG icons, keyed by package name.
+  /// Packages that are not installed are omitted.
+  Future<Map<String, ({String label, Uint8List icon})>> androidAppDetails(
+    List<String> packages,
+  ) async {
+    final value = await channel
+        .invokeMapMethod<String, dynamic>('appDetails', {'packages': packages})
+        .timeout(const Duration(seconds: 20));
+    return {
+      for (final MapEntry(:key, :value) in (value ?? {}).entries)
+        key: (
+          label: (value as Map)['label'] as String,
+          icon: value['icon'] as Uint8List,
+        ),
+    };
+  }
+
   Future<void> requestBlockingAccess() =>
       channel.invokeMethod<void>('requestBlockingAccess');
   Future<String?> androidForegroundSource() => channel

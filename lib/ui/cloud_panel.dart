@@ -181,7 +181,6 @@ class _CloudPanelState extends State<CloudPanel> {
   Widget build(BuildContext context) {
     final cloud = widget.cloud;
     final user = cloud?.client.auth.currentUser;
-    final colors = Theme.of(context).colorScheme;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -189,16 +188,11 @@ class _CloudPanelState extends State<CloudPanel> {
         const SizedBox(height: 12),
         if (cloud == null) ...[
           const Text(
-            'Cloud sync is not configured. Your timers and history still work locally.',
-          ),
-          const SizedBox(height: 8),
-          SelectableText(
-            'Add your public Supabase configuration and apply the migration. See README.md for setup.',
-            style: TextStyle(fontSize: 12, color: colors.onSurfaceVariant),
+            'Sync isn\'t available in this build. Everything still works on this device.',
           ),
         ] else if (user == null) ...[
           const Text(
-            'Sign in on each device to synchronize account state and confirmed usage.',
+            'Sign in on each device to share rules, the focus timer and usage between them.',
           ),
           const SizedBox(height: 16),
           TextField(
@@ -314,16 +308,11 @@ class _CloudPanelState extends State<CloudPanel> {
               ),
           ],
         ],
-        const SizedBox(height: 16),
-        Text(
-          'Rules, the shared timer, account timezone and confirmed usage synchronize while signed in. Focus blocklists and five-minute overrides stay device-local. Offline rule conflicts are saved for review; the confirmed shared timer wins. Background sync requires the tracking runtime.',
-          style: TextStyle(fontSize: 12, color: colors.tertiary, height: 1.6),
-        ),
         if (cloud?.lastError != null)
           Padding(
             padding: const EdgeInsets.only(top: 12),
             child: SelectableText(
-              'Sync needs attention: ${cloud!.lastError}. Last-confirmed data is kept locally.',
+              'Sync problem: ${cloud!.lastError}. Your data is safe on this device.',
             ),
           ),
         if (_busy || (cloud?.syncing ?? false))
