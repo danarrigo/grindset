@@ -217,7 +217,7 @@ void main() {
       final refresh = controller.refresh();
       await started.future;
       tracker.source = 'windows:allowed.exe';
-      controller.requestWindowsRefresh();
+      controller.requestForegroundCheck();
       finish.complete(true);
       await refresh;
       await Future<void>.delayed(Duration.zero);

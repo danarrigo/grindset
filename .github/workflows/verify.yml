@@ -78,6 +78,8 @@ jobs:
       - name: Prepare public client configuration
         run: python3 tool/client_config.py "$RUNNER_TEMP/lockin-client-config.json"
       - run: flutter build apk --debug --target-platform android-arm64,android-x64 --split-per-abi --dart-define-from-file="$RUNNER_TEMP/lockin-client-config.json"
+      - name: Build the Google Play edition
+        run: flutter build apk --debug --flavor play --target-platform android-arm64,android-x64 --dart-define-from-file="$RUNNER_TEMP/lockin-client-config.json"
       - name: Verify release signing fails closed without owner keys
         shell: bash
         run: |
@@ -89,12 +91,17 @@ jobs:
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: grindset-android-arm64-debug
-          path: build/app/outputs/flutter-apk/app-arm64-v8a-debug.apk
+          path: build/app/outputs/flutter-apk/app-arm64-v8a-sideload-debug.apk
           retention-days: 7
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: grindset-android-x64-debug
-          path: build/app/outputs/flutter-apk/app-x86_64-debug.apk
+          path: build/app/outputs/flutter-apk/app-x86_64-sideload-debug.apk
+          retention-days: 7
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: grindset-android-play-arm64-debug
+          path: build/app/outputs/flutter-apk/app-play-debug.apk
           retention-days: 7
 
   windows:

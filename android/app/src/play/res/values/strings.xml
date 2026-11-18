@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="instant_blocking_label">Grindset instant blocking</string>
+    <string name="instant_blocking_description">Lets Grindset see which app you open, so an app blocked by your rules is covered the moment it opens. Grindset only learns the app\'s name. It never reads what is on the screen or what you type, and nothing is sent anywhere.</string>
+</resources>

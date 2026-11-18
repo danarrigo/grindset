@@ -180,7 +180,7 @@ Future<void> main(List<String> args) async {
             );
           }
         });
-        controller.requestWindowsRefresh();
+        controller.requestForegroundCheck();
       } catch (error) {
         startupWarning =
             'Tray setup failed. Background operation is not ready: $error';

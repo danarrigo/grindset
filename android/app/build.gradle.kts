@@ -48,6 +48,14 @@ android {
         versionName = flutter.versionName
     }
 
+    // sideload: the APK on the website. play: the Google Play edition, which
+    // adds the optional instant blocking accessibility service.
+    flavorDimensions += "store"
+    productFlavors {
+        create("sideload") { dimension = "store" }
+        create("play") { dimension = "store" }
+    }
+
     signingConfigs {
         if (hasReleaseSigning) {
             create("release") {

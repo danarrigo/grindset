@@ -18,6 +18,7 @@ List<SetupStep> setupSteps(
   VoidCallback? onTracking,
   VoidCallback? onBrowser,
   VoidCallback? onAppBlocking,
+  VoidCallback? onInstantBlocking,
   VoidCallback? onRules,
 }) {
   if (!c.tracker.supported) return const [];
@@ -70,6 +71,18 @@ List<SetupStep> setupSteps(
         action: c.androidBlockingEnabled ? null : 'Set up',
         onAction: onAppBlocking,
       ),
+    // Google Play edition only; the website APK has no accessibility service.
+    if (c.tracker.isAndroid && c.instantBlockingAvailable)
+      (
+        title: 'Instant blocking',
+        status: c.instantBlockingEnabled
+            ? 'On. Blocked apps are covered the moment they open.'
+            : 'Off. Blocked apps are covered after a second or two.',
+        done: c.instantBlockingEnabled,
+        broken: false,
+        action: c.instantBlockingEnabled ? null : 'Turn on',
+        onAction: onInstantBlocking,
+      ),
     if (c.tracker.isWindows)
       (
         title: 'App blocking',
@@ -118,12 +131,14 @@ class TrackingHealthPanel extends StatefulWidget {
     this.onTracking,
     this.onBrowser,
     this.onAppBlocking,
+    this.onInstantBlocking,
     this.onRules,
   });
   final AppController controller;
   final VoidCallback? onTracking;
   final VoidCallback? onBrowser;
   final VoidCallback? onAppBlocking;
+  final VoidCallback? onInstantBlocking;
   final VoidCallback? onRules;
   @override
   State<TrackingHealthPanel> createState() => _TrackingHealthPanelState();
@@ -158,6 +173,7 @@ class _TrackingHealthPanelState extends State<TrackingHealthPanel> {
         onTracking: widget.onTracking,
         onBrowser: widget.onBrowser,
         onAppBlocking: widget.onAppBlocking,
+        onInstantBlocking: widget.onInstantBlocking,
         onRules: widget.onRules,
       );
       final done = steps.where((s) => s.done).length;

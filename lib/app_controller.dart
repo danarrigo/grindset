@@ -54,7 +54,7 @@ class AppController extends ChangeNotifier {
   final _uuid = const Uuid();
   Timer? _timer;
   bool _refreshing = false;
-  bool _windowsRefreshPending = false;
+  bool _foregroundCheckPending = false;
   Completer<void>? _refreshDone;
   bool _resetting = false;
   bool _disposed = false;
@@ -101,6 +101,8 @@ class AppController extends ChangeNotifier {
   bool accessGranted = false;
   bool backgroundTrackingRunning = false;
   bool androidBlockingEnabled = false;
+  bool instantBlockingAvailable = false;
+  bool instantBlockingEnabled = false;
   DateTime? _lastAndroidImport;
   String? trackingError;
   String? trackingInterruption;
@@ -241,6 +243,7 @@ class AppController extends ChangeNotifier {
         onOverride: overrideBlock,
         onDismiss: dismissBlock,
         onStopped: () => disableTracking(notifyNative: false),
+        onForegroundChanged: requestForegroundCheck,
       );
       try {
         await _adoptAndroidStatus(
@@ -272,7 +275,7 @@ class AppController extends ChangeNotifier {
     await _loadSharedRevisions();
     await reloadUsage();
     if (tracker.isWindows) {
-      tracker.bindWindowsForeground(requestWindowsRefresh);
+      tracker.bindWindowsForeground(requestForegroundCheck);
       final watching = await tracker.setWindowsForegroundWatch(trackingEnabled);
       windowsForegroundEventsActive = trackingEnabled && watching;
       if (!watching) {
@@ -343,7 +346,7 @@ class AppController extends ChangeNotifier {
       }
     }
     if (tracker.isWindows) {
-      requestWindowsRefresh();
+      requestForegroundCheck();
     } else {
       await refresh();
     }
@@ -538,7 +541,7 @@ class AppController extends ChangeNotifier {
   Future<void> saveFocusProfile(FocusProfile profile) async {
     if (_resetting) throw StateError('Device reset is in progress.');
     if (!profile.ruleIds.every((id) => rules.any((r) => r.id == id))) {
-      throw StateError('An activity was removed. Review this profile.');
+      throw StateError('A rule was removed. Review this profile.');
     }
     if (focusProfiles.any(
       (p) =>
@@ -581,7 +584,7 @@ class AppController extends ChangeNotifier {
       final current = await store.rules();
       if (!profile.ruleIds.every((id) => current.any((r) => r.id == id))) {
         throw StateError(
-          'An activity was removed. Edit this profile before using it.',
+          'A rule was removed. Edit this profile before using it.',
         );
       }
       final next = [
@@ -604,7 +607,7 @@ class AppController extends ChangeNotifier {
     }
     _changed();
     if (tracker.isWindows) {
-      requestWindowsRefresh();
+      requestForegroundCheck();
     } else {
       await refresh();
     }
@@ -714,6 +717,8 @@ class AppController extends ChangeNotifier {
     runtimeCheckedAt = now;
     backgroundTrackingRunning = status.running;
     androidBlockingEnabled = status.blockingEnabled;
+    instantBlockingAvailable = status.instantAvailable;
+    instantBlockingEnabled = status.instantEnabled;
     trackingError = status.error;
     if (!status.enabled && blockedSource != null) dismissBlock();
   }
@@ -789,15 +794,15 @@ class AppController extends ChangeNotifier {
     await browserBridge?.close();
   }
 
-  void requestWindowsRefresh() {
+  void requestForegroundCheck() {
     if (_disposed || _resetting) return;
-    _windowsRefreshPending = true;
+    _foregroundCheckPending = true;
     if (!_refreshing) unawaited(refresh());
   }
 
   Future<void> refresh() async {
     if (_refreshing || _disposed || _resetting) return;
-    _windowsRefreshPending = false;
+    _foregroundCheckPending = false;
     _refreshing = true;
     _refreshDone = Completer<void>();
     try {
@@ -946,7 +951,7 @@ class AppController extends ChangeNotifier {
       _refreshDone?.complete();
       _refreshDone = null;
       _changed();
-      if (_windowsRefreshPending) requestWindowsRefresh();
+      if (_foregroundCheckPending) requestForegroundCheck();
     }
   }
 

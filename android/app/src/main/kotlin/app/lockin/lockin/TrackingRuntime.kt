@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.view.accessibility.AccessibilityManager
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.embedding.engine.dart.DartExecutor
 import io.flutter.plugin.common.MethodCall
@@ -160,8 +161,40 @@ object TrackingRuntime {
         "enabled" to enabled(context),
         "running" to serviceRunning(context),
         "blockingEnabled" to AppBlocker.permitted(context),
+        "instantAvailable" to instantBlocking(context, enabledOnly = false),
+        "instantEnabled" to instantBlocking(context, enabledOnly = true),
         "error" to preferences(context).getString("error", null),
     )
+
+    /**
+     * Whether this build has the Play Store edition's instant blocking service,
+     * and whether the user turned it on in Accessibility settings.
+     */
+    private fun instantBlocking(context: Context, enabledOnly: Boolean): Boolean {
+        val manager = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+        val services = if (enabledOnly) {
+            manager.getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+        } else {
+            manager.installedAccessibilityServiceList
+        }
+        return services.any { it.resolveInfo.serviceInfo.packageName == context.packageName }
+    }
+
+    private val recheck = Runnable { channel?.invokeMethod("foregroundChanged", null) }
+
+    /**
+     * Another app came to the front (Play Store edition). Check rules now, and
+     * again shortly after, because Android can record the switch in usage
+     * history a moment after the window appears.
+     */
+    fun foregroundChanged() {
+        main.post {
+            main.removeCallbacks(recheck)
+            channel?.invokeMethod("foregroundChanged", null)
+            main.postDelayed(recheck, 250L)
+            main.postDelayed(recheck, 700L)
+        }
+    }
 
     private fun handle(context: Context, call: MethodCall, result: MethodChannel.Result) {
         try {
@@ -195,6 +228,11 @@ object TrackingRuntime {
                     host.startActivity(Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
                         data = android.net.Uri.parse("package:${context.packageName}")
                     })
+                    result.success(null)
+                }
+                "openInstantBlocking" -> {
+                    val host = checkNotNull(activity.get()) { "Open Grindset to turn on instant blocking." }
+                    host.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                     result.success(null)
                 }
                 "requestBlockingAccess" -> {

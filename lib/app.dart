@@ -205,6 +205,35 @@ class _HomeState extends State<_Home> {
     if (allowed == true && mounted) await _run(c.tracker.requestBlockingAccess);
   }
 
+  /// Google Play requires this disclosure, with consent, before the user is
+  /// sent to Accessibility settings.
+  Future<void> _enableInstantBlocking() async {
+    final allowed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Turn on instant blocking?'),
+        content: const SingleChildScrollView(
+          child: Text(
+            'Grindset uses Android\'s Accessibility service only to notice when you switch to another app, so an app blocked by your rules is covered the moment it opens instead of a second or two later.\n\n'
+            'Grindset only learns the name of the app you opened. It does not read what is on your screen, what you type, or anything inside other apps, and nothing is sent anywhere because of this.\n\n'
+            'On the next screen, tap Grindset instant blocking and turn it on. You can turn it off there any time; blocking keeps working, just a little slower.',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Not now'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Agree and continue'),
+          ),
+        ],
+      ),
+    );
+    if (allowed == true && mounted) await _run(c.tracker.openInstantBlocking);
+  }
+
   Future<void> _exportData() => _run(() async {
     final saved = await widget.exportData!();
     if (saved && mounted) {
@@ -1360,6 +1389,9 @@ class _HomeState extends State<_Home> {
               ? _pairBrowser
               : null,
           onAppBlocking: c.tracker.isAndroid ? _enableAndroidBlocking : null,
+          onInstantBlocking: c.tracker.isAndroid
+              ? _enableInstantBlocking
+              : null,
           onRules: () => setState(() => _page = 2),
         ),
       ),

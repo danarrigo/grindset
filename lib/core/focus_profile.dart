@@ -11,7 +11,7 @@ class FocusProfile {
         this.ruleIds.isEmpty ||
         this.ruleIds.any((id) => id.isEmpty)) {
       throw ArgumentError(
-        'Name the profile (up to 60 characters) and select at least one activity.',
+        'Name the profile (up to 60 characters) and select at least one rule.',
       );
     }
   }

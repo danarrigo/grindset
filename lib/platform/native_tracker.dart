@@ -14,6 +14,8 @@ class AndroidTrackingStatus {
     required this.enabled,
     required this.running,
     required this.blockingEnabled,
+    this.instantAvailable = false,
+    this.instantEnabled = false,
     this.error,
   });
   factory AndroidTrackingStatus.fromMap(Map<String, dynamic> value) =>
@@ -21,11 +23,17 @@ class AndroidTrackingStatus {
         enabled: value['enabled'] == true,
         running: value['running'] == true,
         blockingEnabled: value['blockingEnabled'] == true,
+        instantAvailable: value['instantAvailable'] == true,
+        instantEnabled: value['instantEnabled'] == true,
         error: value['error'] as String?,
       );
   final bool enabled;
   final bool running;
   final bool blockingEnabled;
+
+  /// The Google Play edition can cover blocked apps the moment they open.
+  final bool instantAvailable;
+  final bool instantEnabled;
   final String? error;
 }
 
@@ -172,6 +180,7 @@ class NativeTracker {
     required Future<void> Function() onOverride,
     required void Function() onDismiss,
     required Future<void> Function() onStopped,
+    required void Function() onForegroundChanged,
   }) {
     channel.setMethodCallHandler((call) async {
       switch (call.method) {
@@ -181,6 +190,8 @@ class NativeTracker {
           onDismiss();
         case 'trackingStopped':
           await onStopped();
+        case 'foregroundChanged':
+          onForegroundChanged();
         default:
           throw MissingPluginException(
             'Unknown Android callback: ${call.method}',
@@ -232,6 +243,8 @@ class NativeTracker {
     return details;
   }
 
+  Future<void> openInstantBlocking() =>
+      channel.invokeMethod<void>('openInstantBlocking');
   Future<void> requestBlockingAccess() =>
       channel.invokeMethod<void>('requestBlockingAccess');
   Future<String?> androidForegroundSource() => channel
