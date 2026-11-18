@@ -52,7 +52,7 @@ jobs:
         run: python3 tool/client_config.py "$RUNNER_TEMP/lockin-client-config.json"
       - run: flutter pub get
       - name: Build stable-key ARM64 release
-        run: flutter build apk --release --target-platform android-arm64 --split-per-abi --build-number "$GITHUB_RUN_NUMBER" --dart-define-from-file="$RUNNER_TEMP/lockin-client-config.json"
+        run: flutter build apk --release --flavor sideload --target-platform android-arm64 --split-per-abi --build-number "$GITHUB_RUN_NUMBER" --dart-define-from-file="$RUNNER_TEMP/lockin-client-config.json"
       - name: Verify APK signing certificate
         shell: bash
         run: |

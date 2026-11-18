@@ -77,7 +77,7 @@ jobs:
       - run: flutter pub get
       - name: Prepare public client configuration
         run: python3 tool/client_config.py "$RUNNER_TEMP/lockin-client-config.json"
-      - run: flutter build apk --debug --target-platform android-arm64,android-x64 --split-per-abi --dart-define-from-file="$RUNNER_TEMP/lockin-client-config.json"
+      - run: flutter build apk --debug --flavor sideload --target-platform android-arm64,android-x64 --split-per-abi --dart-define-from-file="$RUNNER_TEMP/lockin-client-config.json"
       - name: Build the Google Play edition
         run: flutter build apk --debug --flavor play --target-platform android-arm64,android-x64 --dart-define-from-file="$RUNNER_TEMP/lockin-client-config.json"
       - name: Verify release signing fails closed without owner keys

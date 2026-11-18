@@ -36,8 +36,6 @@ dev_dependencies:
   flutter_lints: ^6.0.0
 
 flutter:
-  # The website APK. Build the Play edition with --flavor play.
-  default-flavor: sideload
   uses-material-design: true
   assets:
     - assets/tray.ico

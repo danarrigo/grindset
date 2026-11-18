@@ -49,7 +49,8 @@ android {
     }
 
     // sideload: the APK on the website. play: the Google Play edition, which
-    // adds the optional instant blocking accessibility service.
+    // adds the optional instant blocking accessibility service. Android builds
+    // name one: flutter run --flavor sideload.
     flavorDimensions += "store"
     productFlavors {
         create("sideload") { dimension = "store" }
