@@ -1,16 +1,23 @@
-# Starter activities and desktop coverage
+# Starter rules, search and desktop coverage
 
-Rules offers **All social media** plus 17 individual activities: Instagram, YouTube, TikTok, Reddit, X, Facebook, Snapchat, Twitch, Discord, WhatsApp, Telegram, Signal, Messenger, LinkedIn, Pinterest, Threads and Bluesky. The combined rule covers this supported catalog, not literally every social service or unofficial client.
+Rules offers **All social media** plus 17 individual starters: Instagram, YouTube, TikTok, Reddit, X, Facebook, Snapchat, Twitch, Discord, WhatsApp, Telegram, Signal, Messenger, LinkedIn, Pinterest, Threads and Bluesky. The combined rule covers this supported catalog, not literally every social service or unofficial client.
 
-Select a starter, review its sources, suggested **30 minutes per day** and **Block during focus**, then save. Nothing is automatically persisted or enforced. Tracking and OS permissions remain opt-in. Individual activities have separate budgets; All social media has one combined budget, unioning overlapping usage across all selected sources/devices. Existing individual restrictions still apply alongside it. There is no default recurring schedule. Focus-block flags remain device-local; daily budgets and schedules synchronize.
+Select a starter, review its sources, suggested **30 minutes per day** and **Block during focus**, then save. Nothing is automatically persisted or enforced. Tracking and OS permissions remain opt-in. Individual rules have separate budgets; All social media has one combined budget, unioning overlapping usage across all selected sources/devices. Existing individual restrictions still apply alongside it. There is no default recurring schedule. Focus-block flags remain device-local; daily budgets and schedules synchronize.
 
-## App selection and focus hours
+## Choosing apps and websites
 
-**Schedule focus hours** opens an explicit, schedule-only editor with editable weekday/time windows and the account timezone. See [scheduled focus hours](scheduled-focus-hours.md). No timer is started and existing activities are not rewritten.
+Search by the name people know: **Google**, **ig**, **twitter**, **netflix**. Results come from:
 
-On Windows, **Find apps on this PC** reads visible running applications and existing Windows App Paths registrations on demand. Labels come from executable version metadata, never window titles. Use search/platform filters, or **Browse for .exe** to select an actual application executable. Browsing does not launch it. Only its executable identifier and your activity name are saved, not its installation path. Executable names containing spaces are supported. Scans run off the Windows UI thread; cancellation/failure preserves existing selections.
+- **The built-in service list** ([`lib/core/service_catalog.dart`](../lib/core/service_catalog.dart)): about 150 popular services, each with its websites, Android app and Windows app, plus nicknames. It is bundled and searched offline.
+- **Whole companies**: **All of Google**, **Microsoft**, **Meta** and **Amazon** add every listed service in one tap. Expand one to untick parts, for example Gmail. Unticking a part removes only what that part covers. Because website rules include subdomains, keeping `google.com` still covers Gmail on `mail.google.com`. Whole browsers are never part of a company.
+- **Apps on this device**: apps this device has used, and on Windows the apps found with **Show apps on this PC** or **Browse**. Picking a known service here adds all of it.
+- **Exactly what was typed**: a website (`example.com`) or an app ID (`android:com.example`, `windows:app.exe`). Enter adds the top result.
 
-This is not a complete installed-package inventory. Elevated apps can be inaccessible; launchers/updaters can use a different foreground executable; Store/PWA apps may share hosts. Prefer the running app itself or website rules, not an installer. Windows recovery/system hosts and Grindset itself are excluded. Different installations using the same executable name share the same identifier. Choosing an app does not grant tracking consent, automatically save a rule or enable blocking.
+Apps show their installed icon when they are installed on this device: Android reads it from the package manager, and Windows reads it from the running process or its App Paths registration (never a disk search). Everything else shows a letter tile. No icons are fetched from the internet.
+
+**Schedule focus hours** opens a schedule-only editor. See [scheduled focus hours](scheduled-focus-hours.md).
+
+On Windows, **Show apps on this PC** reads visible running applications and App Paths registrations on demand, off the UI thread. Labels come from executable version metadata, never window titles. **Browse** selects an executable without launching it; only its executable name is saved, not its path. This is not a complete installed-package inventory: elevated apps can be inaccessible, launchers can use a different foreground executable, and Store/PWA apps may share hosts. Windows recovery/system hosts and Grindset itself are excluded. Choosing an app does not grant tracking consent or save a rule.
 
 ## Windows apps
 
@@ -18,7 +25,7 @@ The Discord starter includes `windows:discord.exe`, `windows:discordptb.exe` and
 
 Windows tracking must be enabled and a focus, budget or schedule restriction active. Restricted native apps are minimized when they enter foreground. Grindset presents a borderless restriction screen covering that app's monitor, with no desktop navigation or movable title bar. Closing/minimizing the restriction frame does not dismiss it. Foreground events trigger immediate checks, with polling as a fallback; Alt-Tab back to a restricted app reapplies enforcement. **Use other apps** dismisses the explanation, not the rule. A source-specific five-minute override restores the last restricted window and leaves other restrictions active. Allowed apps restore the normal Grindset window and remove its topmost presentation. This remains voluntary enforcement, not process termination or tamper/uninstall protection; Windows recovery controls and deliberate quitting remain available. Apps that refuse minimization are reported as unblocked rather than falsely claimed locked.
 
-Older saved rules are not silently broadened. **Add desktop coverage** on a recognized activity opens its normal editor with missing Windows identifiers preselected. Saving preserves its ID, name, budget, schedules and local focus flag. Cancelling leaves it unchanged. The editor has readable labels, search and selected sources first.
+Older saved rules are not silently broadened. **Add desktop coverage** on a recognized rule opens its normal editor with missing Windows identifiers preselected. Saving preserves its ID, name, budget, schedules and local focus flag. Cancelling leaves it unchanged. The editor has readable labels, search and selected sources first.
 
 Known Windows names were checked against [Discord testing clients](https://support.discord.com/hc/en-us/articles/360035675191-Discord-Testing-Clients), [Telegram's installer source](https://github.com/telegramdesktop/tdesktop/blob/dev/Telegram/build/setup.iss) and [Signal Desktop](https://github.com/signalapp/Signal-Desktop). Alternative/repackaged clients may use other identifiers; use an observed app source when necessary. Store/PWA apps using shared browser hosts are not indiscriminately blocked by executable name.
 
