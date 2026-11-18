@@ -54,7 +54,12 @@ android {
     flavorDimensions += "store"
     productFlavors {
         create("sideload") { dimension = "store" }
-        create("play") { dimension = "store" }
+        // A separate listing on Google Play: Play re-signs it, so it could
+        // never update the website APK anyway.
+        create("play") {
+            dimension = "store"
+            applicationId = "app.grindset"
+        }
     }
 
     signingConfigs {

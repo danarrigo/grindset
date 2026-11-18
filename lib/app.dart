@@ -273,34 +273,36 @@ class _HomeState extends State<_Home> {
       ),
     );
     if (confirmed != true || !mounted) return;
-    await _run(() async {
-      // Block navigation while collectors, auth and SQLite are being drained.
-      final dialog = showDialog<void>(
-        context: context,
-        barrierDismissible: false,
-        builder: (context) => const PopScope(
-          canPop: false,
-          child: AlertDialog(
-            title: Text('Resetting this device'),
-            content: Row(
-              children: [
-                CircularProgressIndicator(),
-                SizedBox(width: 20),
-                Expanded(
-                  child: Text('Stopping tracking and clearing local data...'),
-                ),
-              ],
-            ),
+    await _run(_performReset);
+  }
+
+  Future<void> _performReset() async {
+    // Block navigation while collectors, auth and SQLite are being drained.
+    final dialog = showDialog<void>(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const PopScope(
+        canPop: false,
+        child: AlertDialog(
+          title: Text('Resetting this device'),
+          content: Row(
+            children: [
+              CircularProgressIndicator(),
+              SizedBox(width: 20),
+              Expanded(
+                child: Text('Stopping tracking and clearing local data...'),
+              ),
+            ],
           ),
         ),
-      );
-      try {
-        await widget.resetDevice!();
-      } finally {
-        if (mounted) Navigator.of(context, rootNavigator: true).pop();
-        await dialog;
-      }
-    });
+      ),
+    );
+    try {
+      await widget.resetDevice!();
+    } finally {
+      if (mounted) Navigator.of(context, rootNavigator: true).pop();
+      await dialog;
+    }
   }
 
   void _pairBrowser() {
@@ -1649,6 +1651,7 @@ class _HomeState extends State<_Home> {
         controller: c,
         cloud: widget.cloud,
         onChanged: () => setState(() {}),
+        resetDevice: widget.resetDevice == null ? null : _performReset,
       ),
     ),
     _Section(

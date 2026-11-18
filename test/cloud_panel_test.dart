@@ -120,4 +120,117 @@ void main() {
     expect(await store.setting('cloud_owner'), isNull);
     expect(client.auth.currentSession, isNull);
   });
+
+  testWidgets(
+    'deleting an account asks first, deletes on the server, then resets',
+    (tester) async {
+      tzdata.initializeTimeZones();
+      final rpcs = <String>[];
+      var failDelete = true;
+      final network = MockClient((request) async {
+        if (request.url.path.endsWith('/token')) {
+          return http.Response(
+            jsonEncode({
+              'access_token': 'fixture-access',
+              'token_type': 'bearer',
+              'expires_in': 3600,
+              'refresh_token': 'fixture-refresh',
+              'user': {
+                'id': '11111111-1111-4111-8111-111111111111',
+                'aud': 'authenticated',
+                'email': 'fixture@example.test',
+                'created_at': '2026-11-14T00:00:00Z',
+                'app_metadata': <String, Object>{},
+                'user_metadata': <String, Object>{},
+              },
+            }),
+            200,
+          );
+        }
+        if (request.url.path.endsWith('/rpc/delete_account')) {
+          rpcs.add(request.headers['Authorization'] ?? '');
+          return failDelete
+              ? http.Response('{"message":"offline"}', 503, request: request)
+              : http.Response('', 204, request: request);
+        }
+        return http.Response('{}', 200);
+      });
+      late final SupabaseClient client;
+      await tester.runAsync(() async {
+        client = SupabaseClient(
+          'https://fixture.supabase.co',
+          'public-test-key',
+          httpClient: network,
+          authOptions: AuthClientOptions(
+            autoRefreshToken: false,
+            pkceAsyncStorage: _PkceStorage(),
+          ),
+        );
+        await client.auth.signInWithPassword(
+          email: 'fixture@example.test',
+          password: 'fixture-password',
+        );
+      });
+      final store = LocalStore.memory();
+      final controller = AppController(store: store, tracker: NativeTracker());
+      await controller.initialize(poll: false);
+      final cloud = CloudSync(client: client, store: store);
+      var resets = 0;
+      addTearDown(() async {
+        await cloud.close();
+        controller.dispose();
+        await tester.runAsync(client.dispose);
+        await store.close();
+        network.close();
+      });
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SingleChildScrollView(
+              child: CloudPanel(
+                controller: controller,
+                cloud: cloud,
+                onChanged: () {},
+                resetDevice: () async => resets++,
+              ),
+            ),
+          ),
+        ),
+      );
+      await tester.tap(find.text('Delete account'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(rpcs, isEmpty);
+
+      // A failed delete keeps this device as it is.
+      await tester.tap(find.text('Delete account'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete account').last);
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 200)),
+      );
+      await tester.pumpAndSettle();
+      expect(rpcs, hasLength(1));
+      expect(resets, 0);
+
+      failDelete = false;
+      await tester.tap(find.text('Delete account'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Delete account').last);
+      await tester.runAsync(
+        () => Future<void>.delayed(const Duration(milliseconds: 200)),
+      );
+      await tester.pumpAndSettle();
+      expect(rpcs, ['Bearer fixture-access', 'Bearer fixture-access']);
+      expect(
+        resets,
+        1,
+        reason: tester
+            .widgetList<SelectableText>(find.byType(SelectableText))
+            .map((text) => text.data)
+            .join('\n'),
+      );
+    },
+  );
 }

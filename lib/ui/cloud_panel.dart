@@ -14,10 +14,14 @@ class CloudPanel extends StatefulWidget {
     required this.controller,
     this.cloud,
     required this.onChanged,
+    this.resetDevice,
   });
   final AppController controller;
   final CloudSync? cloud;
   final VoidCallback onChanged;
+
+  /// Clears this device and closes Grindset; runs after account deletion.
+  final Future<void> Function()? resetDevice;
   @override
   State<CloudPanel> createState() => _CloudPanelState();
 }
@@ -177,6 +181,38 @@ class _CloudPanelState extends State<CloudPanel> {
     });
   }
 
+  Future<void> _deleteAccount() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        scrollable: true,
+        title: const Text('Delete your account?'),
+        content: const Text(
+          'This permanently deletes your account and everything synced to it: rules, focus history and usage from every device. It cannot be undone.\n\n'
+          'This device is then reset and Grindset closes. Other devices sign out at their next sync but keep what is stored on them until you reset them too.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              backgroundColor: Theme.of(context).colorScheme.error,
+            ),
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Delete account'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    await _run(() async {
+      await widget.cloud!.client.rpc<dynamic>('delete_account');
+      await widget.resetDevice!();
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
     final cloud = widget.cloud;
@@ -266,6 +302,14 @@ class _CloudPanelState extends State<CloudPanel> {
                 onPressed: _busy ? null : () => _run(cloud.client.auth.signOut),
                 child: const Text('Sign out'),
               ),
+              if (widget.resetDevice != null)
+                TextButton(
+                  style: TextButton.styleFrom(
+                    foregroundColor: Theme.of(context).colorScheme.error,
+                  ),
+                  onPressed: _busy ? null : _deleteAccount,
+                  child: const Text('Delete account'),
+                ),
             ],
           ),
           if (cloud.lastSync != null)
