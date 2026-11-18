@@ -171,13 +171,17 @@ object TrackingRuntime {
      * and whether the user turned it on in Accessibility settings.
      */
     private fun instantBlocking(context: Context, enabledOnly: Boolean): Boolean {
-        val manager = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
-        val services = if (enabledOnly) {
-            manager.getEnabledAccessibilityServiceList(android.accessibilityservice.AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
-        } else {
-            manager.installedAccessibilityServiceList
+        if (!enabledOnly) {
+            val manager = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+            return manager.installedAccessibilityServiceList
+                .any { it.resolveInfo.serviceInfo.packageName == context.packageName }
         }
-        return services.any { it.resolveInfo.serviceInfo.packageName == context.packageName }
+        // The user's setting itself. AccessibilityManager's enabled list is
+        // cached per process and was seen to stay stale after turning it on.
+        val enabled = Settings.Secure.getString(
+            context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
+        ) ?: return false
+        return enabled.split(':').any { it.substringBefore('/') == context.packageName }
     }
 
     private val recheck = Runnable { channel?.invokeMethod("foregroundChanged", null) }
