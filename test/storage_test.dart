@@ -1,3 +1,9 @@
+// These tests reset, compact and sync real SQLite files. That is slow on a
+// busy machine (WSL's virtual disk especially) and once ran past the default
+// 30 s during a full parallel run, so they get more time.
+@Timeout.factor(4)
+library;
+
 import 'dart:convert';
 import 'dart:io';
 

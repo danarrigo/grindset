@@ -89,6 +89,9 @@ class _HomeState extends State<_Home> {
   var _phase = SessionPhase.focus;
   bool _busy = false;
   bool _configuringNext = false;
+
+  /// The finished session whose follow-up was already offered.
+  String? _offeredAfter;
   bool _weeklyInsights = false;
   final _pageScroll = ScrollController();
   final _focusMenuKey = GlobalKey();
@@ -709,6 +712,21 @@ class _HomeState extends State<_Home> {
     final running = active?.running(now) ?? false;
     final completed =
         active != null && !now.isBefore(active.end) && !_configuringNext;
+    // After a finished focus, offer a break; after a break, offer focus. One
+    // tap, never started automatically. A session ended early was stopped,
+    // not finished (it is shorter than the length it started with), so the
+    // same phase is offered again. Offered once, so the menu can change it.
+    final finished =
+        completed &&
+        active.end.difference(active.start) >=
+            Duration(minutes: c.preferredMinutes(active.phase));
+    if (completed && _offeredAfter != active.id) {
+      _offeredAfter = active.id;
+      _phase = finished && active.phase == SessionPhase.focus
+          ? SessionPhase.rest
+          : SessionPhase.focus;
+      _minutes = c.preferredMinutes(_phase);
+    }
     final phase = running ? active!.phase : _phase;
     final setup = setupSteps(c);
     final setupDone = setup.where((s) => s.done).length;
@@ -738,7 +756,9 @@ class _HomeState extends State<_Home> {
           : phase == SessionPhase.focus
           ? 'Lock in'
           : 'Start break',
-      status: completed ? 'Session complete' : null,
+      status: finished
+          ? (active.phase == SessionPhase.focus ? 'Focus done' : 'Break over')
+          : null,
       warning: warnings.isEmpty ? null : warnings.join('\n\n'),
       setupLabel: setupDone == setup.length
           ? null

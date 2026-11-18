@@ -241,14 +241,14 @@ void main() {
       await controller.refresh();
       await tester.pumpAndSettle();
       expect(find.text('0:01'), findsOneWidget);
-      expect(find.text('Session complete'), findsNothing);
+      expect(find.text('Focus done'), findsNothing);
       now = controller.session!.end;
       await controller.refresh();
       await tester.pumpAndSettle();
-      // A finished session resets to the next duration instead of 0:00.
+      // A finished focus session offers the break instead of showing 0:00.
       expect(find.text('0:00'), findsNothing);
-      expect(find.text('25:00'), findsOneWidget);
-      expect(find.text('Session complete'), findsOneWidget);
+      expect(find.text('5:00'), findsOneWidget);
+      expect(find.text('Focus done'), findsOneWidget);
     },
   );
 
@@ -446,11 +446,9 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('End session'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byTooltip('More options'));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('Switch to focus'));
-    await tester.pumpAndSettle();
+    // After a break, focus is offered again with its own length.
     expect(find.text('37:00'), findsOneWidget);
+    expect(find.text('Lock in'), findsOneWidget);
     expect(controller.preferredMinutes(SessionPhase.focus), 37);
     expect(controller.preferredMinutes(SessionPhase.rest), 8);
     expect(controller.session!.running(now), isFalse);
@@ -565,18 +563,14 @@ void main() {
       now = now.add(const Duration(minutes: 26));
       await controller.refresh();
       await tester.pumpAndSettle();
-      expect(find.text('25:00'), findsOneWidget);
-      expect(find.text('Session complete'), findsOneWidget);
+      // The break is one tap away, never started on its own.
+      expect(find.text('5:00'), findsOneWidget);
+      expect(find.text('Focus done'), findsOneWidget);
+      expect(controller.session!.running(now), isFalse);
       await expectLater(
         find.byKey(const ValueKey('screen')),
         matchesGoldenFile('goldens/mobile-complete.png'),
       );
-      await tester.tap(find.byTooltip('More options'));
-      await tester.pumpAndSettle();
-      await tester.tap(find.text('Switch to break · 5 min'));
-      await tester.pumpAndSettle();
-      expect(find.text('5:00'), findsOneWidget);
-      expect(controller.session!.running(now), isFalse);
       await tester.tap(find.text('Start break'));
       await tester.pumpAndSettle();
       expect(find.text('5:00'), findsOneWidget);
@@ -585,6 +579,13 @@ void main() {
         find.byKey(const ValueKey('screen')),
         matchesGoldenFile('goldens/mobile-break.png'),
       );
+      // After the break, focus is offered again.
+      now = now.add(const Duration(minutes: 6));
+      await controller.refresh();
+      await tester.pumpAndSettle();
+      expect(find.text('Break over'), findsOneWidget);
+      expect(find.text('25:00'), findsOneWidget);
+      expect(find.text('Lock in'), findsOneWidget);
       await expectLater(tester, meetsGuideline(textContrastGuideline));
       await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
       await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
