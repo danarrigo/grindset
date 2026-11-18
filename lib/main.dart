@@ -22,6 +22,7 @@ import 'platform/browser_bridge.dart';
 import 'platform/native_tracker.dart';
 import 'platform/completion_alerts.dart';
 import 'platform/export_files.dart';
+import 'platform/site_logos.dart';
 import 'ui/appearance.dart';
 
 Future<void> main(List<String> args) async {
@@ -50,6 +51,9 @@ Future<void> main(List<String> args) async {
               (Platform.isWindows || Platform.isAndroid)
           ? CompletionAlerts(android: Platform.isAndroid)
           : null,
+    );
+    controller.siteLogos = SiteLogos(
+      Directory(p.join(directory.path, 'logos')),
     );
     final zone = (await FlutterTimezone.getLocalTimezone()).identifier;
     await controller.initialize(initialTimezone: zone);

@@ -533,7 +533,7 @@ class _RuleEditorState extends State<RuleEditor> {
                     family.name,
                     family.sources,
                     'All ${family.members.length} ${family.name} services',
-                    icon: LetterTile(family.name),
+                    icon: _icon(['web:${family.host}'], family.name, 32),
                   ),
                 for (final group in selectedGroups.entries)
                   _selectedRow(
@@ -740,7 +740,7 @@ class _RuleEditorState extends State<RuleEditor> {
           leading: choice.typed
               ? const LetterTile('', size: 28, icon: Icons.add_rounded)
               : family != null
-              ? LetterTile(family.name, size: 28)
+              ? _icon(['web:${family.host}'], family.name, 28)
               : _icon(choice.sources, choice.name, 28),
           title: Text(
             choice.typed

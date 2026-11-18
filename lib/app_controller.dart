@@ -9,11 +9,13 @@ import 'core/activity.dart';
 import 'core/focus_session.dart';
 import 'core/focus_profile.dart';
 import 'core/budget_warning.dart';
+import 'core/service_catalog.dart';
 import 'data/local_store.dart';
 import 'data/shared_state.dart';
 import 'platform/native_tracker.dart';
 import 'platform/browser_bridge.dart';
 import 'platform/completion_alerts.dart';
+import 'platform/site_logos.dart';
 
 class AppController extends ChangeNotifier {
   AppController({
@@ -106,6 +108,30 @@ class AppController extends ChangeNotifier {
   String? blockedSource;
   String? blockMessage;
   Future<void> Function()? showBlock;
+
+  /// Website logos, when the app was started with somewhere to keep them.
+  SiteLogos? siteLogos;
+
+  /// The logo of the first of [sources] that has a website, loading it in
+  /// the background when needed.
+  Uint8List? siteLogo(Iterable<String> sources) {
+    final logos = siteLogos;
+    if (logos == null) return null;
+    for (final source in sources) {
+      final host = logoHost(source);
+      if (host == null) continue;
+      final logo = logos.cached(host);
+      if (logo == null) {
+        unawaited(
+          logos.load(host).then((value) {
+            if (value != null) _changed();
+          }),
+        );
+      }
+      return logo;
+    }
+    return null;
+  }
 
   /// Installed app names and icons for display, keyed by source.
   final Map<String, ({String label, Uint8List icon})> appDetails = {};

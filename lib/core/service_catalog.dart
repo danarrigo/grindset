@@ -9,6 +9,7 @@ class CatalogService {
     this.category,
     this.sources, {
     this.aliases = const [],
+    this.logo,
   });
   final String name;
   final String category;
@@ -16,12 +17,23 @@ class CatalogService {
 
   /// Other names people search for ("ig", "twitter", "gmail").
   final List<String> aliases;
+
+  /// The site to take the logo from when [sources] has no website.
+  final String? logo;
 }
 
 /// A company's services offered as one choice, each part removable.
 class CatalogFamily {
-  const CatalogFamily(this.name, this.members, {this.aliases = const []});
+  const CatalogFamily(
+    this.name,
+    this.host,
+    this.members, {
+    this.aliases = const [],
+  });
   final String name;
+
+  /// The company's own website, for its logo.
+  final String host;
   final List<String> members;
   final List<String> aliases;
 
@@ -71,6 +83,7 @@ final List<CatalogService> catalogServices = List.unmodifiable([
       _presetDetails[preset.name]!.$1,
       preset.sources,
       aliases: _presetDetails[preset.name]!.$2,
+      logo: preset.name == 'Signal' ? 'signal.org' : null,
     ),
   // Google
   const CatalogService(
@@ -96,6 +109,7 @@ final List<CatalogService> catalogServices = List.unmodifiable([
     _tools,
     {'android:com.google.android.apps.maps'},
     aliases: ['maps'],
+    logo: 'maps.google.com',
   ),
   const CatalogService(
     'Google Drive',
@@ -185,18 +199,21 @@ final List<CatalogService> catalogServices = List.unmodifiable([
     _work,
     {'android:com.microsoft.office.word', 'windows:winword.exe'},
     aliases: ['microsoft word'],
+    logo: 'microsoft365.com',
   ),
   const CatalogService(
     'Excel',
     _work,
     {'android:com.microsoft.office.excel', 'windows:excel.exe'},
     aliases: ['microsoft excel'],
+    logo: 'microsoft365.com',
   ),
   const CatalogService(
     'PowerPoint',
     _work,
     {'android:com.microsoft.office.powerpoint', 'windows:powerpnt.exe'},
     aliases: ['microsoft powerpoint', 'ppt'],
+    logo: 'microsoft365.com',
   ),
   const CatalogService('OneDrive', _tools, {
     'web:onedrive.live.com',
@@ -448,6 +465,7 @@ final List<CatalogService> catalogServices = List.unmodifiable([
     _messaging,
     {'android:com.kakao.talk', 'windows:kakaotalk.exe'},
     aliases: ['kakao'],
+    logo: 'kakaocorp.com',
   ),
   const CatalogService('Slack', _work, {
     'web:slack.com',
@@ -500,42 +518,49 @@ final List<CatalogService> catalogServices = List.unmodifiable([
     _games,
     {'windows:riotclientservices.exe'},
     aliases: ['riot'],
+    logo: 'riotgames.com',
   ),
   const CatalogService(
     'Genshin Impact',
     _games,
     {'android:com.miHoYo.GenshinImpact', 'windows:genshinimpact.exe'},
     aliases: ['genshin'],
+    logo: 'genshin.hoyoverse.com',
   ),
   const CatalogService(
     'Honkai: Star Rail',
     _games,
     {'android:com.HoYoverse.hkrpgoversea', 'windows:starrail.exe'},
     aliases: ['star rail', 'hsr'],
+    logo: 'hsr.hoyoverse.com',
   ),
   const CatalogService(
     'PUBG',
     _games,
     {'android:com.tencent.ig', 'windows:tslgame.exe'},
     aliases: ['pubg mobile', 'battlegrounds'],
+    logo: 'pubg.com',
   ),
   const CatalogService(
     'Mobile Legends',
     _games,
     {'android:com.mobile.legends'},
     aliases: ['mlbb', 'ml'],
+    logo: 'mobilelegends.com',
   ),
   const CatalogService(
     'Free Fire',
     _games,
     {'android:com.dts.freefireth', 'android:com.dts.freefiremax'},
     aliases: ['ff'],
+    logo: 'ff.garena.com',
   ),
   const CatalogService(
     'Clash of Clans',
     _games,
     {'android:com.supercell.clashofclans'},
     aliases: ['coc'],
+    logo: 'clashofclans.com',
   ),
   const CatalogService('Clash Royale', _games, {
     'android:com.supercell.clashroyale',
@@ -548,18 +573,21 @@ final List<CatalogService> catalogServices = List.unmodifiable([
     _games,
     {'android:com.king.candycrushsaga'},
     aliases: ['candy crush'],
+    logo: 'clashroyale.com',
   ),
   const CatalogService(
     'Pokémon GO',
     _games,
     {'android:com.nianticlabs.pokemongo'},
     aliases: ['pokemon', 'pokemon go'],
+    logo: 'brawlstars.com',
   ),
   const CatalogService(
     'Call of Duty',
     _games,
     {'android:com.activision.callofduty.shooter', 'windows:cod.exe'},
     aliases: ['cod', 'warzone'],
+    logo: 'king.com',
   ),
   const CatalogService('Among Us', _games, {
     'android:com.innersloth.spacemafia',
@@ -573,24 +601,28 @@ final List<CatalogService> catalogServices = List.unmodifiable([
     _games,
     {'web:chess.com', 'android:com.chess'},
     aliases: ['chess'],
+    logo: 'pokemongolive.com',
   ),
   const CatalogService(
     'Lichess',
     _games,
     {'web:lichess.org', 'android:org.lichess.mobileV2'},
     aliases: ['chess'],
+    logo: 'callofduty.com',
   ),
   const CatalogService(
     'Battle.net',
     _games,
     {'web:battle.net', 'windows:battle.net.exe'},
     aliases: ['blizzard'],
+    logo: 'innersloth.com',
   ),
   const CatalogService(
     'EA app',
     _games,
     {'web:ea.com', 'windows:eadesktop.exe'},
     aliases: ['ea', 'origin'],
+    logo: 'subwaysurfers.com',
   ),
   const CatalogService('Dota 2', _games, {'windows:dota2.exe'}),
   const CatalogService(
@@ -598,12 +630,14 @@ final List<CatalogService> catalogServices = List.unmodifiable([
     _games,
     {'windows:cs2.exe'},
     aliases: ['cs2', 'csgo', 'counter strike'],
+    logo: 'dota2.com',
   ),
   const CatalogService(
     'osu!',
     _games,
     {'web:osu.ppy.sh', 'windows:osu!.exe'},
     aliases: ['osu'],
+    logo: 'counter-strike.net',
   ),
   // Shopping
   const CatalogService('eBay', _shopping, {
@@ -765,42 +799,49 @@ final List<CatalogService> catalogServices = List.unmodifiable([
     _browser,
     {'android:com.android.chrome', 'windows:chrome.exe'},
     aliases: ['google chrome', 'browser'],
+    logo: 'chrome.google.com',
   ),
   const CatalogService(
     'Microsoft Edge',
     _browser,
     {'android:com.microsoft.emmx', 'windows:msedge.exe'},
     aliases: ['edge', 'browser'],
+    logo: 'microsoft.com',
   ),
   const CatalogService(
     'Firefox',
     _browser,
     {'android:org.mozilla.firefox', 'windows:firefox.exe'},
     aliases: ['mozilla', 'browser'],
+    logo: 'firefox.com',
   ),
   const CatalogService(
     'Brave',
     _browser,
     {'android:com.brave.browser', 'windows:brave.exe'},
     aliases: ['browser'],
+    logo: 'brave.com',
   ),
   const CatalogService(
     'Opera',
     _browser,
     {'android:com.opera.browser', 'windows:opera.exe'},
     aliases: ['browser'],
+    logo: 'opera.com',
   ),
   const CatalogService(
     'Samsung Internet',
     _browser,
     {'android:com.sec.android.app.sbrowser'},
     aliases: ['browser'],
+    logo: 'samsung.com',
   ),
 ]);
 
 const catalogFamilies = [
   CatalogFamily(
     'Google',
+    'google.com',
     [
       'Google Search',
       'Gmail',
@@ -819,6 +860,7 @@ const catalogFamilies = [
   ),
   CatalogFamily(
     'Microsoft',
+    'microsoft.com',
     [
       'Bing',
       'Outlook',
@@ -838,11 +880,13 @@ const catalogFamilies = [
   ),
   CatalogFamily(
     'Meta',
+    'meta.com',
     ['Facebook', 'Instagram', 'WhatsApp', 'Messenger', 'Threads'],
     aliases: ['all meta', 'facebook family'],
   ),
   CatalogFamily(
     'Amazon',
+    'amazon.com',
     ['Amazon', 'Prime Video', 'Twitch', 'Audible', 'Kindle'],
     aliases: ['all amazon'],
   ),
@@ -912,6 +956,16 @@ List<Object> searchCatalog(String query) {
   }
   scored.sort((a, b) => a.$1 != b.$1 ? a.$1 - b.$1 : a.$2 - b.$2);
   return [for (final entry in scored) entry.$3];
+}
+
+/// The website whose logo stands for a source: a known service's main site,
+/// otherwise the website itself. Apps outside the catalog have none.
+String? logoHost(String source) {
+  final service = serviceFor(source);
+  final site =
+      service?.sources.where((s) => s.startsWith('web:')).firstOrNull ??
+      (source.startsWith('web:') ? source : null);
+  return site != null ? websiteHost(site.substring(4)) : service?.logo;
 }
 
 /// The name people know a source by: its catalog service, or a readable
