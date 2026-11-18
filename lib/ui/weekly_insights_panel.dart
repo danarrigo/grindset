@@ -6,9 +6,9 @@ import 'package:timezone/timezone.dart' as tz;
 
 import '../app_controller.dart';
 import '../core/activity.dart';
+import '../core/service_catalog.dart';
 import '../core/weekly_insights.dart';
 import 'appearance.dart';
-import 'rule_editor.dart';
 
 class WeeklyInsightsPanel extends StatefulWidget {
   const WeeklyInsightsPanel({super.key, required this.controller});

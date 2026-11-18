@@ -111,20 +111,28 @@ class AppController extends ChangeNotifier {
   final Map<String, ({String label, Uint8List icon})> appDetails = {};
   final Set<String> _requestedAppDetails = {};
 
-  /// Loads names and icons for Android sources not yet requested.
+  /// Loads names and icons for this device's apps not yet requested.
   void requestAppDetails(Iterable<String> sources) {
-    if (!tracker.isAndroid) return;
+    final prefix = tracker.isAndroid
+        ? 'android:'
+        : tracker.isWindows
+        ? 'windows:'
+        : null;
+    if (prefix == null) return;
     final missing = sources
-        .where((s) => s.startsWith('android:'))
+        .where((s) => s.startsWith(prefix))
+        .map((s) => prefix == 'windows:' ? s.toLowerCase() : s)
         .where(_requestedAppDetails.add)
         .toList();
     if (missing.isEmpty) return;
+    final ids = [for (final s in missing) s.substring(prefix.length)];
     unawaited(
-      tracker
-          .androidAppDetails([for (final s in missing) s.substring(8)])
+      (prefix == 'android:'
+              ? tracker.androidAppDetails(ids)
+              : tracker.windowsAppDetails(ids))
           .then((details) {
             for (final MapEntry(:key, :value) in details.entries) {
-              appDetails['android:$key'] = value;
+              appDetails['$prefix$key'] = value;
             }
             if (details.isNotEmpty) _changed();
           })

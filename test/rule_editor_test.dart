@@ -88,12 +88,12 @@ void main() {
         (value) => saved = value,
       );
       await tester.enterText(
-        find.widgetWithText(TextField, 'Search apps'),
+        find.widgetWithText(TextField, 'Search apps and websites'),
         'discord',
       );
       await tester.pumpAndSettle();
       // Picking an app by name picks all of it: its apps and its website.
-      await tester.tap(find.widgetWithText(CheckboxListTile, 'Discord'));
+      await tester.tap(find.widgetWithText(ListTile, 'Discord'));
       await tester.pumpAndSettle();
       await tap(tester, 'Add more times');
       await tap(tester, 'Save rule');
@@ -181,11 +181,11 @@ void main() {
       await tap(tester, 'Show apps on this PC');
       expect(loads, 1);
       await tester.enterText(
-        find.widgetWithText(TextField, 'Search apps'),
+        find.widgetWithText(TextField, 'Search apps and websites'),
         'Test App',
       );
       await tester.pumpAndSettle();
-      await tester.tap(find.widgetWithText(CheckboxListTile, 'Test App'));
+      await tester.tap(find.widgetWithText(ListTile, 'Test App'));
       await tester.pumpAndSettle();
       await tap(tester, 'Save rule');
       expect(saved!.name, 'Test App');
@@ -233,5 +233,38 @@ void main() {
     await tap(tester, 'Save rule');
     expect(saved!.sources, {'windows:code.exe'});
     expect(saved!.name, 'Visual Studio Code');
+  });
+
+  testWidgets('a whole company is one search away, and parts can be unticked', (
+    tester,
+  ) async {
+    ActivityRule? saved;
+    await open(tester, RuleEditor(sources: {}), (value) => saved = value);
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Search apps and websites'),
+      'google',
+    );
+    await tester.pumpAndSettle();
+    await tap(tester, 'All of Google');
+    expect(find.text('All 12 Google services'), findsOneWidget);
+    await tester.tap(find.byTooltip('Pick Google services one by one'));
+    await tester.pumpAndSettle();
+    await tester.ensureVisible(find.widgetWithText(ListTile, 'Gmail'));
+    await tester.tap(find.widgetWithText(ListTile, 'Gmail'));
+    await tester.pumpAndSettle();
+    // A partly chosen company lists each app it still covers.
+    expect(find.text('All 12 Google services'), findsNothing);
+    await tap(tester, 'Save rule');
+    expect(saved!.name, 'Google');
+    expect(
+      saved!.sources,
+      containsAll([
+        'web:google.com',
+        'web:youtube.com',
+        'android:com.google.android.youtube',
+      ]),
+    );
+    expect(saved!.sources, isNot(contains('android:com.google.android.gm')));
+    expect(saved!.sources, isNot(contains('web:gmail.com')));
   });
 }

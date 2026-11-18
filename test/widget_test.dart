@@ -605,12 +605,19 @@ void main() {
     await tester.pumpAndSettle();
     await tester.enterText(find.byType(TextFormField).first, 'YouTube');
     // Typed websites and app IDs keep working, whatever the keyboard
-    // capitalizes, and still count when Save is pressed without Add.
-    await tester.ensureVisible(find.byKey(const ValueKey('add-website')));
-    await tester.enterText(
-      find.byKey(const ValueKey('add-website')),
-      'Android:com.google.android.youtube,Web:YouTube.COM',
-    );
+    // capitalizes. Enter adds what was typed.
+    final search = find.widgetWithText(TextField, 'Search apps and websites');
+    for (final typed in [
+      'Android:com.google.android.youtube',
+      'Web:YouTube.COM',
+    ]) {
+      await tester.ensureVisible(search);
+      await tester.enterText(search, typed);
+      await tester.pumpAndSettle();
+      expect(find.textContaining('Add '), findsWidgets);
+      await tester.testTextInput.receiveAction(TextInputAction.done);
+      await tester.pumpAndSettle();
+    }
     expect(tester.testTextInput.setClientArgs!['autocorrect'], isFalse);
     expect(tester.testTextInput.setClientArgs!['enableSuggestions'], isFalse);
     // Let the field finish scrolling its caret into view first.

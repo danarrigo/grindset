@@ -4,22 +4,10 @@ import 'package:uuid/uuid.dart';
 
 import '../core/activity.dart';
 import '../core/rule_presets.dart';
+import '../core/service_catalog.dart';
 import '../platform/windows_apps.dart';
 import 'schedule_summary.dart';
-
-String sourceName(String source) {
-  for (final preset in individualRulePresets) {
-    if (preset.sources.any((candidate) => matchesSource(candidate, source))) {
-      return preset.name;
-    }
-  }
-  final raw = source.split(':').last;
-  if (source.startsWith('windows:')) {
-    return raw.replaceFirst(RegExp(r'\.exe$'), '');
-  }
-  if (source.startsWith('android:')) return raw.split('.').last;
-  return raw;
-}
+import 'source_label.dart';
 
 class RuleEditor extends StatefulWidget {
   const RuleEditor({
@@ -32,6 +20,7 @@ class RuleEditor extends StatefulWidget {
     this.loadWindowsApps,
     this.browseWindowsApp,
     this.iconFor,
+    this.labelFor,
   }) : assert(rule == null || preset == null),
        assert(!scheduledFocus || rule == null);
   final Set<String> sources;
@@ -42,8 +31,12 @@ class RuleEditor extends StatefulWidget {
   final Future<List<WindowsApp>> Function()? loadWindowsApps;
   final Future<WindowsApp?> Function()? browseWindowsApp;
 
-  /// Installed app icon for a source, when the platform can provide one.
-  final Widget Function(String source)? iconFor;
+  /// Installed app icon among [sources], when the platform can provide one.
+  final Widget Function(List<String> sources, String name, double size)?
+  iconFor;
+
+  /// The installed app's own name for a source, when known.
+  final String? Function(String source)? labelFor;
   @override
   State<RuleEditor> createState() => _RuleEditorState();
 }
@@ -54,7 +47,6 @@ class _RuleEditorState extends State<RuleEditor> {
   final _form = GlobalKey<FormState>();
   late final TextEditingController _name;
   late final TextEditingController _minutes;
-  final _manual = TextEditingController();
   final _search = TextEditingController();
   late final Set<String> _selected;
   late bool _focus;
@@ -66,7 +58,7 @@ class _RuleEditorState extends State<RuleEditor> {
   final _windowsApps = <String, WindowsApp>{};
   bool _loadingApps = false;
   String? _appsError;
-  String? _manualError;
+  final _openFamilies = <String>{};
   String? _error;
   String _sourceQuery = '';
 
@@ -99,7 +91,6 @@ class _RuleEditorState extends State<RuleEditor> {
   void dispose() {
     _name.dispose();
     _minutes.dispose();
-    _manual.dispose();
     _search.dispose();
     super.dispose();
   }
@@ -143,27 +134,35 @@ class _RuleEditorState extends State<RuleEditor> {
       })
       .toSet();
 
-  void _addTyped() {
+  /// A website or app ID typed into search, when it reads as one. Plain words
+  /// ("goo") are searches, not websites.
+  Set<String>? _typed(String query) {
+    if (query.contains(' ') || !(query.contains('.') || query.contains(':'))) {
+      return null;
+    }
     try {
-      final added = _parseTyped(_manual.text);
-      setState(() {
-        _selected.addAll(added);
-        _manual.clear();
-        _manualError = null;
-        if (_name.text.trim().isEmpty && added.isNotEmpty) {
-          _name.text = _appName(added.first);
-        }
-      });
-    } on ArgumentError catch (error) {
-      setState(() => _manualError = error.message.toString());
+      return _parseTyped(query);
+    } on ArgumentError {
+      return null;
     }
   }
+
+  void _toggle(_Choice choice, bool add) => setState(() {
+    if (add) {
+      _selected.addAll(choice.sources);
+      if (_name.text.trim().isEmpty) _name.text = choice.name;
+    } else {
+      // Only what this choice covers: unticking Gmail keeps google.com.
+      _selected.removeWhere(
+        (selected) => choice.sources.any((s) => matchesSource(s, selected)),
+      );
+    }
+  });
 
   void _save() {
     if (!_form.currentState!.validate()) return;
     try {
-      // Text still in the box counts, so nothing typed is silently lost.
-      final sources = {..._selected, ..._parseTyped(_manual.text)};
+      final sources = {..._selected};
       if (sources.isEmpty) {
         throw ArgumentError('Choose at least one app or website.');
       }
@@ -191,7 +190,126 @@ class _RuleEditorState extends State<RuleEditor> {
   }
 
   String _appName(String source) =>
-      _windowsApps[source.toLowerCase()]?.name ?? sourceName(source);
+      serviceFor(source)?.name ??
+      _windowsApps[source.toLowerCase()]?.name ??
+      widget.labelFor?.call(source) ??
+      sourceName(source);
+
+  /// Where a choice works: "Web, Android, Windows".
+  String _platforms(Iterable<String> sources) => [
+    if (sources.any((s) => s.startsWith('web:'))) 'Web',
+    if (sources.any((s) => s.startsWith('android:'))) 'Android',
+    if (sources.any((s) => s.startsWith('windows:'))) 'Windows',
+  ].join(', ');
+
+  _Choice _serviceChoice(
+    CatalogService service, [
+    Iterable<String> extra = const [],
+  ]) {
+    final sources = {...service.sources, ...extra};
+    return _Choice(
+      service.name,
+      sources,
+      '${service.category} · ${_platforms(sources)}',
+    );
+  }
+
+  _Choice _familyChoice(CatalogFamily family) {
+    // "Search, Gmail, YouTube and 9 more" fits one line on a phone.
+    final names = family.members
+        .take(3)
+        .map((m) => m.replaceFirst('${family.name} ', ''))
+        .join(', ');
+    return _Choice(
+      family.name,
+      family.sources,
+      '$names and ${family.members.length - 3} more',
+      family: family,
+    );
+  }
+
+  /// Apps this device has used or found. A known service brings all of its
+  /// apps and websites, so picking Instagram here covers Instagram everywhere.
+  List<_Choice> _deviceApps() {
+    final observed = {
+      ...widget.sources,
+      ..._windowsApps.keys,
+      ...?widget.rule?.sources,
+    }.map((s) => s.startsWith('windows:') ? s.toLowerCase() : s);
+    return [
+      for (final MapEntry(:key, :value) in _group(observed).entries)
+        if (serviceNamed(key) case final service?)
+          _serviceChoice(service, value)
+        else
+          _Choice(
+            key,
+            value.toSet(),
+            [
+              if (value.any((s) => _windowsApps[s]?.running == true)) 'Running',
+              _platforms(value),
+            ].join(' · '),
+          ),
+    ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
+  }
+
+  /// Picker rows: suggestions by section with an empty search, otherwise
+  /// the best matches from everything.
+  List<(String?, _Choice)> _results() {
+    final device = _deviceApps();
+    final query = _sourceQuery;
+    if (query.isEmpty) {
+      final shown = {for (final c in device) c.name};
+      return [
+        for (final c in device) ('On this device', c),
+        for (final preset in individualRulePresets)
+          if (!shown.contains(preset.name))
+            ('Popular', _serviceChoice(serviceNamed(preset.name)!)),
+        for (final family in catalogFamilies)
+          ('Whole companies', _familyChoice(family)),
+      ];
+    }
+    // Parse what was typed, not the lowercased query: Android IDs are
+    // case-sensitive.
+    final typed = _typed(_search.text.trim());
+    final matches = [
+      for (final match in searchCatalog(query))
+        if (match is CatalogFamily)
+          _familyChoice(match)
+        else if (match is CatalogService)
+          device.firstWhere(
+            (c) => c.name == match.name,
+            orElse: () => _serviceChoice(match),
+          ),
+    ];
+    final names = {for (final c in matches) c.name};
+    return [
+      if (typed != null)
+        (
+          null,
+          _Choice(
+            typed.map((s) => s.substring(s.indexOf(':') + 1)).join(', '),
+            typed,
+            typed
+                .map(
+                  (s) => s.startsWith('web:')
+                      ? 'Website'
+                      : s.startsWith('android:')
+                      ? 'Android app'
+                      : 'Windows app',
+                )
+                .toSet()
+                .join(', '),
+            typed: true,
+          ),
+        ),
+      for (final c in matches) (null, c),
+      for (final c in device)
+        if (!names.contains(c.name) &&
+            (c.name.toLowerCase().contains(query) ||
+                c.sources.any((s) => s.toLowerCase().contains(query))))
+          (null, c),
+    ];
+  }
 
   /// What a single source is, in words: "Android app", "Windows app" or the
   /// website itself.
@@ -331,27 +449,9 @@ class _RuleEditorState extends State<RuleEditor> {
     );
   }
 
-  Widget _icon(String source, double size) {
-    if (widget.iconFor != null) return widget.iconFor!(source);
-    final colors = Theme.of(context).colorScheme;
-    return Container(
-      width: size,
-      height: size,
-      decoration: BoxDecoration(
-        color: colors.surfaceContainerHighest,
-        borderRadius: BorderRadius.circular(size * .22),
-      ),
-      child: Icon(
-        source.startsWith('web:')
-            ? Icons.language_rounded
-            : source.startsWith('windows:')
-            ? Icons.desktop_windows_outlined
-            : Icons.apps_rounded,
-        size: size * .56,
-        color: colors.onSurfaceVariant,
-      ),
-    );
-  }
+  Widget _icon(Iterable<String> sources, String name, double size) =>
+      widget.iconFor?.call(sources.toList(), name, size) ??
+      LetterTile(name, size: size);
 
   Widget _sectionTitle(String text) => Padding(
     padding: const EdgeInsets.only(top: 24, bottom: 8),
@@ -361,28 +461,15 @@ class _RuleEditorState extends State<RuleEditor> {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final selectedGroups = _group(_selected);
-    final candidates =
-        {
-              ...widget.sources,
-              ..._windowsApps.keys,
-              ...?widget.rule?.sources,
-              ...rulePresets.expand((preset) => preset.sources),
-            }
-            .map(
-              (source) =>
-                  source.startsWith('windows:') ? source.toLowerCase() : source,
-            )
-            .toSet();
-    final candidateGroups =
-        _group(
-            candidates.where(
-              (source) =>
-                  _appName(source).toLowerCase().contains(_sourceQuery) ||
-                  source.toLowerCase().contains(_sourceQuery),
-            ),
-          ).entries.toList()
-          ..sort((a, b) => a.key.toLowerCase().compareTo(b.key.toLowerCase()));
+    // A whole company reads as one row; partly chosen ones list each app.
+    final fullFamilies = [
+      for (final family in catalogFamilies)
+        if (family.sources.every(_selected.contains)) family,
+    ];
+    final inFamilies = {for (final f in fullFamilies) ...f.sources};
+    final selectedGroups = _group(
+      _selected.where((s) => !inFamilies.contains(s)),
+    );
     final desktop = MediaQuery.sizeOf(context).width >= 840;
     final (summary, nothingBlocked) = _summary();
     final title = widget.scheduledFocus
@@ -436,43 +523,24 @@ class _RuleEditorState extends State<RuleEditor> {
                       : null,
                 ),
                 _sectionTitle('Apps and websites'),
-                if (selectedGroups.isEmpty)
+                if (_selected.isEmpty)
                   Text(
                     'Nothing added yet.',
                     style: Theme.of(context).textTheme.bodySmall,
                   ),
+                for (final family in fullFamilies)
+                  _selectedRow(
+                    family.name,
+                    family.sources,
+                    'All ${family.members.length} ${family.name} services',
+                    icon: LetterTile(family.name),
+                  ),
                 for (final group in selectedGroups.entries)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
-                    child: Row(
-                      children: [
-                        _icon(group.value.first, 32),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                group.key,
-                                style: const TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                ),
-                              ),
-                              Text(
-                                _kinds(group),
-                                style: Theme.of(context).textTheme.bodySmall,
-                              ),
-                            ],
-                          ),
-                        ),
-                        IconButton(
-                          tooltip: 'Remove ${group.key}',
-                          icon: const Icon(Icons.close_rounded, size: 20),
-                          onPressed: () =>
-                              setState(() => _selected.removeAll(group.value)),
-                        ),
-                      ],
-                    ),
+                  _selectedRow(
+                    group.key,
+                    group.value.toSet(),
+                    _kinds(group),
+                    icon: _icon(group.value, group.key, 32),
                   ),
                 if (!_picking)
                   TextButton.icon(
@@ -482,7 +550,7 @@ class _RuleEditorState extends State<RuleEditor> {
                     label: const Text('Add another app or website'),
                   )
                 else
-                  _picker(colors, candidateGroups, desktop),
+                  _picker(colors, desktop),
                 _sectionTitle('Block it'),
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
@@ -629,136 +697,194 @@ class _RuleEditorState extends State<RuleEditor> {
     );
   }
 
-  Widget _picker(
-    ColorScheme colors,
-    List<MapEntry<String, List<String>>> groups,
-    bool desktop,
-  ) => Container(
-    margin: const EdgeInsets.only(top: 8),
-    padding: const EdgeInsets.all(12),
-    decoration: BoxDecoration(
-      border: Border.all(color: colors.outlineVariant),
-      borderRadius: BorderRadius.circular(11),
-    ),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
+  Widget _selectedRow(
+    String name,
+    Set<String> sources,
+    String subtitle, {
+    required Widget icon,
+  }) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: 4),
+    child: Row(
       children: [
-        TextField(
-          controller: _search,
-          decoration: const InputDecoration(
-            labelText: 'Search apps',
-            prefixIcon: Icon(Icons.search_rounded),
-          ),
-          onChanged: (query) =>
-              setState(() => _sourceQuery = query.trim().toLowerCase()),
-        ),
-        if (widget.loadWindowsApps != null ||
-            widget.browseWindowsApp != null) ...[
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 4,
+        icon,
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              if (widget.loadWindowsApps != null)
-                TextButton.icon(
-                  onPressed: _loadingApps ? null : () => _findWindowsApps(),
-                  icon: const Icon(Icons.desktop_windows_outlined, size: 18),
-                  label: Text(
-                    _loadingApps ? 'Finding apps…' : 'Show apps on this PC',
-                  ),
-                ),
-              if (widget.browseWindowsApp != null)
-                TextButton.icon(
-                  onPressed: _loadingApps
-                      ? null
-                      : () => _findWindowsApps(browse: true),
-                  icon: const Icon(Icons.folder_open_rounded, size: 18),
-                  label: const Text('Browse'),
-                ),
-            ],
-          ),
-          if (_appsError != null)
-            Text(_appsError!, style: TextStyle(color: colors.error)),
-        ],
-        ConstrainedBox(
-          constraints: BoxConstraints(maxHeight: desktop ? 240 : 200),
-          child: ListView(
-            shrinkWrap: true,
-            children: [
-              for (final group in groups)
-                CheckboxListTile(
-                  dense: true,
-                  contentPadding: EdgeInsets.zero,
-                  secondary: _icon(group.value.first, 28),
-                  title: Text(group.key),
-                  subtitle: Text(
-                    [
-                      if (group.value.any(
-                        (s) => _windowsApps[s]?.running == true,
-                      ))
-                        'Running',
-                      _kinds(group),
-                    ].join(' · '),
-                    style: const TextStyle(fontSize: 12),
-                  ),
-                  value: group.value.every(_isSelected),
-                  onChanged: (value) => setState(() {
-                    if (value ?? false) {
-                      _selected.addAll(group.value);
-                      if (_name.text.trim().isEmpty) _name.text = group.key;
-                    } else {
-                      _selected.removeWhere(
-                        (selected) => group.value.any(
-                          (source) => matchesSource(selected, source),
-                        ),
-                      );
-                    }
-                  }),
-                ),
-              if (groups.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 12),
-                  child: Text(
-                    'No apps match. Type the website below instead.',
-                    style: Theme.of(context).textTheme.bodySmall,
-                  ),
-                ),
+              Text(name, style: const TextStyle(fontWeight: FontWeight.w600)),
+              Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
             ],
           ),
         ),
-        const SizedBox(height: 8),
-        Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Expanded(
-              child: TextField(
-                key: const ValueKey('add-website'),
-                controller: _manual,
-                autocorrect: false,
-                enableSuggestions: false,
-                keyboardType: TextInputType.url,
-                decoration: InputDecoration(
-                  labelText: 'Add a website',
-                  hintText: 'example.com',
-                  errorText: _manualError,
-                  errorMaxLines: 3,
-                ),
-                onSubmitted: (_) => _addTyped(),
-              ),
-            ),
-            const SizedBox(width: 8),
-            Padding(
-              padding: const EdgeInsets.only(top: 4),
-              child: OutlinedButton(
-                onPressed: _addTyped,
-                child: const Text('Add'),
-              ),
-            ),
-          ],
+        IconButton(
+          tooltip: 'Remove $name',
+          icon: const Icon(Icons.close_rounded, size: 20),
+          onPressed: () => setState(() => _selected.removeAll(sources)),
         ),
       ],
     ),
   );
+
+  Widget _choiceRow(_Choice choice, {bool nested = false}) {
+    final all = choice.sources.every(_isSelected);
+    final any = choice.sources.any(_isSelected);
+    final family = choice.family;
+    final open = family != null && _openFamilies.contains(family.name);
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ListTile(
+          dense: true,
+          contentPadding: EdgeInsets.only(left: nested ? 24 : 0),
+          leading: choice.typed
+              ? const LetterTile('', size: 28, icon: Icons.add_rounded)
+              : family != null
+              ? LetterTile(family.name, size: 28)
+              : _icon(choice.sources, choice.name, 28),
+          title: Text(
+            choice.typed
+                ? 'Add ${choice.name}'
+                : family != null
+                ? 'All of ${family.name}'
+                : choice.name,
+          ),
+          subtitle: Text(choice.subtitle, style: const TextStyle(fontSize: 12)),
+          trailing: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (family != null)
+                IconButton(
+                  tooltip: open
+                      ? 'Hide ${family.name} services'
+                      : 'Pick ${family.name} services one by one',
+                  icon: Icon(
+                    open
+                        ? Icons.expand_less_rounded
+                        : Icons.expand_more_rounded,
+                  ),
+                  onPressed: () => setState(
+                    () => open
+                        ? _openFamilies.remove(family.name)
+                        : _openFamilies.add(family.name),
+                  ),
+                ),
+              Checkbox(
+                tristate: true,
+                value: all ? true : (any ? null : false),
+                onChanged: (_) => _choose(choice, !all),
+              ),
+            ],
+          ),
+          onTap: () => _choose(choice, !all),
+        ),
+        if (open)
+          for (final service in family.services)
+            _choiceRow(_serviceChoice(service), nested: true),
+      ],
+    );
+  }
+
+  /// Typed entries are added once and the search clears for the next one.
+  void _choose(_Choice choice, bool add) {
+    _toggle(choice, add);
+    if (choice.typed) {
+      _search.clear();
+      setState(() => _sourceQuery = '');
+    }
+  }
+
+  Widget _picker(ColorScheme colors, bool desktop) {
+    final results = _results();
+    return Container(
+      margin: const EdgeInsets.only(top: 8),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border.all(color: colors.outlineVariant),
+        borderRadius: BorderRadius.circular(11),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          TextField(
+            controller: _search,
+            autocorrect: false,
+            enableSuggestions: false,
+            decoration: const InputDecoration(
+              labelText: 'Search apps and websites',
+              hintText: 'Google, YouTube, a game, example.com',
+              prefixIcon: Icon(Icons.search_rounded),
+            ),
+            onChanged: (query) =>
+                setState(() => _sourceQuery = query.trim().toLowerCase()),
+            onSubmitted: (_) {
+              if (_sourceQuery.isNotEmpty && results.isNotEmpty) {
+                _choose(results.first.$2, true);
+              }
+            },
+          ),
+          if (widget.loadWindowsApps != null ||
+              widget.browseWindowsApp != null) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 4,
+              children: [
+                if (widget.loadWindowsApps != null)
+                  TextButton.icon(
+                    onPressed: _loadingApps ? null : () => _findWindowsApps(),
+                    icon: const Icon(Icons.desktop_windows_outlined, size: 18),
+                    label: Text(
+                      _loadingApps ? 'Finding apps…' : 'Show apps on this PC',
+                    ),
+                  ),
+                if (widget.browseWindowsApp != null)
+                  TextButton.icon(
+                    onPressed: _loadingApps
+                        ? null
+                        : () => _findWindowsApps(browse: true),
+                    icon: const Icon(Icons.folder_open_rounded, size: 18),
+                    label: const Text('Browse'),
+                  ),
+              ],
+            ),
+            if (_appsError != null)
+              Text(_appsError!, style: TextStyle(color: colors.error)),
+          ],
+          const SizedBox(height: 4),
+          ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: desktop ? 320 : 280),
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                for (var i = 0; i < results.length; i++) ...[
+                  if (results[i].$1 != null &&
+                      (i == 0 || results[i - 1].$1 != results[i].$1))
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12, bottom: 2),
+                      child: Text(
+                        results[i].$1!,
+                        style: Theme.of(context).textTheme.labelMedium
+                            ?.copyWith(color: colors.onSurfaceVariant),
+                      ),
+                    ),
+                  _choiceRow(results[i].$2),
+                ],
+                if (results.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 12),
+                    child: Text(
+                      'Nothing found. For a website, type its address, like example.com.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 
   /// Outlined when off, brand green when on, so every option reads as tappable.
   Widget _choice({
@@ -867,4 +993,21 @@ class _ScheduleDraft {
     startMinute: from.hour * 60 + from.minute,
     endMinute: until.hour * 60 + until.minute,
   );
+}
+
+/// One tappable result: a service, a whole company, an app on this device,
+/// or exactly what was typed.
+class _Choice {
+  const _Choice(
+    this.name,
+    this.sources,
+    this.subtitle, {
+    this.family,
+    this.typed = false,
+  });
+  final String name;
+  final Set<String> sources;
+  final String subtitle;
+  final CatalogFamily? family;
+  final bool typed;
 }

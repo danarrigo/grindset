@@ -317,26 +317,38 @@ class _HomeState extends State<_Home> {
     bool scheduledFocus = false,
   }) async {
     final baseRevision = rule == null ? 0 : c.ruleRevision(rule.id);
+    final seen = {
+      ...c.usage.map((i) => i.source),
+      ...c.rules.expand((r) => r.sources),
+    };
+    c.requestAppDetails(seen);
     final result = await showDialog<ActivityRule>(
       context: context,
-      builder: (_) => RuleEditor(
-        rule: rule,
-        preset: preset,
-        scheduledFocus: scheduledFocus,
-        timezone: c.location.name,
-        loadWindowsApps: c.tracker.isWindows ? WindowsApps.list : null,
-        browseWindowsApp: c.tracker.isWindows ? WindowsApps.browse : null,
-        iconFor: (source) {
-          c.requestAppDetails([source]);
-          return ListenableBuilder(
-            listenable: c,
-            builder: (_, _) => SourceIcon(controller: c, source: source),
-          );
-        },
-        sources: {
-          ...c.usage.map((i) => i.source),
-          ...c.rules.expand((r) => r.sources),
-        },
+      // Rebuilds as installed app names and icons arrive.
+      builder: (_) => ListenableBuilder(
+        listenable: c,
+        builder: (_, _) => RuleEditor(
+          rule: rule,
+          preset: preset,
+          scheduledFocus: scheduledFocus,
+          timezone: c.location.name,
+          loadWindowsApps: c.tracker.isWindows ? WindowsApps.list : null,
+          browseWindowsApp: c.tracker.isWindows ? WindowsApps.browse : null,
+          labelFor: (source) => c.appDetails[source]?.label,
+          iconFor: (sources, name, size) {
+            c.requestAppDetails(sources);
+            return ListenableBuilder(
+              listenable: c,
+              builder: (_, _) => SourceIcon(
+                controller: c,
+                sources: sources,
+                name: name,
+                size: size,
+              ),
+            );
+          },
+          sources: seen,
+        ),
       ),
     );
     if (result != null && mounted) {
@@ -970,7 +982,12 @@ class _HomeState extends State<_Home> {
             padding: const EdgeInsets.symmetric(vertical: 12),
             child: Row(
               children: [
-                SourceIcon(controller: c, source: item.source, size: 36),
+                SourceIcon(
+                  controller: c,
+                  sources: [item.source],
+                  name: displayName(c, item.source),
+                  size: 36,
+                ),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(
@@ -1150,12 +1167,7 @@ class _HomeState extends State<_Home> {
   }
 
   Widget _ruleCard(ActivityRule rule) {
-    final platform = c.tracker.isAndroid ? 'android:' : 'windows:';
-    final iconSource = rule.sources.firstWhere(
-      (s) => s.startsWith(platform),
-      orElse: () => rule.sources.first,
-    );
-    c.requestAppDetails([iconSource]);
+    c.requestAppDetails(rule.sources);
     // What the rule does, in the editor's words. The daily limit has its own
     // bar below, so it is only named here when nothing else blocks.
     final summary = [
@@ -1177,7 +1189,12 @@ class _HomeState extends State<_Home> {
           children: [
             Row(
               children: [
-                SourceIcon(controller: c, source: iconSource, size: 36),
+                SourceIcon(
+                  controller: c,
+                  sources: rule.sources.toList(),
+                  name: rule.name,
+                  size: 36,
+                ),
                 const SizedBox(width: 14),
                 Expanded(
                   child: Column(

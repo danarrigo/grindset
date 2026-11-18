@@ -26,6 +26,8 @@ struct ActivityProbeState {
   bool alive = true;
   std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>> catalog_result;
   std::optional<flutter::EncodableList> catalog_apps;
+  // Finished icon lookups, answered on the UI thread.
+  std::vector<std::pair<std::unique_ptr<flutter::MethodResult<flutter::EncodableValue>>, flutter::EncodableMap>> details;
 };
 
 namespace {
@@ -96,6 +98,7 @@ bool IsPlaying(const MediaManager& manager, DWORD pid) {
 }
 constexpr UINT kForegroundChanged = WM_APP + 173;
 constexpr UINT kCatalogReady = WM_APP + 174;
+constexpr UINT kDetailsReady = WM_APP + 175;
 // OUTOFCONTEXT callbacks are delivered on the registering UI thread. The runner
 // owns exactly one Flutter window per process; no other-app titles are queried.
 HWND foreground_notification_window = nullptr;
@@ -135,6 +138,25 @@ ActivityProbe::ActivityProbe(flutter::BinaryMessenger* messenger, HWND window)
         if (!state->alive) return;
         state->catalog_apps = std::move(apps);
         PostMessageW(host, kCatalogReady, 0, 0);
+      }).detach();
+      return;
+    }
+    if (call.method_name() == "appDetails") {
+      const auto it = args ? args->find(flutter::EncodableValue("executables")) : flutter::EncodableMap::const_iterator{};
+      const auto* list = args && it != args->end() ? std::get_if<flutter::EncodableList>(&it->second) : nullptr;
+      if (!list || list->size() > 32) { result->Error("INVALID_APPS", "Up to 32 executable names are required."); return; }
+      std::vector<std::string> executables;
+      for (const auto& value : *list) {
+        if (const auto* name = std::get_if<std::string>(&value)) executables.push_back(*name);
+      }
+      const HWND host = window_;
+      std::thread([state, host, executables, response = std::move(result)]() mutable {
+        flutter::EncodableMap details;
+        try { details = WindowsAppDetails(executables); } catch (...) { /* Unknown apps keep letter icons. */ }
+        const std::lock_guard<std::mutex> guard(state->mutex);
+        if (!state->alive) return;
+        state->details.emplace_back(std::move(response), std::move(details));
+        PostMessageW(host, kDetailsReady, 0, 0);
       }).detach();
       return;
     }
@@ -240,6 +262,15 @@ std::optional<LRESULT> ActivityProbe::HandleMessage(UINT message, WPARAM wparam,
     }
     return 0;
   }
+  if (message == kDetailsReady) {
+    decltype(state_->details) ready;
+    {
+      const std::lock_guard<std::mutex> guard(state_->mutex);
+      ready.swap(state_->details);
+    }
+    for (auto& [response, details] : ready) response->Success(flutter::EncodableValue(std::move(details)));
+    return 0;
+  }
   if (message == kForegroundChanged) {
     if (foreground_hook_) channel_->InvokeMethod("foregroundChanged", nullptr);
     return 0;
@@ -252,6 +283,7 @@ ActivityProbe::~ActivityProbe() {
     const std::lock_guard<std::mutex> guard(state_->mutex);
     state_->alive = false;
     state_->catalog_result.reset();
+    state_->details.clear();
   }
   SetForegroundWatch(false);
   channel_->SetMethodCallHandler(nullptr);

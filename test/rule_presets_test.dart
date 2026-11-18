@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lockin/core/activity.dart';
 import 'package:lockin/core/rule_presets.dart';
-import 'package:lockin/ui/rule_editor.dart';
+import 'package:lockin/core/service_catalog.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 import 'package:timezone/timezone.dart' as tz;
 

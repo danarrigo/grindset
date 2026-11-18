@@ -1,6 +1,10 @@
 #include "windows_apps.h"
 #include <windows.h>
+#include <shellapi.h>
+#include <tlhelp32.h>
+#include <wincodec.h>
 #include <winver.h>
+#include <wrl/client.h>
 #include <algorithm>
 #include <cwctype>
 #include <map>
@@ -106,6 +110,73 @@ flutter::EncodableValue Encode(const App& app) {
     {flutter::EncodableValue("running"), flutter::EncodableValue(app.running)},
   };
 }
+// Where a running or App Paths-registered executable lives. Never searches
+// the disk; apps found neither way simply keep their letter icon.
+std::optional<std::wstring> LocateExecutable(const std::wstring& executable) {
+  const HANDLE snapshot = CreateToolhelp32Snapshot(TH32CS_SNAPPROCESS, 0);
+  if (snapshot != INVALID_HANDLE_VALUE) {
+    PROCESSENTRY32W entry{sizeof(entry)};
+    for (BOOL more = Process32FirstW(snapshot, &entry); more; more = Process32NextW(snapshot, &entry)) {
+      if (CompareStringOrdinal(entry.szExeFile, -1, executable.c_str(), -1, TRUE) != CSTR_EQUAL) continue;
+      const HANDLE process = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, FALSE, entry.th32ProcessID);
+      if (!process) continue;
+      std::vector<wchar_t> path(32768); DWORD size = static_cast<DWORD>(path.size());
+      const bool found = QueryFullProcessImageNameW(process, 0, path.data(), &size) != FALSE;
+      CloseHandle(process);
+      if (found) { CloseHandle(snapshot); return std::wstring(path.data(), size); }
+    }
+    CloseHandle(snapshot);
+  }
+  const auto key = L"Software\\Microsoft\\Windows\\CurrentVersion\\App Paths\\" + executable;
+  for (const HKEY hive : {HKEY_CURRENT_USER, HKEY_LOCAL_MACHINE}) {
+    for (const DWORD view : {static_cast<DWORD>(RRF_SUBKEY_WOW6464KEY), static_cast<DWORD>(RRF_SUBKEY_WOW6432KEY)}) {
+      std::vector<wchar_t> raw(32768); DWORD bytes = static_cast<DWORD>(raw.size() * sizeof(wchar_t));
+      if (RegGetValueW(hive, key.c_str(), nullptr, RRF_RT_REG_SZ | RRF_RT_REG_EXPAND_SZ | view, nullptr, raw.data(), &bytes) != ERROR_SUCCESS) continue;
+      std::wstring path(raw.data());
+      if (path.size() > 1 && path.front() == L'"' && path.back() == L'"') path = path.substr(1, path.size() - 2);
+      if (!path.empty()) return path;
+    }
+  }
+  return std::nullopt;
+}
+// The executable's own icon as a 64 px PNG.
+std::optional<std::vector<uint8_t>> IconPng(const std::wstring& path) {
+  using Microsoft::WRL::ComPtr;
+  HICON icon = nullptr;
+  if (FAILED(SHDefExtractIconW(path.c_str(), 0, 0, &icon, nullptr, 64)) || !icon) return std::nullopt;
+  ComPtr<IWICImagingFactory> factory;
+  ComPtr<IWICBitmap> bitmap;
+  const bool converted =
+      SUCCEEDED(CoCreateInstance(CLSID_WICImagingFactory, nullptr, CLSCTX_INPROC_SERVER, IID_PPV_ARGS(&factory))) &&
+      SUCCEEDED(factory->CreateBitmapFromHICON(icon, &bitmap));
+  DestroyIcon(icon);
+  if (!converted) return std::nullopt;
+  ComPtr<IStream> stream;
+  ComPtr<IWICBitmapEncoder> encoder;
+  ComPtr<IWICBitmapFrameEncode> frame;
+  UINT width = 0, height = 0;
+  WICPixelFormatGUID format = GUID_WICPixelFormat32bppBGRA;
+  if (FAILED(CreateStreamOnHGlobal(nullptr, TRUE, &stream)) ||
+      FAILED(factory->CreateEncoder(GUID_ContainerFormatPng, nullptr, &encoder)) ||
+      FAILED(encoder->Initialize(stream.Get(), WICBitmapEncoderNoCache)) ||
+      FAILED(encoder->CreateNewFrame(&frame, nullptr)) ||
+      FAILED(frame->Initialize(nullptr)) ||
+      FAILED(bitmap->GetSize(&width, &height)) ||
+      FAILED(frame->SetSize(width, height)) ||
+      FAILED(frame->SetPixelFormat(&format)) ||
+      FAILED(frame->WriteSource(bitmap.Get(), nullptr)) ||
+      FAILED(frame->Commit()) ||
+      FAILED(encoder->Commit())) return std::nullopt;
+  STATSTG stat{};
+  HGLOBAL memory = nullptr;
+  if (FAILED(stream->Stat(&stat, STATFLAG_NONAME)) || FAILED(GetHGlobalFromStream(stream.Get(), &memory))) return std::nullopt;
+  const auto size = static_cast<size_t>(stat.cbSize.QuadPart);
+  const auto* data = static_cast<const uint8_t*>(GlobalLock(memory));
+  if (!data) return std::nullopt;
+  std::vector<uint8_t> png(data, data + size);
+  GlobalUnlock(memory);
+  return png;
+}
 }  // namespace
 
 bool IsProtectedWindowsApp(const std::wstring& executable) {
@@ -133,4 +204,25 @@ flutter::EncodableList ListWindowsApps() {
 flutter::EncodableValue DescribeWindowsApp(const std::string& path) {
   const auto app = ReadApp(Wide(path), false);
   return app ? Encode(*app) : flutter::EncodableValue();
+}
+flutter::EncodableMap WindowsAppDetails(const std::vector<std::string>& executables) {
+  const HRESULT com = CoInitializeEx(nullptr, COINIT_MULTITHREADED);
+  flutter::EncodableMap details;
+  for (const auto& name : executables) {
+    const auto executable = Lower(Wide(name));
+    if (executable.size() < 5 || executable.size() > 260 || executable.substr(executable.size() - 4) != L".exe" ||
+        executable.find_first_of(L"\\/:") != std::wstring::npos) continue;
+    const auto path = LocateExecutable(executable);
+    if (!path) continue;
+    const auto app = ReadApp(*path, false);
+    if (!app || app->executable != executable) continue;
+    const auto icon = IconPng(*path);
+    if (!icon) continue;
+    details.emplace(flutter::EncodableValue(Utf8(executable)), flutter::EncodableMap{
+      {flutter::EncodableValue("label"), flutter::EncodableValue(Utf8(app->name))},
+      {flutter::EncodableValue("icon"), flutter::EncodableValue(*icon)},
+    });
+  }
+  if (SUCCEEDED(com)) CoUninitialize();
+  return details;
 }

@@ -1,5 +1,6 @@
 import 'dart:ffi';
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:ffi/ffi.dart';
 import 'package:flutter/services.dart';
@@ -203,6 +204,32 @@ class NativeTracker {
           icon: value['icon'] as Uint8List,
         ),
     };
+  }
+
+  /// Icons and names of Windows apps that are running or registered, keyed
+  /// by lowercase executable name. Apps that cannot be found are omitted.
+  Future<Map<String, ({String label, Uint8List icon})>> windowsAppDetails(
+    List<String> executables,
+  ) async {
+    final details = <String, ({String label, Uint8List icon})>{};
+    // The native side looks up a bounded number of apps per call.
+    for (var i = 0; i < executables.length; i += 32) {
+      final value = await windowsChannel
+          .invokeMapMethod<String, dynamic>('appDetails', {
+            'executables': executables.sublist(
+              i,
+              math.min(i + 32, executables.length),
+            ),
+          })
+          .timeout(const Duration(seconds: 20));
+      for (final MapEntry(:key, :value) in (value ?? {}).entries) {
+        details[key] = (
+          label: (value as Map)['label'] as String,
+          icon: value['icon'] as Uint8List,
+        );
+      }
+    }
+    return details;
   }
 
   Future<void> requestBlockingAccess() =>
