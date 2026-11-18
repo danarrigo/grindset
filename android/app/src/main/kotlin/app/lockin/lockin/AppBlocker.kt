@@ -36,6 +36,7 @@ object AppBlocker {
     @Volatile private var lastSource: String? = null
     @Volatile private var system: Pair<Long, Set<String>>? = null
     @Volatile private var blockedSince = 0L
+    @Volatile private var notedAt = 0L
     private const val PERIODS = "blocked_periods"
     private const val KEEP_MS = 3 * 86_400_000L
     private val protectedPackages = setOf(
@@ -102,12 +103,36 @@ object AppBlocker {
         val event = UsageEvents.Event()
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
+            // Older history must not undo a newer instant blocking note.
+            if (event.timeStamp < notedAt) continue
             when (event.eventType) {
                 UsageEvents.Event.ACTIVITY_RESUMED -> foreground = event.packageName
                 UsageEvents.Event.ACTIVITY_PAUSED -> if (event.packageName == foreground) foreground = null
             }
         }
         scannedUntil = now
+    }
+
+    private val launchable = java.util.concurrent.ConcurrentHashMap<String, Boolean>()
+
+    /**
+     * An app's window came to the front (Play Store edition's instant
+     * blocking). Usage history records the switch a moment later, so this
+     * takes effect first. Only launchable apps and home screens count: the
+     * notification shade, keyboards and dialogs keep the app behind them.
+     */
+    fun noteForeground(context: Context, pkg: String) {
+        val counts = launchable.getOrPut(pkg) {
+            context.packageManager.getLaunchIntentForPackage(pkg) != null ||
+                pkg in systemPackages(context)
+        }
+        if (!counts) return
+        val ime = (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+            .enabledInputMethodList.any { it.packageName == pkg }
+        if (!ime && pkg != "com.android.systemui") {
+            notedAt = System.currentTimeMillis()
+            foreground = pkg
+        }
     }
 
     /** The restrictable foreground app, or null. Background thread only. */

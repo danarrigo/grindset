@@ -4,10 +4,10 @@ import android.accessibilityservice.AccessibilityService
 import android.view.accessibility.AccessibilityEvent
 
 /**
- * Play Store edition only. Tells the rule check that another app came to the
- * front, so a blocked app is covered at once instead of at the next one-second
- * check. The usage history stays the source of truth for which app is open;
- * this only uses the event's package name and never reads window content.
+ * Play Store edition only. Notes which app came to the front and asks for a
+ * rule check at once, instead of waiting for the next one-second check and for
+ * usage history to catch up. Only the event's package name is used; window
+ * content is never read.
  */
 class InstantBlockingService : AccessibilityService() {
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -15,6 +15,7 @@ class InstantBlockingService : AccessibilityService() {
         val pkg = event.packageName?.toString() ?: return
         // Grindset's own block screen must not trigger another check.
         if (pkg == packageName) return
+        AppBlocker.noteForeground(this, pkg)
         TrackingRuntime.foregroundChanged()
     }
 
