@@ -103,6 +103,6 @@ void main() {
     );
     expect(sourceName('windows:Discord.EXE'), 'Discord');
     expect(sourceName('windows:my-editor.exe'), 'my-editor');
-    expect(sourceName('android:com.example.custom'), 'custom');
+    expect(sourceName('android:com.example.custom'), 'Custom');
   });
 }
