@@ -1,6 +1,6 @@
 #include "windows_apps.h"
 #include <windows.h>
-#include <shellapi.h>
+#include <shlobj.h>
 #include <tlhelp32.h>
 #include <wincodec.h>
 #include <winver.h>
