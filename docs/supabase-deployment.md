@@ -19,6 +19,7 @@ Applied in order through the authenticated Supabase MCP migration tool:
 | `202611100001_usage.sql` | `20261113004427` | `usage` |
 | `202611110001_shared_state.sql` | `20261113004545` | `shared_state` |
 | `202611130001_function_grants.sql` | `20261113005118` | `function_grants` |
+| `202611180001_delete_account.sql` | applied 2026-11-18 | `delete_account` |
 
 MCP assigns deployment timestamps rather than preserving local filename versions. Before using CLI `db push`, reconcile the migration history with this mapping; do not blindly replay already-applied DDL. No application rows or Auth users were seeded by the deployment.
 
@@ -73,3 +74,8 @@ The owner-approved account is retained, not a disposable `lockin-acceptance-*` f
 The earlier controller test establishes hosted Auth/RLS/offline reconciliation. The later installed-client run establishes actual inbox confirmation and Windows-to-emulator shared state/usage, not physical Android reliability or every installed offline-conflict flow. The confirmation link redirected to the default unavailable localhost destination after confirming the account; this reproduced a real onboarding defect even though password sign-in succeeded. The public Grindset page is now deployed at `https://danarrigo.github.io/grindset-releases/confirmed/`. New clients explicitly request it for signup/resend. The owner subsequently saved this as the hosted Auth Site URL because the available MCP OAuth token lacks `auth_config_read`/`auth_config_write` permissions. A direct request to the actual verification endpoint with an invalid test token now returns HTTP 303 to the exact HTTPS confirmation path, whose page returns HTTP 200. This verifies the live default redirect without changing accounts. The live browser page separately passed success-shaped callback, expired-link, direct-visit and mobile-layout/URL-cleanup checks; a fresh inbox-confirmation round trip has not been repeated. Email confirmation must remain enabled. Native notification delivery and Android post-reset redownload remain separate checks. Auth settings were not weakened to manufacture a passing test.
 
 The separately authorized paused `lotorix` project (`hoyilrdpusfezwcrbvoz`) was deleted through the supported Management API after checking its name, organization and inactive state. Deletion returned HTTP 200; a follow-up project read returned 404. The `lockin` project was not deleted.
+
+## Account deletion (2026-11-18)
+
+Applied through the Supabase MCP migration tool after confirming that all five public tables reference `auth.users` (directly or through `devices`) with `ON DELETE CASCADE`. An anonymous `POST /rest/v1/rpc/delete_account` with the publishable key returns **401 / `42501`**. A rolled-back live transaction created two fixture users, synced a setting as one, called `delete_account()` as that user, and found zero remaining rows for them while the other user's rows remained; no fixture users persisted. The advisor's authenticated security-definer warning for `delete_account` is intended: it can only delete the caller.
+
