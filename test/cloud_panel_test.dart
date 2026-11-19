@@ -105,6 +105,7 @@ void main() {
           .map((text) => text.data)
           .join('\n'),
     );
+    expect(find.text('Forgot password?'), findsOneWidget);
     await tester.ensureVisible(find.text('Resend confirmation email'));
     await tester.tap(find.text('Resend confirmation email'));
     await tester.pumpAndSettle();

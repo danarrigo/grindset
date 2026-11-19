@@ -8,6 +8,8 @@ import '../data/cloud_sync.dart';
 import '../data/shared_state.dart';
 import '../platform/app_links.dart';
 
+import 'package:url_launcher/url_launcher.dart';
+
 class CloudPanel extends StatefulWidget {
   const CloudPanel({
     super.key,
@@ -263,6 +265,13 @@ class _CloudPanelState extends State<CloudPanel> {
               TextButton(
                 onPressed: _busy ? null : _resendConfirmation,
                 child: const Text('Resend confirmation email'),
+              ),
+              TextButton(
+                onPressed: () => launchUrl(
+                  AppLinks.resetPassword,
+                  mode: LaunchMode.externalApplication,
+                ),
+                child: const Text('Forgot password?'),
               ),
             ],
           ),
