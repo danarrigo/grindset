@@ -476,15 +476,15 @@ class _RuleEditorState extends State<RuleEditor> {
         ? 'Schedule focus hours'
         : widget.rule != null
         ? 'Edit rule'
-        : widget.preset == socialMediaPreset
-        ? 'Limit all social media'
+        : widget.preset?.isCategory ?? false
+        ? 'Limit ${_lowerFirst(widget.preset!.name)}'
         : widget.preset != null
         ? 'Limit ${widget.preset!.name}'
         : 'New rule';
     final intro = widget.scheduledFocus
         ? 'Pick what to block at set times. No timer needed.'
-        : widget.preset == socialMediaPreset
-        ? 'One daily limit shared by all these apps. Your other rules still apply.'
+        : widget.preset?.isCategory ?? false
+        ? 'One daily limit shared by all these apps and sites. Remove any you need. Your other rules still apply.'
         : widget.rule == null && widget.preset == null
         ? 'Pick apps and websites, then choose when to block them.'
         : null;
@@ -1011,3 +1011,9 @@ class _Choice {
   final CatalogFamily? family;
   final bool typed;
 }
+
+/// "Social media" -> "social media", but "AI chat" keeps its capitals.
+String _lowerFirst(String name) =>
+    name.length > 1 && name[1] == name[1].toUpperCase() && name[1] != ' '
+    ? name
+    : name[0].toLowerCase() + name.substring(1);

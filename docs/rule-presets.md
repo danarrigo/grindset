@@ -1,8 +1,8 @@
 # Starter rules, search and desktop coverage
 
-Rules offers **All social media** plus 17 individual starters: Instagram, YouTube, TikTok, Reddit, X, Facebook, Snapchat, Twitch, Discord, WhatsApp, Telegram, Signal, Messenger, LinkedIn, Pinterest, Threads and Bluesky. The combined rule covers this supported catalog, not literally every social service or unofficial client.
+Rules offers nine category starters (Social media, Messaging, Video and streaming, Games, Shopping, News and reading, AI chat, Dating, Music and audio), built from the app catalog in `lib/core/service_catalog.dart`, plus 17 individual starters: Instagram, YouTube, TikTok, Reddit, X, Facebook, Snapchat, Twitch, Discord, WhatsApp, Telegram, Signal, Messenger, LinkedIn, Pinterest, Threads and Bluesky. A category rule covers the catalog's services in that category, not literally every service or unofficial client. Browsers, work apps and everyday tools have no category starter.
 
-Select a starter, review its sources, suggested **30 minutes per day** and **Block during focus**, then save. Nothing is automatically persisted or enforced. Tracking and OS permissions remain opt-in. Individual rules have separate budgets; All social media has one combined budget, unioning overlapping usage across all selected sources/devices. Existing individual restrictions still apply alongside it. There is no default recurring schedule. Focus-block flags remain device-local; daily budgets and schedules synchronize.
+Select a starter, review its sources, suggested **30 minutes per day** and **Block during focus**, then save. Nothing is automatically persisted or enforced. Tracking and OS permissions remain opt-in. Individual rules have separate budgets; a category rule has one combined budget, unioning overlapping usage across all selected sources/devices. Existing individual restrictions still apply alongside it. There is no default recurring schedule. Focus-block flags remain device-local; daily budgets and schedules synchronize.
 
 ## Choosing apps and websites
 

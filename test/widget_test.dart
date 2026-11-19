@@ -651,7 +651,7 @@ void main() {
       ),
     );
     await navigate(tester, 2);
-    expect(find.text('Suggested apps'), findsOneWidget);
+    expect(find.text('Suggestions'), findsOneWidget);
     await expectLater(
       find.byKey(const ValueKey('starter-screen')),
       matchesGoldenFile('goldens/mobile-rule-starters.png'),
@@ -745,8 +745,8 @@ void main() {
     await navigate(tester, 2);
     // With rules saved, suggestions are folded until opened.
     expect(find.text('Instagram'), findsNothing);
-    await tester.ensureVisible(find.text('Suggested apps'));
-    await tester.tap(find.text('Suggested apps'));
+    await tester.ensureVisible(find.text('Suggestions'));
+    await tester.tap(find.text('Suggestions'));
     await tester.pumpAndSettle();
     expect(find.widgetWithText(ActionChip, 'X'), findsNothing);
     await tester.ensureVisible(find.text('Instagram'));
@@ -799,7 +799,8 @@ void main() {
     );
     expect(find.byKey(const ValueKey('nav-2')), findsOneWidget);
     await navigate(tester, 2);
-    expect(find.text('All social media'), findsOneWidget);
+    expect(find.text('Social media'), findsOneWidget);
+    expect(find.text('Games'), findsOneWidget);
     await tester.ensureVisible(find.text('Discord'));
     await tester.tap(find.text('Discord'));
     await tester.pumpAndSettle();
@@ -900,30 +901,46 @@ void main() {
     );
   });
 
-  testWidgets('all social media is one editable combined rule', (tester) async {
+  testWidgets('a category starter is one editable combined rule', (
+    tester,
+  ) async {
     final (controller, _) = await open();
     viewport(tester, const Size(1120, 720));
     await tester.pumpWidget(LockinApp(controller: controller));
     await navigate(tester, 2);
-    await tester.tap(find.text('All social media'));
+    await tester.tap(find.text('Messaging'));
     await tester.pumpAndSettle();
+    expect(find.text('Limit messaging'), findsOneWidget);
     expect(controller.rules, isEmpty);
     await tester.ensureVisible(find.text('Save rule'));
     await tester.tap(find.text('Save rule'));
     await tester.pumpAndSettle();
-    expect(controller.rules.single.name, 'All social media');
+    expect(controller.rules.single.name, 'Messaging');
     expect(controller.rules.single.dailyMinutes, 30);
     expect(
       controller.rules.single.sources,
       containsAll([
-        'web:instagram.com',
-        'web:youtube.com',
         'windows:discord.exe',
         'windows:telegram.exe',
         'windows:signal.exe',
         'android:com.whatsapp',
       ]),
     );
+    expect(
+      controller.rules.single.sources,
+      isNot(contains('web:instagram.com')),
+    );
+    await tester.ensureVisible(find.text('Suggestions'));
+    await tester.tap(find.text('Suggestions'));
+    await tester.pumpAndSettle();
+    expect(
+      find.ancestor(
+        of: find.text('Messaging'),
+        matching: find.byType(ActionChip),
+      ),
+      findsNothing,
+    );
+    expect(find.text('Social media'), findsOneWidget);
     expect(controller.trackingEnabled, isFalse);
   });
 

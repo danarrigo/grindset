@@ -10,7 +10,6 @@ void main() {
     'individual starters have distinct valid identifiers and readable names',
     () {
       expect(individualRulePresets, hasLength(17));
-      expect(rulePresets, hasLength(18));
       final allSources = <String>{};
       for (final preset in individualRulePresets) {
         expect(preset.dailyMinutes, 30);
@@ -30,12 +29,49 @@ void main() {
           expect(sourceName(source), preset.name);
         }
       }
-      expect(socialMediaPreset.sources, allSources);
-      expect(allSources, isNot(contains('windows:chrome.exe')));
-      expect(allSources, isNot(contains('windows:msedge.exe')));
-      expect(allSources, isNot(contains('windows:msedgewebview2.exe')));
     },
   );
+
+  test('category starters split the catalog and never block a browser', () {
+    expect(categoryPresets.map((p) => p.name), [
+      'Social media',
+      'Messaging',
+      'Video and streaming',
+      'Games',
+      'Shopping',
+      'News and reading',
+      'AI chat',
+      'Dating',
+      'Music and audio',
+    ]);
+    final seen = <String>{};
+    for (final preset in categoryPresets) {
+      expect(preset.isCategory, isTrue);
+      expect(preset.sources.length, greaterThan(2), reason: preset.name);
+      for (final source in preset.sources) {
+        expect(seen.add(source), isTrue, reason: '$source twice');
+        expect(
+          sourceName(source),
+          isNot(anyOf('Chrome', 'Microsoft Edge', 'Firefox', 'Zen Browser')),
+        );
+      }
+    }
+    Set<String> of(String name) =>
+        categoryPresets.firstWhere((p) => p.name == name).sources;
+    expect(of('Social media'), containsAll(['web:instagram.com', 'web:x.com']));
+    expect(of('Social media'), isNot(contains('android:com.whatsapp')));
+    expect(
+      of('Messaging'),
+      containsAll(['android:com.whatsapp', 'windows:discord.exe']),
+    );
+    expect(of('Video and streaming'), contains('web:youtube.com'));
+    expect(of('Games'), contains('windows:steam.exe'));
+    for (final source in individualRulePresets.expand((p) => p.sources)) {
+      expect(seen, contains(source));
+    }
+    expect(seen, isNot(contains('windows:chrome.exe')));
+    expect(seen, isNot(contains('windows:msedge.exe')));
+  });
 
   test('old Discord rules can gain only their missing native sources', () {
     final missing = missingDesktopSources([
@@ -47,7 +83,10 @@ void main() {
       'windows:discordptb.exe',
       'windows:discordcanary.exe',
     });
-    expect(missingDesktopSources(socialMediaPreset.sources), isEmpty);
+    expect(
+      missingDesktopSources(individualRulePresets.expand((p) => p.sources)),
+      isEmpty,
+    );
     expect(missingDesktopSources(['web:custom.example']), isEmpty);
   });
 
@@ -72,8 +111,8 @@ void main() {
     ];
     final rule = ActivityRule(
       id: 'social',
-      name: socialMediaPreset.name,
-      sources: socialMediaPreset.sources,
+      name: 'Social and messaging',
+      sources: {for (final preset in individualRulePresets) ...preset.sources},
       dailyMinutes: 30,
     );
     expect(combinedUsage(intervals), const Duration(minutes: 30));
@@ -89,9 +128,10 @@ void main() {
   });
 
   test('website subdomains match but unrelated hosts and apps do not', () {
-    for (final source in socialMediaPreset.sources.where(
-      (s) => s.startsWith('web:'),
-    )) {
+    for (final source
+        in individualRulePresets
+            .expand((p) => p.sources)
+            .where((s) => s.startsWith('web:'))) {
       final host = source.substring(4);
       expect(matchesSource(source, 'web:m.$host'), isTrue);
       expect(matchesSource(source, 'web:$host.evil.example'), isFalse);

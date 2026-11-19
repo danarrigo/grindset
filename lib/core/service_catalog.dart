@@ -76,6 +76,26 @@ const _presetDetails = <String, (String, List<String>)>{
   'Bluesky': (_social, ['bsky']),
 };
 
+/// Whole categories offered as one-tap starters, in this order. Browsers,
+/// work and everyday tools are left out: blocking them wholesale breaks too much.
+final List<RulePreset> categoryPresets = List.unmodifiable([
+  for (final (category, name) in const [
+    (_social, 'Social media'),
+    (_messaging, 'Messaging'),
+    (_video, 'Video and streaming'),
+    (_games, 'Games'),
+    (_shopping, 'Shopping'),
+    (_news, 'News and reading'),
+    (_ai, 'AI chat'),
+    (_dating, 'Dating'),
+    (_music, 'Music and audio'),
+  ])
+    RulePreset(name, {
+      for (final service in catalogServices)
+        if (service.category == category) ...service.sources,
+    }, isCategory: true),
+]);
+
 final List<CatalogService> catalogServices = List.unmodifiable([
   for (final preset in individualRulePresets)
     CatalogService(

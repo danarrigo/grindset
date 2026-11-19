@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/activity.dart';
 import '../core/rule_presets.dart';
+import '../core/service_catalog.dart';
 
 class RuleStarters extends StatelessWidget {
   const RuleStarters({
@@ -19,9 +20,12 @@ class RuleStarters extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
-    final showGroup = !rules.any(
-      (rule) => socialMediaPreset.sources.every(rule.sources.contains),
-    );
+    final categories = categoryPresets
+        .where(
+          (preset) =>
+              !rules.any((rule) => preset.sources.every(rule.sources.contains)),
+        )
+        .toList();
     final presets = individualRulePresets
         .where(
           (preset) => !rules.any(
@@ -49,16 +53,25 @@ class RuleStarters extends StatelessWidget {
       });
     }
     final body = <Widget>[
-      if (showGroup) ...[
+      if (categories.isNotEmpty) ...[
         Text(
-          'One daily limit shared by 17 social, messaging and video apps.',
+          'Limit a whole category. Its apps and sites share one daily limit.',
           style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 12),
-        FilledButton.icon(
-          onPressed: () => onSelected(socialMediaPreset),
-          icon: const Icon(Icons.shield_outlined, size: 18),
-          label: const Text('All social media'),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final preset in categories)
+              ActionChip(
+                backgroundColor: colors.surfaceContainerHighest,
+                side: BorderSide.none,
+                avatar: Icon(_categoryIcons[preset.name], size: 18),
+                label: Text(preset.name),
+                onPressed: () => onSelected(preset),
+              ),
+          ],
         ),
         const Padding(
           padding: EdgeInsets.symmetric(vertical: 18),
@@ -86,7 +99,7 @@ class RuleStarters extends StatelessWidget {
       ),
     ];
     final title = Text(
-      'Suggested apps',
+      'Suggestions',
       style: Theme.of(context).textTheme.titleMedium,
     );
     return Material(
@@ -113,3 +126,15 @@ class RuleStarters extends StatelessWidget {
     );
   }
 }
+
+const _categoryIcons = {
+  'Social media': Icons.people_outline_rounded,
+  'Messaging': Icons.chat_bubble_outline_rounded,
+  'Video and streaming': Icons.smart_display_outlined,
+  'Games': Icons.sports_esports_outlined,
+  'Shopping': Icons.shopping_bag_outlined,
+  'News and reading': Icons.article_outlined,
+  'AI chat': Icons.auto_awesome_outlined,
+  'Dating': Icons.favorite_border_rounded,
+  'Music and audio': Icons.headphones_outlined,
+};
