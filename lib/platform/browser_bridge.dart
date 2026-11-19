@@ -24,13 +24,11 @@ class BrowserBridge {
     required this.now,
     required this.trackingEnabled,
     required this.restrictions,
-    required this.onOverride,
   });
   final LocalStore store;
   final DateTime Function() now;
   final bool Function() trackingEnabled;
   final Map<String, Object> Function() restrictions;
-  final Future<void> Function(String source) onOverride;
   HttpServer? _server;
   final _requests = <Future<void>>{};
   final _random = Random.secure();
@@ -225,17 +223,6 @@ class BrowserBridge {
           _observations.remove(browserSource);
         }
         _reply(request, 200, {'enabled': trackingEnabled()});
-      } else if (request.uri.path == '/v1/override' &&
-          request.method == 'POST') {
-        final body = await _body(request);
-        final domain = body['domain'];
-        if (body.keys.any((key) => key != 'domain') ||
-            domain is! String ||
-            websiteHost(domain) == null) {
-          throw const FormatException('Host identifiers only.');
-        }
-        await onOverride('web:${websiteHost(domain)}');
-        _reply(request, 200, restrictions());
       } else {
         _reply(request, 404, {'error': 'Unknown browser request.'});
       }

@@ -15,17 +15,15 @@ export function hostFromUrl(value) {
 export function restrictionForHost(config, value) {
   const host = websiteHost(value);
   const matches = domain => { const root = websiteHost(domain); return root && (host === root || host?.endsWith(`.${root}`)); };
-  if (!config.enabled || !host || (config.allowed ?? []).some(matches)) return null;
+  if (!config.enabled || !host) return null;
   return (config.blocked ?? []).find(entry => matches(entry.domain)) ?? null;
 }
 
 export function buildRules(config, blockedPage) {
   if (!config.enabled) return [];
   const blocked = [...new Set((config.blocked ?? []).map(entry => websiteHost(entry.domain)).filter(Boolean))].sort();
-  const allowed = [...new Set((config.allowed ?? []).map(websiteHost).filter(Boolean))].sort();
   let id = 1;
   return [
     ...blocked.map(domain => ({id: id++, priority: 1, action: {type: "redirect", redirect: {url: `${blockedPage}#${encodeURIComponent(domain)}`}}, condition: {requestDomains: [domain], resourceTypes: ["main_frame"]}})),
-    ...allowed.map(domain => ({id: id++, priority: 2, action: {type: "allow"}, condition: {requestDomains: [domain], resourceTypes: ["main_frame"]}})),
   ];
 }

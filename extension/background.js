@@ -1,4 +1,4 @@
-import {hostFromUrl, buildRules, websiteHost, restrictionForHost} from "./policy.js";
+import {hostFromUrl, buildRules, restrictionForHost} from "./policy.js";
 
 const base = "http://127.0.0.1:47831/v1";
 // Firefox and its forks (Zen, LibreWolf, Floorp, Waterfox) all report "Firefox/".
@@ -73,15 +73,8 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
       await refresh();
       return {ok: true};
     }
-    if (sender.url?.startsWith(chrome.runtime.getURL("blocked.html"))) {
-      if (message.type === "override") {
-        const domain = websiteHost(message.domain);
-        if (!domain) throw new Error("Invalid website identifier.");
-        const config = await request("/override", {domain});
-        await apply(config);
-        return {ok: true};
-      }
-      if (message.type === "refresh") return {ok: true, config: await refresh()};
+    if (sender.url?.startsWith(chrome.runtime.getURL("blocked.html")) && message.type === "refresh") {
+      return {ok: true, config: await refresh()};
     }
     throw new Error("Unsupported Grindset request.");
   })().then(reply, error => reply({ok: false, error: error.message}));

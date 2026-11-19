@@ -114,7 +114,6 @@ void main() {
       now: () => now,
       trackingEnabled: () => controller.trackingEnabled,
       restrictions: controller.websiteRestrictions,
-      onOverride: controller.overrideSource,
     );
     await bridge.start(port: 0);
     controller.browserBridge = bridge;
@@ -217,14 +216,6 @@ void main() {
           '/v1/pair',
           origin: null,
           body: {'code': bridge.beginPairing()},
-        )).$1,
-        403,
-      );
-      expect(
-        (await request(
-          '/v1/override',
-          origin: null,
-          body: {'domain': 'example.com'},
         )).$1,
         403,
       );
@@ -337,7 +328,7 @@ void main() {
   );
 
   test(
-    'subdomain budgets share the policy and overrides do not lift another site',
+    'subdomain budgets share the policy, and there is no way to lift a block',
     () async {
       await pair();
       await controller.saveRule(
@@ -375,13 +366,15 @@ void main() {
         controller.restrictionForSource('web:sub.example.com'),
         'Daily budget reached',
       );
-      final result = await request(
-        '/v1/override',
-        body: {'domain': 'example.com'},
+      // The old temporary-override route is gone.
+      expect(
+        (await request('/v1/override', body: {'domain': 'example.com'})).$1,
+        404,
       );
-      expect(result.$1, 200);
-      expect(result.$2['allowed'], ['example.com']);
-      expect(controller.restrictionForSource('web:sub.example.com'), isNull);
+      expect(
+        controller.restrictionForSource('web:sub.example.com'),
+        'Daily budget reached',
+      );
       expect(
         controller.restrictionForSource('web:another.com'),
         'Daily budget reached',

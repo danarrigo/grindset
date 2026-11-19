@@ -1732,11 +1732,6 @@ class _HomeState extends State<_Home> {
                         : 'Return to Grindset',
                   ),
                 ),
-                const SizedBox(height: 8),
-                TextButton(
-                  onPressed: _busy ? null : () => _run(c.overrideBlock),
-                  child: const Text('Allow this app for 5 minutes'),
-                ),
                 const SizedBox(height: 20),
                 Text(
                   c.tracker.isWindows

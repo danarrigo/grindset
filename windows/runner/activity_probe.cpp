@@ -180,15 +180,11 @@ ActivityProbe::ActivityProbe(flutter::BinaryMessenger* messenger, HWND window)
       result->Success();
       return;
     }
-    if (call.method_name() == "presentRestriction" || call.method_name() == "restoreRestrictedApp") {
+    if (call.method_name() == "presentRestriction") {
       if (!args) { result->Error("INVALID_APP", "A selected app is required."); return; }
       const auto source_it = args->find(flutter::EncodableValue("source"));
       const auto* source = source_it == args->end() ? nullptr : std::get_if<std::string>(&source_it->second);
       if (!source) { result->Error("INVALID_APP", "An app source is required."); return; }
-      if (call.method_name() == "restoreRestrictedApp") {
-        result->Success(flutter::EncodableValue(restriction_.RestoreTarget(*source)));
-        return;
-      }
       const auto pid_it = args->find(flutter::EncodableValue("pid"));
       DWORD pid = 0;
       if (pid_it != args->end()) {

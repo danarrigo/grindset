@@ -122,7 +122,7 @@ class _FocusProfilesPanelState extends State<FocusProfilesPanel> {
                               : () async {
                                   if (await _confirm(
                                         'Use ${profile.name}?',
-                                        'This replaces the Block during focus selection on this device, including any current focus session. Budgets, schedules and existing five-minute overrides stay in place. No timer is started or stopped.',
+                                        'This replaces the Block during focus selection on this device, including any current focus session. Budgets and schedules stay in place. No timer is started or stopped.',
                                         'Use profile',
                                       ) &&
                                       mounted) {

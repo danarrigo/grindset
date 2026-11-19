@@ -145,10 +145,6 @@ void main() {
       tracker.source = 'windows:discord.exe';
       await sample();
       expect(interruptions, 2);
-      await controller.overrideBlock();
-      await sample();
-      expect(controller.blockedSource, isNull);
-      expect(interruptions, 2);
     },
   );
 
@@ -182,14 +178,6 @@ void main() {
     tracker.source = 'windows:lockin.exe';
     await controller.refresh();
     expect(controller.blockedSource, 'windows:discord.exe');
-    var restored = '';
-    controller.restoreWindowsApp = (source) async => restored = source;
-    await controller.overrideBlock();
-    expect(restored, 'windows:discord.exe');
-    tracker.source = 'windows:discord.exe';
-    await controller.refresh();
-    expect(enforcement, 2);
-    expect(controller.blockedSource, isNull);
   });
 
   test(

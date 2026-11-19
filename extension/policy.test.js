@@ -12,21 +12,19 @@ test("only host identifiers leave URL parsing", () => {
   assert.equal(hostFromUrl("file:///private.txt"), null);
 });
 
-test("blocking uses domain conditions and a source-specific override wins", () => {
+test("blocking uses domain conditions and has no way around it", () => {
+  // An old app's "allowed" list is ignored: there is no temporary override.
   const rules = buildRules({enabled: true, blocked: [{domain: "example.com"}, {domain: "another.com"}], allowed: ["example.com"]}, "chrome-extension://fixture/blocked.html");
-  assert.equal(rules.length, 3);
-  const block = rules.find(rule => rule.condition.requestDomains[0] === "example.com" && rule.action.type === "redirect");
-  const allow = rules.find(rule => rule.action.type === "allow");
-  assert.ok(allow.priority > block.priority);
-  assert.deepEqual(allow.condition.requestDomains, ["example.com"]);
-  assert.ok(rules.some(rule => rule.action.type === "redirect" && rule.condition.requestDomains[0] === "another.com"));
+  assert.equal(rules.length, 2);
+  assert.ok(rules.every(rule => rule.action.type === "redirect"));
+  assert.deepEqual(rules.map(rule => rule.condition.requestDomains[0]), ["another.com", "example.com"]);
 });
 
 test("an already-open subdomain is restricted without matching an unrelated suffix", () => {
-  const config = {enabled: true, blocked: [{domain: "example.com", reason: "Focus"}], allowed: []};
+  const config = {enabled: true, blocked: [{domain: "example.com", reason: "Focus"}]};
   assert.equal(restrictionForHost(config, "m.example.com")?.reason, "Focus");
   assert.equal(restrictionForHost(config, "example.com.evil.test"), null);
-  assert.equal(restrictionForHost({...config, allowed: ["example.com"]}, "m.example.com"), null);
+  assert.equal(restrictionForHost({...config, allowed: ["example.com"]}, "m.example.com")?.reason, "Focus");
 });
 
 test("disconnecting or disabling tracking clears all website rules", () => {

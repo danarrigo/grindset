@@ -190,40 +190,38 @@ void main() {
     },
   );
 
-  test(
-    'Android daily rules and overrides use the shared accounting policy',
-    () async {
-      records = [
-        {
-          'source': 'android:example.app',
-          'start': now
-              .subtract(const Duration(minutes: 1))
-              .millisecondsSinceEpoch,
-          'end': now.millisecondsSinceEpoch,
-        },
-      ];
-      foreground = 'android:example.app';
-      await controller.saveRule(
-        ActivityRule(
-          id: 'activity',
-          name: 'Distractions',
-          dailyMinutes: 1,
-          sources: ['android:example.app', 'android:another.app'],
-        ),
-      );
-      await controller.refresh();
-      await Future<void>.delayed(Duration.zero);
-      expect(controller.blockedSource, 'android:example.app');
-      expect(calls.where((c) => c.method == 'showBlock'), hasLength(1));
-      await controller.overrideBlock();
-      now = now.add(const Duration(seconds: 1));
-      await controller.refresh();
-      expect(controller.blockedSource, isNull);
-      foreground = 'android:another.app';
-      await controller.refresh();
-      expect(controller.blockedSource, 'android:another.app');
-    },
-  );
+  test('Android daily rules use the shared accounting policy and cannot be waved away', () async {
+    records = [
+      {
+        'source': 'android:example.app',
+        'start': now
+            .subtract(const Duration(minutes: 1))
+            .millisecondsSinceEpoch,
+        'end': now.millisecondsSinceEpoch,
+      },
+    ];
+    foreground = 'android:example.app';
+    await controller.saveRule(
+      ActivityRule(
+        id: 'activity',
+        name: 'Distractions',
+        dailyMinutes: 1,
+        sources: ['android:example.app', 'android:another.app'],
+      ),
+    );
+    await controller.refresh();
+    await Future<void>.delayed(Duration.zero);
+    expect(controller.blockedSource, 'android:example.app');
+    expect(calls.where((c) => c.method == 'showBlock'), hasLength(1));
+    // Leaving the block screen does not lift it: the app is blocked again.
+    controller.dismissBlock();
+    now = now.add(const Duration(seconds: 1));
+    await controller.refresh();
+    expect(controller.blockedSource, 'android:example.app');
+    foreground = 'android:another.app';
+    await controller.refresh();
+    expect(controller.blockedSource, 'android:another.app');
+  });
 
   test(
     'a notification stop remains authoritative if its Dart callback was lost',

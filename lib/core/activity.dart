@@ -205,9 +205,7 @@ String? blockingReason({
   required tz.Location location,
   required Iterable<UsageInterval> intervals,
   bool focusing = false,
-  DateTime? overrideUntil,
 }) {
-  if (overrideUntil != null && overrideUntil.isAfter(now)) return null;
   if (rule.schedules.any((s) => s.contains(now, location))) {
     return 'Scheduled restriction';
   }

@@ -115,16 +115,6 @@ class DesktopLifecycle with WindowListener, TrayListener {
     });
   }
 
-  Future<void> restoreRestrictedApp(String source) async {
-    await dismissRestriction();
-    await _serializeRestriction(() async {
-      await NativeTracker.windowsChannel.invokeMethod<bool>(
-        'restoreRestrictedApp',
-        {'source': source},
-      );
-    });
-  }
-
   @override
   void onWindowClose() {
     if (!_restrictionRequested) unawaited(windowManager.hide());

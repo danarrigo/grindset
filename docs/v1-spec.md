@@ -10,7 +10,7 @@ Approved scope: a personal Windows + Android focus product, potentially commerci
 - Device lock stops counting. Idle handling must not mistake foreground video playback for absence.
 - Session blocks, shared daily activity budgets, and recurring scheduled blocks. Any active restriction wins; a break disables only the session restriction.
 - Named activities link source identifiers such as a Windows domain and Android package. Shared budgets measure the UNION of that activity's intervals across devices, not their sum. Keep per-device reports separate. Count a shared focus session once.
-- An explicit override grants five minutes to the selected app/site on the current device, without stopping tracking or lifting other restrictions. This device scope is the proposed implementation default.
+- There is no override. A block lasts until its focus session, schedule window or budget day ends; the block screen only leaves the app (removed in 2026-11 to make blocking strict).
 - Work offline with local history/rules and other devices' last confirmed activity. Mark stale devices and pending uploads. Never extrapolate an offline device's open interval beyond its last confirmed observation. Reconcile on reconnection; a global budget can overshoot while disconnected.
 - One account timezone determines schedule/day boundaries; timestamps are UTC. Start from the first device's timezone and allow changing it.
 - Sync activity identifiers and timestamped intervals. Do not collect page titles, full URLs, screenshots, or keystrokes. Windows executable paths remain local.

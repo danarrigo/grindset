@@ -57,8 +57,6 @@ std::string RestrictionWindow::Present(DWORD pid, const std::string& source) {
   if (!SendMessageTimeoutW(target, WM_SYSCOMMAND, SC_MINIMIZE, 0,
                           SMTO_ABORTIFHUNG | SMTO_BLOCK, 200, &ignored) || !IsIconic(target)) return "refused";
   target_ = target;
-  target_pid_ = pid;
-  target_source_ = source;
   if (!active_) {
     was_visible_ = IsWindowVisible(window_) != FALSE;
     was_minimized_ = IsIconic(window_) != FALSE;
@@ -112,16 +110,6 @@ void RestrictionWindow::Dismiss() {
                bounds_.bottom - bounds_.top, SWP_FRAMECHANGED | SWP_NOACTIVATE);
   if (!was_visible_) ShowWindow(window_, SW_HIDE);
   else if (was_minimized_) ShowWindow(window_, SW_SHOWMINNOACTIVE);
-}
-
-bool RestrictionWindow::RestoreTarget(const std::string& source) {
-  Dismiss();
-  DWORD owner = 0;
-  GetWindowThreadProcessId(target_, &owner);
-  if (source != target_source_ || owner != target_pid_ || !MatchesApp(owner, source) || !IsIconic(target_)) return false;
-  ShowWindowAsync(target_, SW_RESTORE);
-  SetForegroundWindow(target_);
-  return true;
 }
 
 std::optional<LRESULT> RestrictionWindow::HandleMessage(UINT message, WPARAM wparam, LPARAM lparam) {

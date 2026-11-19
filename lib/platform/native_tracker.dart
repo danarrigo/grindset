@@ -177,15 +177,12 @@ class NativeTracker {
   }
 
   void bindAndroidActions({
-    required Future<void> Function() onOverride,
     required void Function() onDismiss,
     required Future<void> Function() onStopped,
     required void Function() onForegroundChanged,
   }) {
     channel.setMethodCallHandler((call) async {
       switch (call.method) {
-        case 'overrideRequested':
-          await onOverride();
         case 'dismissRequested':
           onDismiss();
         case 'trackingStopped':

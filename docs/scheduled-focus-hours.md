@@ -8,7 +8,7 @@ The editor and rule summary show the account timezone. An overnight window belon
 
 Tracking and the relevant blocking integration must be enabled. Windows needs Grindset running; website restrictions additionally need the paired browser extension. Android needs background tracking and the optional Display over other apps permission for app blocking. Quitting/turning tracking off stops enforcement; schedules do not create a service or bypass OS permissions. Physical Android background reliability remains a separate acceptance boundary.
 
-A five-minute source override temporarily allows that source during its schedule. Canceling the editor does not change rules. Turning off Scheduled focus hours and saving explicitly removes that activity's windows. Other activities remain unchanged.
+Canceling the editor does not change rules. Turning off Scheduled focus hours and saving explicitly removes that activity's windows. Other activities remain unchanged.
 
 ## v1.4.0 acceptance
 

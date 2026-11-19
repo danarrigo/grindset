@@ -217,8 +217,7 @@ object AppBlocker {
             TrackingRuntime.dismissRequested()
             app.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         })
-        content.addView(action("Allow this app for 5 minutes", true) { TrackingRuntime.overrideRequested() })
-        content.addView(text("Tracking stays on. Other restrictions remain active.", 13f))
+        content.addView(text("This app stays blocked until your rule ends.", 13f))
         val type = if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else {
             @Suppress("DEPRECATION")
             WindowManager.LayoutParams.TYPE_PHONE

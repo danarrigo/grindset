@@ -154,7 +154,6 @@ Future<void> main(List<String> args) async {
         now: () => controller.now,
         trackingEnabled: () => controller.trackingEnabled,
         restrictions: controller.websiteRestrictions,
-        onOverride: controller.overrideSource,
       );
       try {
         await bridge.start();
@@ -170,7 +169,6 @@ Future<void> main(List<String> args) async {
       try {
         await desktop.initialize(background: args.contains('--background'));
         controller.restrictWindowsApp = desktop.showRestriction;
-        controller.restoreWindowsApp = desktop.restoreRestrictedApp;
         controller.addListener(() {
           if (controller.blockedSource == null) {
             unawaited(

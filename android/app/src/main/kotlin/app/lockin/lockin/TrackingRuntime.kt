@@ -304,10 +304,6 @@ object TrackingRuntime {
         }
     }
 
-    fun overrideRequested() {
-        channel?.invokeMethod("overrideRequested", null)
-    }
-
     fun dismissRequested() {
         channel?.invokeMethod("dismissRequested", null)
     }

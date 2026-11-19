@@ -500,31 +500,35 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets(
-    'blocking and the single-app override remain reachable on Focus',
-    (tester) async {
-      final (controller, _) = await open();
-      await controller.saveRule(
-        ActivityRule(
-          id: 'browser',
-          name: 'Browser',
-          sources: ['windows:chrome.exe'],
-          dailyMinutes: 1,
-        ),
-      );
-      controller.blockedSource = 'windows:chrome.exe';
-      controller.blockMessage = 'Daily budget reached.';
-      viewport(tester, const Size(390, 844));
-      await tester.pumpWidget(LockinApp(controller: controller));
-      expect(find.text('Daily budget reached.'), findsOneWidget);
-      await tester.tap(find.text('Allow this app for 5 minutes'));
-      await tester.pumpAndSettle();
-      expect(controller.blockedSource, isNull);
-      expect(controller.rules.single.dailyMinutes, 1);
-      expect(find.text('Lock in'), findsOneWidget);
-      expect(controller.session, isNull);
-    },
-  );
+  testWidgets('the block screen has no way around the block, only a way out', (
+    tester,
+  ) async {
+    final (controller, _) = await open();
+    await controller.saveRule(
+      ActivityRule(
+        id: 'browser',
+        name: 'Browser',
+        sources: ['windows:chrome.exe'],
+        dailyMinutes: 1,
+      ),
+    );
+    controller.blockedSource = 'windows:chrome.exe';
+    controller.blockMessage = 'Daily budget reached.';
+    viewport(tester, const Size(390, 844));
+    await tester.pumpWidget(LockinApp(controller: controller));
+    expect(find.text('Daily budget reached.'), findsOneWidget);
+    expect(find.textContaining('5 minutes'), findsNothing);
+    await tester.tap(
+      find.text(
+        controller.tracker.isWindows ? 'Use other apps' : 'Return to Grindset',
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(controller.blockedSource, isNull);
+    expect(controller.rules.single.dailyMinutes, 1);
+    expect(find.text('Lock in'), findsOneWidget);
+    expect(controller.session, isNull);
+  });
 
   testWidgets('all mobile pages fit at 320 pixels with enlarged text', (
     tester,

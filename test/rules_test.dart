@@ -71,7 +71,7 @@ void main() {
     expect(springEnd.difference(springStart), const Duration(hours: 23));
     expect(fallEnd.difference(fallStart), const Duration(hours: 25));
   });
-  test('a break does not lift a daily restriction; override expires at its deadline', () {
+  test('a break does not lift a daily restriction', () {
     final now = DateTime.utc(2026, 11, 10, 10);
     final rule = ActivityRule(
       id: 'yt',
@@ -88,17 +88,16 @@ void main() {
         end: now,
       ),
     ];
-    String? reason({DateTime? override}) => blockingReason(
-      rule: rule,
-      now: now,
-      location: tz.UTC,
-      intervals: intervals,
-      focusing: false,
-      overrideUntil: override,
+    expect(
+      blockingReason(
+        rule: rule,
+        now: now,
+        location: tz.UTC,
+        intervals: intervals,
+        focusing: false,
+      ),
+      'Daily budget reached',
     );
-    expect(reason(), 'Daily budget reached');
-    expect(reason(override: now.add(const Duration(seconds: 1))), isNull);
-    expect(reason(override: now), 'Daily budget reached');
   });
   test(
     'usage is clipped at account midnight and at the last confirmed endpoint',

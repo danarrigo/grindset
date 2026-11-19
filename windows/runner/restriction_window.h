@@ -13,15 +13,12 @@ class RestrictionWindow {
   ~RestrictionWindow();
   std::string Present(DWORD pid, const std::string& source);
   void Dismiss();
-  bool RestoreTarget(const std::string& source);
   std::optional<LRESULT> HandleMessage(UINT message, WPARAM wparam, LPARAM lparam);
 
  private:
   void CoverMonitor();
   HWND window_;
   HWND target_ = nullptr;
-  DWORD target_pid_ = 0;
-  std::string target_source_;
   bool active_ = false;
   bool positioning_ = false;
   bool was_visible_ = false;

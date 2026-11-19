@@ -61,7 +61,6 @@ class AppController extends ChangeNotifier {
   int _ticks = 0;
   DateTime? _previousObservation;
   ({String id, String source, DateTime start})? _openInterval;
-  final Map<String, DateTime> _overrides = {};
   DateTime get now => _clock().toUtc();
   String deviceId = '';
   String timezone = 'UTC';
@@ -171,7 +170,6 @@ class AppController extends ChangeNotifier {
   }
 
   Future<bool> Function(ForegroundApp app)? restrictWindowsApp;
-  Future<void> Function(String source)? restoreWindowsApp;
   VoidCallback? onSharedChange;
 
   Future<void> initialize({
@@ -228,19 +226,11 @@ class AppController extends ChangeNotifier {
           ),
         )
         .toList();
-    final overrides = await store.setting('overrides');
-    if (overrides != null) {
-      (jsonDecode(overrides) as Map<String, dynamic>).forEach((key, value) {
-        final until = DateTime.parse(value as String);
-        if (until.isAfter(now)) _overrides[key] = until;
-      });
-    }
     _lastAndroidImport = DateTime.tryParse(
       await store.setting('android_imported_until') ?? '',
     );
     if (tracker.isAndroid) {
       tracker.bindAndroidActions(
-        onOverride: overrideBlock,
         onDismiss: dismissBlock,
         onStopped: () => disableTracking(notifyNative: false),
         onForegroundChanged: requestForegroundCheck,
@@ -723,29 +713,6 @@ class AppController extends ChangeNotifier {
     if (!status.enabled && blockedSource != null) dismissBlock();
   }
 
-  Future<void> overrideBlock() async {
-    final source = blockedSource;
-    if (source != null) {
-      await overrideSource(source);
-      await restoreWindowsApp?.call(source);
-    }
-  }
-
-  Future<void> overrideSource(String source) async {
-    if (_resetting) throw StateError('Device reset is in progress.');
-    final until = now.add(const Duration(minutes: 5));
-    final next = {..._overrides, source: until};
-    await store.saveSetting(
-      'overrides',
-      jsonEncode(next.map((k, v) => MapEntry(k, v.toIso8601String()))),
-    );
-    _overrides[source] = until;
-    if (blockedSource != null && matchesSource(source, blockedSource!)) {
-      dismissBlock();
-    }
-    _changed();
-  }
-
   void dismissBlock() {
     if (tracker.isAndroid && blockedSource != null) {
       unawaited(
@@ -1007,17 +974,6 @@ class AppController extends ChangeNotifier {
     _lastWebObservation = at;
   }
 
-  DateTime? _overrideUntil(String source) {
-    DateTime? latest;
-    for (final entry in _overrides.entries) {
-      if (matchesSource(entry.key, source) &&
-          (latest == null || entry.value.isAfter(latest))) {
-        latest = entry.value;
-      }
-    }
-    return latest;
-  }
-
   Map<String, Object> websiteRestrictions() {
     final blocked = <Map<String, String>>[];
     for (final source
@@ -1032,18 +988,7 @@ class AppController extends ChangeNotifier {
         blocked.add({'domain': host, 'reason': reason});
       }
     }
-    final allowed = _overrides.entries
-        .where(
-          (entry) => entry.key.startsWith('web:') && entry.value.isAfter(now),
-        )
-        .map((entry) => websiteHost(entry.key.substring(4)))
-        .nonNulls
-        .toList();
-    return {
-      'enabled': trackingEnabled,
-      'blocked': blocked,
-      'allowed': trackingEnabled ? allowed : <String>[],
-    };
+    return {'enabled': trackingEnabled, 'blocked': blocked};
   }
 
   String? restrictionForSource(String source) {
@@ -1057,7 +1002,6 @@ class AppController extends ChangeNotifier {
         location: location,
         intervals: usage,
         focusing: session?.focusing(now) ?? false,
-        overrideUntil: _overrideUntil(source),
       );
       if (reason != null) break;
     }
