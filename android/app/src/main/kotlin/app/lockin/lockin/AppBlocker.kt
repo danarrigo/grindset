@@ -37,6 +37,10 @@ object AppBlocker {
     @Volatile private var system: Pair<Long, Set<String>>? = null
     @Volatile private var blockedSince = 0L
     @Volatile private var notedAt = 0L
+
+    /** When the user last left a blocked app with "Go home". */
+    @Volatile var leftAt = 0L
+        private set
     private const val PERIODS = "blocked_periods"
     private const val KEEP_MS = 3 * 86_400_000L
     private val protectedPackages = setOf(
@@ -201,6 +205,10 @@ object AppBlocker {
         }
         content.addView(action("Go home", false) {
             hideBlock(app)
+            // Usage history and checks already under way still describe the
+            // blocked app; neither may bring the block back over home.
+            leftAt = System.currentTimeMillis()
+            notedAt = leftAt
             foreground = null
             lastSource = null
             TrackingRuntime.dismissRequested()

@@ -254,9 +254,12 @@ object TrackingRuntime {
                     }
                 }
                 "foregroundSource" -> executor.execute {
+                    val asked = System.currentTimeMillis()
                     // Usage-event queries are binder calls: keep them off the UI thread.
-                    val source = try { AppBlocker.detect(context) } catch (_: Exception) { null }
+                    val detected = try { AppBlocker.detect(context) } catch (_: Exception) { null }
                     main.post {
+                        // A check that began before "Go home" is out of date.
+                        val source = if (asked < AppBlocker.leftAt) null else detected
                         AppBlocker.applyDetected(context, source)
                         result.success(source)
                     }
