@@ -168,20 +168,16 @@ object TrackingRuntime {
 
     /**
      * Whether this build has the Play Store edition's instant blocking service,
-     * and whether the user turned it on in Accessibility settings.
+     * and whether Android is actually running it.
      */
     private fun instantBlocking(context: Context, enabledOnly: Boolean): Boolean {
-        if (!enabledOnly) {
-            val manager = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
-            return manager.installedAccessibilityServiceList
-                .any { it.resolveInfo.serviceInfo.packageName == context.packageName }
-        }
-        // The user's setting itself. AccessibilityManager's enabled list is
-        // cached per process and was seen to stay stale after turning it on.
-        val enabled = Settings.Secure.getString(
-            context.contentResolver, Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES,
-        ) ?: return false
-        return enabled.split(':').any { it.substringBefore('/') == context.packageName }
+        // Only the service knows: AccessibilityManager's enabled list is cached
+        // per process, and the Accessibility setting can list the service while
+        // Android runs nothing (seen on a vivo phone after a reinstall).
+        if (enabledOnly) return AppBlocker.instantConnected
+        val manager = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as AccessibilityManager
+        return manager.installedAccessibilityServiceList
+            .any { it.resolveInfo.serviceInfo.packageName == context.packageName }
     }
 
     private val recheck = Runnable { channel?.invokeMethod("foregroundChanged", null) }

@@ -38,6 +38,9 @@ object AppBlocker {
     @Volatile private var blockedSince = 0L
     @Volatile private var notedAt = 0L
 
+    /** Set by the Play Store edition's instant blocking service while Android runs it. */
+    @Volatile var instantConnected = false
+
     /** When the user last left a blocked app with "Go home". */
     @Volatile var leftAt = 0L
         private set

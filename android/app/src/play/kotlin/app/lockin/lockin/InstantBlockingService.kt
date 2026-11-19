@@ -1,6 +1,7 @@
 package app.lockin.lockin
 
 import android.accessibilityservice.AccessibilityService
+import android.content.Intent
 import android.view.accessibility.AccessibilityEvent
 
 /**
@@ -10,6 +11,20 @@ import android.view.accessibility.AccessibilityEvent
  * content is never read.
  */
 class InstantBlockingService : AccessibilityService() {
+    override fun onServiceConnected() {
+        AppBlocker.instantConnected = true
+    }
+
+    override fun onUnbind(intent: Intent?): Boolean {
+        AppBlocker.instantConnected = false
+        return super.onUnbind(intent)
+    }
+
+    override fun onDestroy() {
+        AppBlocker.instantConnected = false
+        super.onDestroy()
+    }
+
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event?.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
         val pkg = event.packageName?.toString() ?: return
