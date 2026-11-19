@@ -816,6 +816,13 @@ final List<CatalogService> catalogServices = List.unmodifiable([
     logo: 'firefox.com',
   ),
   const CatalogService(
+    'Zen Browser',
+    _browser,
+    {'windows:zen.exe'},
+    aliases: ['zen', 'browser'],
+    logo: 'zen-browser.app',
+  ),
+  const CatalogService(
     'Brave',
     _browser,
     {'android:com.brave.browser', 'windows:brave.exe'},

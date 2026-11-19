@@ -39,6 +39,28 @@ class BrowserBridge {
   DateTime? _pairingUntil;
   int _attempts = 0;
   final _observations = <String, BrowserObservation>{};
+
+  /// Chrome/Edge extension IDs, or a Firefox-based browser's per-install UUID.
+  static final _extensionOrigin = RegExp(
+    r'^(chrome-extension://[a-p]{32}|moz-extension://[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$',
+  );
+
+  /// The browser an extension reports, and its Windows app.
+  static const _browsers = {
+    'chrome': 'windows:chrome.exe',
+    'edge': 'windows:msedge.exe',
+    'firefox': 'windows:firefox.exe',
+  };
+
+  /// Firefox-based browsers look identical to the extension, so a "firefox"
+  /// heartbeat counts while any of them is in front.
+  static const _geckoBrowsers = {
+    'windows:firefox.exe',
+    'windows:zen.exe',
+    'windows:librewolf.exe',
+    'windows:floorp.exe',
+    'windows:waterfox.exe',
+  };
   int get port => _server!.port;
   bool get isListening => _server != null;
   DateTime? lastPolicyRequestAt;
@@ -82,7 +104,10 @@ class BrowserBridge {
 
   BrowserObservation? observationFor(String foregroundSource) {
     if (!trackingEnabled()) return null;
-    final value = _observations[foregroundSource];
+    final value =
+        _observations[_geckoBrowsers.contains(foregroundSource)
+            ? _browsers['firefox']
+            : foregroundSource];
     if (value == null ||
         now().difference(value.observedAt) > const Duration(seconds: 12) ||
         value.observedAt.isAfter(now())) {
@@ -122,8 +147,7 @@ class BrowserBridge {
           request.method == 'GET' &&
           request.uri.path == '/v1/rules';
       if (!originlessRulesRead &&
-          (origin == null ||
-              !RegExp(r'^chrome-extension://[a-p]{32}$').hasMatch(origin))) {
+          (origin == null || !_extensionOrigin.hasMatch(origin))) {
         _reply(request, 403, {'error': 'Browser extension origin required.'});
         return;
       }
@@ -180,14 +204,12 @@ class BrowserBridge {
                 'mediaPlaying',
               }.contains(key),
             ) ||
-            !{'chrome', 'edge'}.contains(body['browser']) ||
+            !_browsers.containsKey(body['browser']) ||
             body['focused'] is! bool ||
             body['mediaPlaying'] is! bool) {
           throw const FormatException('Invalid heartbeat.');
         }
-        final browserSource = body['browser'] == 'edge'
-            ? 'windows:msedge.exe'
-            : 'windows:chrome.exe';
+        final browserSource = _browsers[body['browser']]!;
         final domain = body['domain'];
         if (domain != null &&
             (domain is! String || websiteHost(domain) == null)) {

@@ -2,6 +2,12 @@
 
 The unpacked Manifest V3 extension in `extension/` supports Chrome and Edge on Windows. It needs the running Windows app and explicit tracking consent. It is not published or store-reviewed.
 
+## Firefox and Zen
+
+The same extension runs in Firefox-based browsers (Firefox 128+, Zen, LibreWolf, Floorp, Waterfox). Its manifest names both a Chrome service worker and a Firefox module background script; each browser uses its own. A Firefox-based browser reports itself as `firefox`, and its heartbeat counts while any of those browsers' executables is in front, since the extension cannot tell them apart. The app accepts `moz-extension://<uuid>` origins alongside Chrome/Edge extension IDs.
+
+Firefox release builds, and Zen, install only Mozilla-signed extensions permanently. Upload the extension folder's files (zipped at the root) to addons.mozilla.org as a self-distributed ("On your own") add-on; Mozilla signs it without listing it and returns an `.xpi` to install. Unsigned, it can only be loaded temporarily from `about:debugging` until the browser restarts. Firefox grants site access on request, so pairing asks for it first.
+
 ## Pairing
 
 1. Open `chrome://extensions` or `edge://extensions`, enable Developer Mode and load the repo's `extension/` directory.

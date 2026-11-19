@@ -141,6 +141,43 @@ void main() {
     expect(bridge.lastPolicyRequestAt, isNull);
   });
 
+  test('a Firefox-based browser pairs, and its heartbeat counts while Zen is in front', () async {
+    const firefox = 'moz-extension://0f1e2d3c-4b5a-4697-8877-665544332211';
+    final paired = await request(
+      '/v1/pair',
+      body: {'code': bridge.beginPairing()},
+      origin: firefox,
+      authorized: false,
+    );
+    expect(paired.$1, 200);
+    token = paired.$2['token'] as String;
+    expect(
+      (await request(
+        '/v1/heartbeat',
+        origin: firefox,
+        body: {
+          'browser': 'firefox',
+          'domain': 'example.com',
+          'focused': true,
+          'mediaPlaying': false,
+        },
+      )).$1,
+      200,
+    );
+    expect(bridge.observationFor('windows:zen.exe')?.source, 'web:example.com');
+    expect(
+      bridge.observationFor('windows:firefox.exe')?.source,
+      'web:example.com',
+    );
+    // Another browser in front does not borrow the Firefox heartbeat.
+    expect(bridge.observationFor('windows:chrome.exe'), isNull);
+    // A look-alike origin is still refused.
+    expect(
+      (await request('/v1/rules', origin: 'moz-extension://not-a-uuid')).$1,
+      403,
+    );
+  });
+
   test('pairing requires an extension origin, a live code and an authenticated token', () async {
     final code = bridge.beginPairing();
     expect(

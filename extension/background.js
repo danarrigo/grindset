@@ -1,7 +1,8 @@
 import {hostFromUrl, buildRules, websiteHost, restrictionForHost} from "./policy.js";
 
 const base = "http://127.0.0.1:47831/v1";
-const browser = navigator.userAgent.includes("Edg/") ? "edge" : "chrome";
+// Firefox and its forks (Zen, LibreWolf, Floorp, Waterfox) all report "Firefox/".
+const browser = navigator.userAgent.includes("Firefox/") ? "firefox" : navigator.userAgent.includes("Edg/") ? "edge" : "chrome";
 let syncing;
 let policyUpdate = Promise.resolve();
 
@@ -88,7 +89,8 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
 });
 
 async function wake() {
-  await chrome.storage.local.setAccessLevel({accessLevel: "TRUSTED_CONTEXTS"});
+  // Chrome only; Firefox never exposes extension storage to content scripts.
+  await chrome.storage.local.setAccessLevel?.({accessLevel: "TRUSTED_CONTEXTS"});
   await chrome.alarms.create("lockin", {periodInMinutes: 0.5});
   await refresh().catch(() => {});
 }
