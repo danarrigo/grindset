@@ -267,4 +267,50 @@ void main() {
     expect(saved!.sources, isNot(contains('android:com.google.android.gm')));
     expect(saved!.sources, isNot(contains('web:gmail.com')));
   });
+
+  testWidgets(
+    'most-used apps come first and phone apps are picked by name, never by ID',
+    (tester) async {
+      ActivityRule? saved;
+      await open(
+        tester,
+        RuleEditor(
+          sources: {},
+          recentUse: const [
+            (source: 'web:youtube.com', duration: Duration(hours: 2)),
+            (source: 'windows:chrome.exe', duration: Duration(hours: 5)),
+            (
+              source: 'android:com.example.game',
+              duration: Duration(minutes: 40),
+            ),
+            (
+              source: 'android:com.google.android.youtube',
+              duration: Duration(minutes: 30),
+            ),
+          ],
+          loadInstalledApps: () async => {
+            'android:com.example.game': 'Pocket Knights',
+            'android:com.example.notes': 'Field Notes',
+          },
+        ),
+        (value) => saved = value,
+      );
+      expect(find.text('You use these most'), findsOneWidget);
+      // YouTube's app and site add up; the whole browser is never suggested.
+      expect(find.text('2 hr 30 min this week'), findsOneWidget);
+      expect(find.text('Chrome'), findsNothing);
+      expect(find.text('40 min this week'), findsOneWidget);
+      // An installed app with no catalog entry shows by its own name.
+      await tester.enterText(
+        find.widgetWithText(TextField, 'Search apps and websites'),
+        'field',
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Field Notes'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.widgetWithText(TextField, 'Name'), 'Notes');
+      await tap(tester, 'Save rule');
+      expect(saved!.sources, ['android:com.example.notes']);
+    },
+  );
 }

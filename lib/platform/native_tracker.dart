@@ -197,6 +197,14 @@ class NativeTracker {
     });
   }
 
+  /// Apps on this phone with a home-screen icon: package name to app name.
+  Future<Map<String, String>> androidInstalledApps() async {
+    final value = await channel
+        .invokeMapMethod<String, String>('installedApps')
+        .timeout(const Duration(seconds: 20));
+    return value ?? {};
+  }
+
   /// Installed Android app labels and PNG icons, keyed by package name.
   /// Packages that are not installed are omitted.
   Future<Map<String, ({String label, Uint8List icon})>> androidAppDetails(

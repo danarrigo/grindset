@@ -356,6 +356,8 @@ class _HomeState extends State<_Home> {
       ...c.rules.expand((r) => r.sources),
     };
     c.requestAppDetails(seen);
+    final recentUse = await c.recentUse();
+    if (!mounted) return;
     final result = await showDialog<ActivityRule>(
       context: context,
       // Rebuilds as installed app names and icons arrive.
@@ -369,6 +371,14 @@ class _HomeState extends State<_Home> {
           loadWindowsApps: c.tracker.isWindows ? WindowsApps.list : null,
           browseWindowsApp: c.tracker.isWindows ? WindowsApps.browse : null,
           labelFor: (source) => c.appDetails[source]?.label,
+          recentUse: recentUse,
+          loadInstalledApps: c.tracker.isAndroid
+              ? () async => {
+                  for (final MapEntry(:key, :value)
+                      in (await c.tracker.androidInstalledApps()).entries)
+                    'android:$key': value,
+                }
+              : null,
           iconFor: (sources, name, size) {
             c.requestAppDetails(sources);
             return ListenableBuilder(

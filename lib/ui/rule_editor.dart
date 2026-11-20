@@ -6,6 +6,7 @@ import '../core/activity.dart';
 import '../core/rule_presets.dart';
 import '../core/service_catalog.dart';
 import '../platform/windows_apps.dart';
+import 'appearance.dart';
 import 'schedule_summary.dart';
 import 'source_label.dart';
 
@@ -21,6 +22,8 @@ class RuleEditor extends StatefulWidget {
     this.browseWindowsApp,
     this.iconFor,
     this.labelFor,
+    this.loadInstalledApps,
+    this.recentUse = const [],
   }) : assert(rule == null || preset == null),
        assert(!scheduledFocus || rule == null);
   final Set<String> sources;
@@ -37,6 +40,12 @@ class RuleEditor extends StatefulWidget {
 
   /// The installed app's own name for a source, when known.
   final String? Function(String source)? labelFor;
+
+  /// Every app on this phone, as source to name, so none needs typing.
+  final Future<Map<String, String>> Function()? loadInstalledApps;
+
+  /// Time per source over the last week, most first, for "You use these most".
+  final List<({String source, Duration duration})> recentUse;
   @override
   State<RuleEditor> createState() => _RuleEditorState();
 }
@@ -56,6 +65,7 @@ class _RuleEditorState extends State<RuleEditor> {
   late bool _picking;
   late final List<_ScheduleDraft> _schedules;
   final _windowsApps = <String, WindowsApp>{};
+  final _installed = <String, String>{};
   bool _loadingApps = false;
   String? _appsError;
   final _openFamilies = <String>{};
@@ -85,6 +95,9 @@ class _RuleEditorState extends State<RuleEditor> {
         _ScheduleDraft(window),
     ];
     if (_schedules.isEmpty) _schedules.add(_ScheduleDraft());
+    widget.loadInstalledApps?.call().then((apps) {
+      if (mounted) setState(() => _installed.addAll(apps));
+    }, onError: (Object _) {});
   }
 
   @override
@@ -192,6 +205,7 @@ class _RuleEditorState extends State<RuleEditor> {
   String _appName(String source) =>
       serviceFor(source)?.name ??
       _windowsApps[source.toLowerCase()]?.name ??
+      _installed[source] ??
       widget.labelFor?.call(source) ??
       sourceName(source);
 
@@ -234,6 +248,7 @@ class _RuleEditorState extends State<RuleEditor> {
     final observed = {
       ...widget.sources,
       ..._windowsApps.keys,
+      ..._installed.keys,
       ...?widget.rule?.sources,
     }.map((s) => s.startsWith('windows:') ? s.toLowerCase() : s);
     return [
@@ -252,15 +267,48 @@ class _RuleEditorState extends State<RuleEditor> {
     ]..sort((a, b) => a.name.toLowerCase().compareTo(b.name.toLowerCase()));
   }
 
+  /// The apps and sites with the most time this week, grouped the way the
+  /// picker shows them. Whole browsers are left out: blocking one blocks
+  /// every site, which the sites themselves cover better.
+  List<_Choice> _mostUsed() {
+    final totals = <String, (Duration, Set<String>)>{};
+    for (final (:source, :duration) in widget.recentUse) {
+      if (duration < const Duration(minutes: 1) ||
+          serviceFor(source)?.category == 'Whole browser') {
+        continue;
+      }
+      final name = _appName(source);
+      final (time, sources) = totals[name] ?? (Duration.zero, <String>{});
+      totals[name] = (time + duration, {...sources, source});
+    }
+    final top = totals.entries.toList()
+      ..sort((a, b) => b.value.$1.compareTo(a.value.$1));
+    return [
+      for (final MapEntry(key: name, value: (time, sources)) in top.take(5))
+        if (serviceNamed(name) case final service?)
+          _Choice(service.name, {
+            ...service.sources,
+            ...sources,
+          }, '${durationLabel(time)} this week')
+        else
+          _Choice(name, sources, '${durationLabel(time)} this week'),
+    ];
+  }
+
   /// Picker rows: suggestions by section with an empty search, otherwise
   /// the best matches from everything.
   List<(String?, _Choice)> _results() {
     final device = _deviceApps();
     final query = _sourceQuery;
     if (query.isEmpty) {
-      final shown = {for (final c in device) c.name};
+      final mostUsed = _mostUsed();
+      final shown = {
+        for (final c in [...mostUsed, ...device]) c.name,
+      };
       return [
-        for (final c in device) ('On this device', c),
+        for (final c in mostUsed) ('You use these most', c),
+        for (final c in device)
+          if (!mostUsed.any((m) => m.name == c.name)) ('On this device', c),
         for (final preset in individualRulePresets)
           if (!shown.contains(preset.name))
             ('Popular', _serviceChoice(serviceNamed(preset.name)!)),

@@ -242,6 +242,17 @@ object TrackingRuntime {
                     })
                     result.success(null)
                 }
+                "installedApps" -> executor.execute {
+                    // Apps with a home-screen icon, by name, for picking in Rules.
+                    // Launchers, keyboards and Grindset itself are never blocked.
+                    val pm = context.packageManager
+                    val skip = AppBlocker.systemPackages(context)
+                    val apps = pm.queryIntentActivities(
+                        Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER), 0,
+                    ).filter { it.activityInfo.packageName !in skip }
+                        .associate { it.activityInfo.packageName to it.loadLabel(pm).toString() }
+                    main.post { result.success(apps) }
+                }
                 "appDetails" -> {
                     val packages = checkNotNull(call.argument<List<String>>("packages"))
                     executor.execute {

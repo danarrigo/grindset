@@ -424,6 +424,20 @@ class AppController extends ChangeNotifier {
     }
   }
 
+  /// Time per app or site over the last 7 days on all devices, most first.
+  Future<List<({String source, Duration duration})>> recentUse() async {
+    final from = now.subtract(const Duration(days: 7));
+    final rows = await store.usage(from: from);
+    final bySource = <String, List<UsageInterval>>{};
+    for (final row in rows) {
+      (bySource[row.source] ??= []).add(row);
+    }
+    return [
+      for (final MapEntry(:key, :value) in bySource.entries)
+        (source: key, duration: combinedUsage(value, from: from, until: now)),
+    ]..sort((a, b) => b.duration.compareTo(a.duration));
+  }
+
   Duration deviceUsage(String id) => combinedUsage(
     usage.where((i) => i.deviceId == id),
     from: accountDay(now, location).$1,
