@@ -608,7 +608,6 @@ void main() {
     tester.view.viewInsets = const FakeViewPadding(bottom: 280);
     addTearDown(tester.view.resetViewInsets);
     await tester.pumpAndSettle();
-    await tester.enterText(find.byType(TextFormField).first, 'YouTube');
     // Typed websites and app IDs keep working, whatever the keyboard
     // capitalizes. Enter adds what was typed.
     final search = find.widgetWithText(TextField, 'Search apps and websites');
@@ -625,6 +624,14 @@ void main() {
     }
     expect(tester.testTextInput.setClientArgs!['autocorrect'], isFalse);
     expect(tester.testTextInput.setClientArgs!['enableSuggestions'], isFalse);
+    // Typed identifiers name the rule until a name is typed.
+    final name = find.widgetWithText(TextFormField, 'Rule name');
+    expect(
+      tester.widget<TextFormField>(name).controller!.text,
+      'com.google.android.youtube and youtube.com',
+    );
+    await tester.ensureVisible(name);
+    await tester.enterText(name, 'YouTube');
     // Let the field finish scrolling its caret into view first.
     await tester.pumpAndSettle();
     await tester.ensureVisible(find.text('Save rule'));
@@ -1138,4 +1145,44 @@ void main() {
     );
     expect(await store.setting('theme'), 'light');
   });
+
+  testWidgets(
+    'an app in Activity can be limited in one tap, and limits add up',
+    (tester) async {
+      final now = DateTime.utc(2026, 11, 10, 10);
+      final (controller, store) = await open(clock: () => now);
+      await store.putUsage(
+        UsageInterval(
+          id: 'yt',
+          deviceId: controller.deviceId,
+          source: 'web:youtube.com',
+          start: now.subtract(const Duration(seconds: 30)),
+          end: now,
+        ),
+      );
+      await controller.reloadUsage();
+      viewport(tester, const Size(390, 844));
+      await tester.pumpWidget(LockinApp(controller: controller));
+      await navigate(tester, 1);
+      await tester.tap(find.byTooltip('Limit YouTube'));
+      await tester.pumpAndSettle();
+      expect(find.text('Limit YouTube'), findsOneWidget);
+      await tester.ensureVisible(find.text('Save rule'));
+      await tester.tap(find.text('Save rule'));
+      await tester.pumpAndSettle();
+      final rule = controller.rules.single;
+      expect(rule.name, 'YouTube');
+      expect(rule.dailyMinutes, 30);
+      expect(
+        rule.sources,
+        containsAll(['web:youtube.com', 'android:com.google.android.youtube']),
+      );
+      // Once limited, the button is gone.
+      await navigate(tester, 1);
+      expect(find.byTooltip('Limit YouTube'), findsNothing);
+      // 30 seconds used: "left" and "used" add up to the limit.
+      await navigate(tester, 2);
+      expect(find.text('30 min left today · 0 min of 30 min'), findsOneWidget);
+    },
+  );
 }

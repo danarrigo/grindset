@@ -9,6 +9,7 @@ import 'app_controller.dart';
 import 'core/activity.dart';
 import 'core/focus_session.dart';
 import 'core/rule_presets.dart';
+import 'core/service_catalog.dart';
 import 'data/cloud_sync.dart';
 import 'ui/appearance.dart';
 import 'ui/cloud_panel.dart';
@@ -1106,6 +1107,27 @@ class _HomeState extends State<_Home> {
                     ],
                   ),
                 ),
+                if (!c.rules.any(
+                  (rule) => rule.sources.any(
+                    (source) => matchesSource(source, item.source),
+                  ),
+                ))
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Tooltip(
+                      message: 'Limit ${displayName(c, item.source)}',
+                      child: TextButton(
+                        onPressed: () => _editRule(
+                          preset: RulePreset(
+                            serviceFor(item.source)?.name ??
+                                displayName(c, item.source),
+                            {...?serviceFor(item.source)?.sources, item.source},
+                          ),
+                        ),
+                        child: const Text('Limit'),
+                      ),
+                    ),
+                  ),
               ],
             ),
           ),
@@ -1351,7 +1373,7 @@ class _HomeState extends State<_Home> {
           Text(
             over
                 ? 'Daily limit reached · ${durationLabel(used)} of ${durationLabel(limit)}'
-                : '${durationLabel(limit - used)} left today · ${durationLabel(used)} of ${durationLabel(limit)}',
+                : '${durationLabel(Duration(minutes: limit.inMinutes - used.inMinutes))} left today · ${durationLabel(used)} of ${durationLabel(limit)}',
             style: TextStyle(
               fontSize: 13,
               color: over ? colors.error : colors.onSurfaceVariant,

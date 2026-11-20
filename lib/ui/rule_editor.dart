@@ -70,6 +70,12 @@ class _RuleEditorState extends State<RuleEditor> {
   String? _error;
   String _sourceQuery = '';
 
+  /// Once the name is typed, picking apps no longer renames the rule.
+  late bool _nameEdited = widget.rule != null || widget.preset != null;
+
+  /// What was tapped, in order, for naming the rule after it.
+  final _picks = <String, Set<String>>{};
+
   @override
   void initState() {
     super.initState();
@@ -157,14 +163,28 @@ class _RuleEditorState extends State<RuleEditor> {
   void _toggle(_Choice choice, bool add) => setState(() {
     if (add) {
       _selected.addAll(choice.sources);
-      if (_name.text.trim().isEmpty) _name.text = choice.name;
+      _picks[choice.name] = choice.sources;
     } else {
       // Only what this choice covers: unticking Gmail keeps google.com.
       _selected.removeWhere(
         (selected) => choice.sources.any((s) => matchesSource(s, selected)),
       );
     }
+    if (!_nameEdited) _name.text = _autoName();
   });
+
+  /// "YouTube", "YouTube and TikTok", "YouTube, TikTok and 2 more", after
+  /// the choices tapped that still have something selected.
+  String _autoName() {
+    _picks.removeWhere((_, sources) => !sources.any(_selected.contains));
+    final names = _picks.keys.toList();
+    return switch (names.length) {
+      0 => '',
+      1 => names.single,
+      2 => '${names[0]} and ${names[1]}',
+      _ => '${names[0]}, ${names[1]} and ${names.length - 2} more',
+    };
+  }
 
   void _save() {
     if (!_form.currentState!.validate()) return;
@@ -419,7 +439,8 @@ class _RuleEditorState extends State<RuleEditor> {
           _search.clear();
           if (browse) {
             _selected.add(apps.single.source);
-            if (_name.text.trim().isEmpty) _name.text = apps.single.name;
+            _picks[apps.single.name] = {apps.single.source};
+            if (!_nameEdited) _name.text = _autoName();
           }
         } else if (!browse) {
           _appsError = 'No apps found. Use Browse to pick the app instead.';
@@ -525,21 +546,6 @@ class _RuleEditorState extends State<RuleEditor> {
                   const SizedBox(height: 6),
                   Text(intro, style: Theme.of(context).textTheme.bodySmall),
                 ],
-                const SizedBox(height: 20),
-                TextFormField(
-                  controller: _name,
-                  autofocus: widget.rule == null && widget.preset == null,
-                  decoration: const InputDecoration(
-                    labelText: 'Name',
-                    hintText: 'e.g. YouTube',
-                  ),
-                  onChanged: (_) => setState(() {}),
-                  validator: (v) => v == null || v.trim().isEmpty
-                      ? 'Give this rule a name'
-                      : v.trim().length > 120
-                      ? 'Use up to 120 characters'
-                      : null,
-                ),
                 _sectionTitle('Apps and websites'),
                 if (_selected.isEmpty)
                   Text(
@@ -569,6 +575,19 @@ class _RuleEditorState extends State<RuleEditor> {
                   )
                 else
                   _picker(colors, desktop),
+                if (_selected.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  TextFormField(
+                    controller: _name,
+                    decoration: const InputDecoration(labelText: 'Rule name'),
+                    onChanged: (_) => setState(() => _nameEdited = true),
+                    validator: (v) => v == null || v.trim().isEmpty
+                        ? 'Give this rule a name'
+                        : v.trim().length > 120
+                        ? 'Use up to 120 characters'
+                        : null,
+                  ),
+                ],
                 _sectionTitle('Block it'),
                 CheckboxListTile(
                   contentPadding: EdgeInsets.zero,
@@ -725,7 +744,10 @@ class _RuleEditorState extends State<RuleEditor> {
         IconButton(
           tooltip: 'Remove $name',
           icon: const Icon(Icons.close_rounded, size: 20),
-          onPressed: () => setState(() => _selected.removeAll(sources)),
+          onPressed: () => setState(() {
+            _selected.removeAll(sources);
+            if (!_nameEdited) _name.text = _autoName();
+          }),
         ),
       ],
     ),

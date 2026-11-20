@@ -303,9 +303,38 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Field Notes'));
       await tester.pumpAndSettle();
-      await tester.enterText(find.widgetWithText(TextField, 'Name'), 'Notes');
       await tap(tester, 'Save rule');
+      // Named after the app picked; nothing had to be typed.
+      expect(saved!.name, 'Field Notes');
       expect(saved!.sources, ['android:com.example.notes']);
     },
   );
+
+  testWidgets('the rule is named after what was picked until a name is typed', (
+    tester,
+  ) async {
+    ActivityRule? saved;
+    await open(tester, RuleEditor(sources: {}), (value) => saved = value);
+    expect(find.widgetWithText(TextFormField, 'Rule name'), findsNothing);
+    final search = find.widgetWithText(TextField, 'Search apps and websites');
+    for (final app in ['YouTube', 'TikTok', 'Reddit']) {
+      await tester.enterText(search, app.toLowerCase());
+      await tester.pumpAndSettle();
+      await tester.tap(find.widgetWithText(ListTile, app).first);
+      await tester.pumpAndSettle();
+    }
+    final name = find.widgetWithText(TextFormField, 'Rule name');
+    String current() => tester.widget<TextFormField>(name).controller!.text;
+    expect(current(), 'YouTube, TikTok and 1 more');
+    await tester.tap(find.byTooltip('Remove YouTube'));
+    await tester.pumpAndSettle();
+    expect(current(), 'TikTok and Reddit');
+    await tester.enterText(name, 'Scrolling');
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('Remove Reddit'));
+    await tester.pumpAndSettle();
+    expect(current(), 'Scrolling');
+    await tap(tester, 'Save rule');
+    expect(saved!.name, 'Scrolling');
+  });
 }
