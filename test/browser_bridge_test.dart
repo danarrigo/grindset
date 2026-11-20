@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lockin/app_controller.dart';
 import 'package:lockin/core/activity.dart';
+import 'package:lockin/core/focus_session.dart';
 import 'package:lockin/data/local_store.dart';
 import 'package:lockin/platform/browser_bridge.dart';
 import 'package:lockin/platform/native_tracker.dart';
@@ -383,6 +384,43 @@ void main() {
         matchesSource('web:example.com', 'web:example.com.evil.test'),
         isFalse,
       );
+    },
+  );
+
+  test(
+    'in strict mode, a browser in front without the extension is blocked',
+    () async {
+      await controller.saveRule(
+        ActivityRule(id: 'video', name: 'Video', sources: ['web:video.test']),
+      );
+      await controller.setStrictMode(true);
+      await controller.startSession(
+        const Duration(minutes: 25),
+        SessionPhase.focus,
+      );
+      await controller.refresh();
+      // A moment's grace while the extension wakes up.
+      expect(controller.restrictionForSource(source), isNull);
+      now = now.add(const Duration(seconds: 11));
+      await controller.refresh();
+      expect(
+        controller.restrictionForSource(source),
+        contains('turn on the Grindset extension'),
+      );
+      await pair();
+      await heartbeat();
+      expect(controller.restrictionForSource(source), isNull);
+      // A browser the extension cannot report from is never verified.
+      source = 'windows:brave.exe';
+      await controller.refresh();
+      now = now.add(const Duration(seconds: 11));
+      expect(
+        controller.restrictionForSource(source),
+        contains('Use Chrome, Edge, Firefox or Zen'),
+      );
+      // Once the session is over, browsers are left alone again.
+      now = now.add(const Duration(minutes: 30));
+      expect(controller.restrictionForSource(source), isNull);
     },
   );
 }

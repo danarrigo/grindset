@@ -72,6 +72,7 @@ void main() {
               return records;
             case 'showBlock':
             case 'hideBlock':
+            case 'setStrictLock':
             case 'requestUsageAccess':
               return null;
             default:
@@ -222,6 +223,42 @@ void main() {
     await controller.refresh();
     expect(controller.blockedSource, 'android:another.app');
   });
+
+  test(
+    'strict mode tells Android when it locks, so uninstalling is blocked',
+    () async {
+      records = [
+        {
+          'source': 'android:example.app',
+          'start': now
+              .subtract(const Duration(minutes: 2))
+              .millisecondsSinceEpoch,
+          'end': now.millisecondsSinceEpoch,
+        },
+      ];
+      await controller.saveRule(
+        ActivityRule(
+          id: 'activity',
+          name: 'Distractions',
+          dailyMinutes: 1,
+          sources: ['android:example.app'],
+        ),
+      );
+      List<Object?> locks() => [
+        for (final c in calls)
+          if (c.method == 'setStrictLock') (c.arguments as Map)['locked'],
+      ];
+      await controller.refresh();
+      expect(locks(), [false]);
+      await controller.setStrictMode(true);
+      expect(controller.strictLock, 'while a daily limit is reached');
+      foreground = 'android:com.google.android.packageinstaller';
+      await controller.refresh();
+      expect(locks(), [false, true]);
+      expect(controller.blockedSource, foreground);
+      expect(controller.blockMessage, contains('uninstalling apps is paused'));
+    },
+  );
 
   test(
     'a notification stop remains authoritative if its Dart callback was lost',

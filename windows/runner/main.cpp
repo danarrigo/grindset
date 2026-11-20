@@ -13,6 +13,22 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
     CreateAndAttachConsole();
   }
 
+  // One copy per user. Another launch shows the running copy instead; a
+  // background launch (startup, strict mode's restart task) just exits.
+  // Isolated previews (--local-only) may run beside the installed copy.
+  const bool isolated = wcsstr(command_line, L"--local-only") != nullptr;
+  ::CreateMutexW(nullptr, TRUE, L"Local\\Grindset.SingleInstance");
+  if (!isolated && ::GetLastError() == ERROR_ALREADY_EXISTS) {
+    if (!wcsstr(command_line, L"--background")) {
+      if (HWND existing = ::FindWindowW(L"FLUTTER_RUNNER_WIN32_WINDOW", L"Grindset")) {
+        ::ShowWindow(existing, SW_SHOW);
+        ::ShowWindow(existing, SW_RESTORE);
+        ::SetForegroundWindow(existing);
+      }
+    }
+    return EXIT_SUCCESS;
+  }
+
   // Initialize COM, so that it is available for use in the library and/or
   // plugins.
   ::CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);

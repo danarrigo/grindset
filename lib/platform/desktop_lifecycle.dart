@@ -36,15 +36,7 @@ class DesktopLifecycle with WindowListener, TrayListener {
     }
     await trayManager.setIcon('assets/tray.ico');
     await trayManager.setToolTip('Grindset - foreground activity and focus');
-    await trayManager.setContextMenu(
-      Menu(
-        items: [
-          MenuItem(key: 'open', label: 'Open Grindset'),
-          MenuItem.separator(),
-          MenuItem(key: 'quit', label: 'Quit (stops tracking)'),
-        ],
-      ),
-    );
+    await trayManager.setContextMenu(_menu());
     trayManager.addListener(this);
     windowManager.addListener(this);
     await windowManager.setPreventClose(true);
@@ -114,6 +106,51 @@ class DesktopLifecycle with WindowListener, TrayListener {
           .timeout(const Duration(seconds: 5));
     });
   }
+
+  static const _keepRunningTask = 'Grindset strict mode';
+
+  /// While strict mode is locked, Windows reopens Grindset in the background
+  /// every minute if it was ended, and Quit is unavailable.
+  Future<void> keepRunning(bool locked) async {
+    await trayManager.setContextMenu(_menu(quitLocked: locked));
+    final result = await Process.run('schtasks.exe', [
+      if (locked) ...[
+        '/create',
+        '/tn',
+        _keepRunningTask,
+        '/sc',
+        'minute',
+        '/mo',
+        '1',
+        '/f',
+        '/tr',
+        '"${Platform.resolvedExecutable}" --background',
+      ] else ...[
+        '/delete',
+        '/tn',
+        _keepRunningTask,
+        '/f',
+      ],
+    ]);
+    // Deleting a task that does not exist is fine.
+    if (locked && result.exitCode != 0) {
+      throw StateError('Could not keep Grindset running: ${result.stderr}');
+    }
+  }
+
+  Menu _menu({bool quitLocked = false}) => Menu(
+    items: [
+      MenuItem(key: 'open', label: 'Open Grindset'),
+      MenuItem.separator(),
+      MenuItem(
+        key: 'quit',
+        label: quitLocked
+            ? 'Quit (paused by strict mode)'
+            : 'Quit (stops tracking)',
+        disabled: quitLocked,
+      ),
+    ],
+  );
 
   @override
   void onWindowClose() {

@@ -56,6 +56,10 @@ object AppBlocker {
      * Android's own surfaces: never restricted and never reported as app usage.
      * Includes every installed launcher, not only the current default.
      */
+    /** Strict mode is locked: uninstall screens are blockable, Stop is ignored. */
+    @Volatile var strictLocked = false
+    private val uninstallers = setOf("com.android.packageinstaller", "com.google.android.packageinstaller")
+
     fun systemPackages(context: Context): Set<String> {
         val now = System.currentTimeMillis()
         system?.let { (at, packages) -> if (now - at < 60_000L) return packages }
@@ -154,7 +158,12 @@ object AppBlocker {
         if (!power.isInteractive || keyguard.isKeyguardLocked) return null
         scan(context)
         val pkg = foreground
-        return if (pkg == null || pkg in systemPackages(context)) null else "android:$pkg"
+        return when {
+            pkg == null -> null
+            strictLocked && pkg in uninstallers -> "android:$pkg"
+            pkg in systemPackages(context) -> null
+            else -> "android:$pkg"
+        }
     }
 
     /** Applies a [detect] result on the main thread. */

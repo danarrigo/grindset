@@ -64,6 +64,7 @@ jobs:
       - run: psql -v ON_ERROR_STOP=1 -f test/sql/shared_state.sql
       - run: psql -v ON_ERROR_STOP=1 -f test/sql/delete_account.sql
       - run: psql -v ON_ERROR_STOP=1 -f test/sql/focus_hours.sql
+      - run: psql -v ON_ERROR_STOP=1 -f test/sql/strict_mode.sql
 
   android:
     runs-on: ubuntu-latest

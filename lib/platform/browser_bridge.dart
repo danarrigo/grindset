@@ -37,6 +37,7 @@ class BrowserBridge {
   DateTime? _pairingUntil;
   int _attempts = 0;
   final _observations = <String, BrowserObservation>{};
+  final _lastHeartbeat = <String, DateTime>{};
 
   /// Chrome/Edge extension IDs, or a Firefox-based browser's per-install UUID.
   static final _extensionOrigin = RegExp(
@@ -97,7 +98,23 @@ class BrowserBridge {
     await store.saveSetting('browser_pair_token', _token);
     _pairing = null;
     _observations.clear();
+    _lastHeartbeat.clear();
     lastPolicyRequestAt = null;
+  }
+
+  /// When the extension in this browser last reported, even without a page
+  /// open. Switching to a browser makes a running extension report at once.
+  DateTime? lastHeartbeat(String foregroundSource) =>
+      _lastHeartbeat[_extensionSource(foregroundSource)];
+
+  /// Whether the extension can tell Grindset it runs in this browser.
+  static bool supports(String foregroundSource) =>
+      _extensionSource(foregroundSource) != null;
+
+  static String? _extensionSource(String foregroundSource) {
+    final source = foregroundSource.toLowerCase();
+    if (_geckoBrowsers.contains(source)) return _browsers['firefox'];
+    return _browsers.values.contains(source) ? source : null;
   }
 
   BrowserObservation? observationFor(String foregroundSource) {
@@ -208,6 +225,7 @@ class BrowserBridge {
           throw const FormatException('Invalid heartbeat.');
         }
         final browserSource = _browsers[body['browser']]!;
+        _lastHeartbeat[browserSource] = now();
         final domain = body['domain'];
         if (domain != null &&
             (domain is! String || websiteHost(domain) == null)) {

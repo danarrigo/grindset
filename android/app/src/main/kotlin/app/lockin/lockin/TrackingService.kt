@@ -39,6 +39,8 @@ class TrackingService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // Strict mode keeps tracking running until it unlocks.
+        if (intent?.action == STOP && AppBlocker.strictLocked) return START_STICKY
         if (intent?.action == STOP || !TrackingRuntime.enabled(this)) {
             TrackingRuntime.stop(this)
             stopSelf()

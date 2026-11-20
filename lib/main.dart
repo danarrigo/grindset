@@ -169,6 +169,7 @@ Future<void> main(List<String> args) async {
       try {
         await desktop.initialize(background: args.contains('--background'));
         controller.restrictWindowsApp = desktop.showRestriction;
+        controller.onStrictLockChanged = desktop.keepRunning;
         controller.addListener(() {
           if (controller.blockedSource == null) {
             unawaited(

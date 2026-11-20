@@ -52,6 +52,9 @@ Name: "{autodesktop}\Grindset"; Filename: "{app}\lockin.exe"; Tasks: desktopicon
 [Run]
 Filename: "{app}\lockin.exe"; Description: "Open Grindset"; Flags: nowait postinstall skipifsilent
 
+[UninstallRun]
+Filename: "{sys}\schtasks.exe"; Parameters: "/delete /tn ""Grindset strict mode"" /f"; Flags: runhidden; RunOnceId: "StrictModeTask"
+
 [Code]
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
 var

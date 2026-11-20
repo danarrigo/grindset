@@ -242,6 +242,10 @@ object TrackingRuntime {
                     })
                     result.success(null)
                 }
+                "setStrictLock" -> {
+                    AppBlocker.strictLocked = call.argument<Boolean>("locked") == true
+                    result.success(null)
+                }
                 "installedApps" -> executor.execute {
                     // Apps with a home-screen icon, by name, for picking in Rules.
                     // Launchers, keyboards and Grindset itself are never blocked.

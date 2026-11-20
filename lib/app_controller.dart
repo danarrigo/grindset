@@ -18,6 +18,14 @@ import 'platform/browser_bridge.dart';
 import 'platform/completion_alerts.dart';
 import 'platform/site_logos.dart';
 
+/// A change strict mode does not allow right now. Its message is for people.
+class StrictModeLocked implements Exception {
+  StrictModeLocked(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
 class AppController extends ChangeNotifier {
   AppController({
     required this.store,
@@ -39,6 +47,69 @@ class AppController extends ChangeNotifier {
   List<ScheduleWindow> focusHours = const [];
 
   bool get inFocusHours => focusHours.any((w) => w.contains(now, location));
+
+  /// Strict mode: while blocking is in force, nothing can be loosened.
+  /// Shared by all of the account's devices.
+  bool strictMode = false;
+
+  /// When strict mode is locked, why: "during Focus hours". Null otherwise.
+  String? get strictLock {
+    if (!strictMode) return null;
+    if (session?.focusing(now) ?? false) return 'during your focus session';
+    if (inFocusHours) return 'during Focus hours';
+    for (final rule in rules) {
+      final reason = blockingReason(
+        rule: rule,
+        now: now,
+        location: location,
+        intervals: usage,
+      );
+      if (reason == null) continue;
+      return reason == 'Daily budget reached'
+          ? 'while a daily limit is reached'
+          : 'during a scheduled block';
+    }
+    return null;
+  }
+
+  bool? _strictLocked;
+
+  /// Told when strict mode locks or unlocks, e.g. to keep Windows running.
+  Future<void> Function(bool locked)? onStrictLockChanged;
+  String? _foregroundSource;
+  DateTime _foregroundSince = DateTime.utc(0);
+
+  /// A browser in front whose Grindset extension has not reported since it
+  /// came to the front, while websites are blocked. Switching to a browser
+  /// makes a running extension report within a moment, so this allows a few
+  /// seconds' grace.
+  bool _browserWithoutExtension(String source) {
+    final bridge = browserBridge;
+    if (bridge == null ||
+        !source.startsWith('windows:') ||
+        serviceFor(source)?.category != 'Whole browser' ||
+        (websiteRestrictions()['blocked'] as List).isEmpty) {
+      return false;
+    }
+    final since = _foregroundSource == source ? _foregroundSince : now;
+    if (now.difference(since) < const Duration(seconds: 10)) return false;
+    final heard = bridge.lastHeartbeat(source);
+    return heard == null || heard.isBefore(since);
+  }
+
+  /// Android's uninstall screens, blocked while strict mode is locked.
+  static const uninstallers = {
+    'android:com.android.packageinstaller',
+    'android:com.google.android.packageinstaller',
+  };
+
+  /// Throws [StrictModeLocked] when strict mode does not allow [what] now.
+  void requireUnlocked(String what) {
+    final lock = strictLock;
+    if (lock != null) {
+      throw StrictModeLocked('Strict mode: you can\'t $what $lock.');
+    }
+  }
 
   /// Minute of the day the current Focus hours end, or null outside them.
   int? get focusHoursEnd =>
@@ -244,6 +315,7 @@ class AppController extends ChangeNotifier {
         ThemeMode.values.asNameMap()[await store.setting('theme')] ??
         ThemeMode.system;
     focusHours = await _loadFocusHours();
+    strictMode = await store.setting('strict_mode') == 'true';
     _lastAndroidImport = DateTime.tryParse(
       await store.setting('android_imported_until') ?? '',
     );
@@ -323,6 +395,7 @@ class AppController extends ChangeNotifier {
       timezone = await store.setting('timezone') ?? timezone;
       tz.getLocation(timezone);
       focusHours = await _loadFocusHours();
+      strictMode = await store.setting('strict_mode') == 'true';
       final active = await store.setting('active_session');
       session = active == null
           ? null
@@ -535,6 +608,11 @@ class AppController extends ChangeNotifier {
   Future<void> endSession() async {
     final active = session;
     if (active == null) return;
+    if (strictMode && active.focusing(now)) {
+      throw StrictModeLocked(
+        'Strict mode: this focus session runs to the end.',
+      );
+    }
     // An immediate stop must still produce a positive, valid interval.
     if (!now.isAfter(active.start)) return;
     await _saveSession(active.finish(now));
@@ -607,6 +685,7 @@ class AppController extends ChangeNotifier {
 
   Future<void> applyFocusProfile(String id) async {
     if (_resetting) throw StateError('Device reset is in progress.');
+    requireUnlocked('switch focus profiles');
     final profile = focusProfiles.where((p) => p.id == id).firstOrNull;
     if (profile == null) throw StateError('Profile no longer exists.');
     await store.transaction(() async {
@@ -648,6 +727,10 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> saveRule(ActivityRule rule, {int? baseRevision}) async {
+    final old = rules.where((r) => r.id == rule.id).firstOrNull;
+    if (old != null && !isStricter(old, rule)) {
+      requireUnlocked('loosen a rule');
+    }
     await store.transaction(() async {
       final current = await store.rules();
       final previous = current.where((r) => r.id == rule.id).firstOrNull;
@@ -670,6 +753,7 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> deleteRule(String id) async {
+    requireUnlocked('delete a rule');
     await store.transaction(() async {
       await store.saveRules((await store.rules()).where((r) => r.id != id));
       await sharedState.queue('rule', id, null, baseRevision: ruleRevision(id));
@@ -689,6 +773,9 @@ class AppController extends ChangeNotifier {
   Future<void> setFocusHours(List<ScheduleWindow> windows) async {
     if (_resetting) throw StateError('Device reset is in progress.');
     if (windows.length > 64) throw ArgumentError('Choose up to 64 times.');
+    if (!coversWindows(windows, focusHours)) {
+      requireUnlocked('shorten or turn off Focus hours');
+    }
     final value = {
       'schedules': [for (final w in windows) w.toJson()],
     };
@@ -701,8 +788,22 @@ class AppController extends ChangeNotifier {
     onSharedChange?.call();
   }
 
+  /// Turns strict mode on or off here and on the account's other devices.
+  Future<void> setStrictMode(bool enabled) async {
+    if (_resetting) throw StateError('Device reset is in progress.');
+    if (!enabled) requireUnlocked('turn off strict mode');
+    await store.transaction(() async {
+      await store.saveSetting('strict_mode', '$enabled');
+      await sharedState.queue('setting', 'strict_mode', {'enabled': enabled});
+    });
+    strictMode = enabled;
+    _changed();
+    onSharedChange?.call();
+  }
+
   Future<void> setTimezone(String value) async {
     tz.getLocation(value);
+    requireUnlocked('change the timezone');
     await store.transaction(() async {
       await store.saveSetting('timezone', value);
       await sharedState.queue('setting', 'timezone', {'timezone': value});
@@ -740,6 +841,8 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> disableTracking({bool notifyNative = true}) async {
+    // Android stopping on its own is reported with notifyNative false.
+    if (notifyNative) requireUnlocked('stop tracking');
     if (tracker.isAndroid && notifyNative) {
       await tracker.setAndroidTracking(false);
     }
@@ -811,6 +914,7 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> prepareForReset() async {
+    requireUnlocked('reset this device');
     _resetting = true;
     _timer?.cancel();
     await disableTracking();
@@ -835,6 +939,12 @@ class AppController extends ChangeNotifier {
     _refreshDone = Completer<void>();
     try {
       final tick = _ticks++;
+      final locked = strictLock != null;
+      if (locked != _strictLocked) {
+        if (tracker.isAndroid) await tracker.setAndroidStrictLock(locked);
+        await onStrictLockChanged?.call(locked);
+        _strictLocked = locked;
+      }
       AndroidTrackingStatus? android;
       if (tracker.isAndroid) {
         android = await tracker.androidStatus();
@@ -848,6 +958,10 @@ class AppController extends ChangeNotifier {
           if (blockedSource != null) dismissBlock();
         } else if (tracker.isWindows) {
           var current = tracker.foreground();
+          if (current?.source != _foregroundSource) {
+            _foregroundSource = current?.source;
+            _foregroundSince = now;
+          }
           if (current == null && blockedSource != null) dismissBlock();
           if (blockedSource != null &&
               restrictionForSource(blockedSource!) == null) {
@@ -1053,6 +1167,15 @@ class AppController extends ChangeNotifier {
   }
 
   String? restrictionForSource(String source) {
+    final lock = strictLock;
+    if (lock != null && uninstallers.contains(source)) {
+      return 'Strict mode: uninstalling apps is paused $lock.';
+    }
+    if (lock != null && _browserWithoutExtension(source)) {
+      return BrowserBridge.supports(source)
+          ? 'Strict mode: turn on the Grindset extension in this browser to use it $lock.'
+          : 'Strict mode: Grindset can\'t check websites in this browser. Use Chrome, Edge, Firefox or Zen $lock.';
+    }
     String? reason;
     for (final rule in rules.where(
       (r) => r.sources.any((candidate) => matchesSource(candidate, source)),

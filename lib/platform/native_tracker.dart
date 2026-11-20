@@ -252,6 +252,11 @@ class NativeTracker {
       channel.invokeMethod<void>('openInstantBlocking');
   Future<void> requestBlockingAccess() =>
       channel.invokeMethod<void>('requestBlockingAccess');
+
+  /// While locked, Android's uninstall screens count as blockable apps and
+  /// the notification's Stop button does nothing.
+  Future<void> setAndroidStrictLock(bool locked) =>
+      channel.invokeMethod<void>('setStrictLock', {'locked': locked});
   Future<String?> androidForegroundSource() => channel
       .invokeMethod<String>('foregroundSource')
       .timeout(const Duration(seconds: 20));

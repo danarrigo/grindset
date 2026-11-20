@@ -233,3 +233,26 @@ List<ScheduleWindow> decodeFocusHours(String json) => List.unmodifiable([
   for (final window in jsonDecode(json) as List)
     ScheduleWindow.fromJson(Map<String, dynamic>.from(window as Map)),
 ]);
+
+/// Whether [next] blocks at least everything [old] does: no app removed, no
+/// higher daily limit, focus blocking and every scheduled time kept.
+bool isStricter(ActivityRule old, ActivityRule next) =>
+    old.sources.every(next.sources.contains) &&
+    (!old.focusBlock || next.focusBlock) &&
+    (old.dailyMinutes == null ||
+        (next.dailyMinutes != null &&
+            next.dailyMinutes! <= old.dailyMinutes!)) &&
+    coversWindows(next.schedules, old.schedules);
+
+/// Whether [next] still blocks every time [old] did.
+bool coversWindows(
+  Iterable<ScheduleWindow> next,
+  Iterable<ScheduleWindow> old,
+) => old.every(
+  (window) => next.any(
+    (w) =>
+        w.startMinute == window.startMinute &&
+        w.endMinute == window.endMinute &&
+        w.weekdays.containsAll(window.weekdays),
+  ),
+);

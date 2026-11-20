@@ -83,3 +83,7 @@ Applied through the Supabase MCP migration tool after confirming that all five p
 ## Focus hours (2026-11-20)
 
 `202611200001_focus_hours.sql` was applied through the Supabase MCP migration tool after CI's database job (migrations from scratch plus `test/sql/focus_hours.sql`) passed on `4e4abf8`'s follow-up. It adds the internal `validate_schedules(jsonb)` helper and lets the shared setting `focus_hours` through `validate_shared_value`. Live checks afterwards: the live validator contains `focus_hours`; `authenticated` and `anon` cannot execute `validate_schedules` or `validate_shared_value`; `authenticated` can still execute `apply_shared_changes`. Clients before v1.6.9 reject an incoming `focus_hours` setting, so a device must update before another device turns Focus hours on.
+
+## Strict mode (2026-11-20)
+
+`202611200002_strict_mode.sql` lets the shared setting `strict_mode` (`{"enabled": bool}`) through `validate_shared_value`; `test/sql/strict_mode.sql` covers it. Clients before v1.6.9 reject an incoming `strict_mode` setting, so a device must update before another turns strict mode on.

@@ -168,6 +168,10 @@ class SharedState {
     await seedOne('setting', 'timezone', {
       'timezone': await store.setting('timezone') ?? 'UTC',
     });
+    final strict = await store.setting('strict_mode');
+    if (strict != null) {
+      await seedOne('setting', 'strict_mode', {'enabled': strict == 'true'});
+    }
     final focusHours = await store.setting('focus_hours');
     if (focusHours != null) {
       await seedOne('setting', 'focus_hours', {
@@ -322,6 +326,11 @@ class SharedState {
           );
         }
         await store.saveRules(next);
+      case 'setting' when id == 'strict_mode':
+        if (value == null || value['enabled'] is! bool) {
+          throw const FormatException('Invalid strict mode.');
+        }
+        await store.saveSetting('strict_mode', '${value['enabled']}');
       case 'setting' when id == 'focus_hours':
         if (value == null || value['schedules'] is! List) {
           throw const FormatException('Invalid Focus hours.');

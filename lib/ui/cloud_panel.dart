@@ -126,6 +126,9 @@ class _CloudPanelState extends State<CloudPanel> {
               '${s.weekdays.map((d) => days[d - 1]).join(', ')} ${time(s.startMinute)}-${time(s.endMinute)}',
         )
         .join('\n');
+    if (kind == 'setting' && value['enabled'] is bool) {
+      return 'Strict mode: ${value['enabled'] == true ? 'On' : 'Off'}';
+    }
     if (kind == 'setting' && value['schedules'] is List) {
       final hours = decodeFocusHours(jsonEncode(value['schedules']));
       return 'Focus hours: ${hours.isEmpty ? 'Off' : '\n${windows(hours)}'}';

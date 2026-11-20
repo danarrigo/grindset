@@ -254,6 +254,9 @@ class _HomeState extends State<_Home> {
   });
 
   Future<void> _resetDevice() async {
+    if (c.strictLock != null) {
+      return _run(() async => c.requireUnlocked('reset this device'));
+    }
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -423,6 +426,8 @@ class _HomeState extends State<_Home> {
   }
 
   Future<void> _deleteRule(ActivityRule rule) async {
+    // Strict mode explains why instead of asking first.
+    if (c.strictLock != null) return _run(() => c.deleteRule(rule.id));
     final yes = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -462,6 +467,9 @@ class _HomeState extends State<_Home> {
   }
 
   Future<void> _endSession(BuildContext dialogContext) async {
+    if (c.strictLock != null && c.session!.focusing(c.now)) {
+      return _run(c.endSession);
+    }
     final yes = await showDialog<bool>(
       context: dialogContext,
       builder: (context) => AlertDialog(
@@ -1719,6 +1727,30 @@ class _HomeState extends State<_Home> {
               onSelectionChanged: (value) =>
                   _run(() => c.setThemeMode(value.single)),
             ),
+          ),
+        ],
+      ),
+    ),
+    _Section(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SwitchListTile(
+            contentPadding: EdgeInsets.zero,
+            title: Text(
+              'Strict mode',
+              style: Theme.of(context).textTheme.titleLarge,
+            ),
+            value: c.strictMode,
+            onChanged: _busy || c.strictLock != null
+                ? null
+                : (value) => _run(() => c.setStrictMode(value)),
+          ),
+          Text(
+            c.strictLock != null
+                ? 'Locked ${c.strictLock}. Until then rules can only get stricter, and Grindset keeps running.'
+                : 'While you focus, during Focus hours, or once a limit is reached: no ending early, loosening rules, or stopping Grindset. On all your devices.',
           ),
         ],
       ),
