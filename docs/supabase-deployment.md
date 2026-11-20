@@ -79,3 +79,7 @@ The separately authorized paused `lotorix` project (`hoyilrdpusfezwcrbvoz`) was 
 
 Applied through the Supabase MCP migration tool after confirming that all five public tables reference `auth.users` (directly or through `devices`) with `ON DELETE CASCADE`. An anonymous `POST /rest/v1/rpc/delete_account` with the publishable key returns **401 / `42501`**. A rolled-back live transaction created two fixture users, synced a setting as one, called `delete_account()` as that user, and found zero remaining rows for them while the other user's rows remained; no fixture users persisted. The advisor's authenticated security-definer warning for `delete_account` is intended: it can only delete the caller.
 
+
+## Focus hours (2026-11-20)
+
+`202611200001_focus_hours.sql` was applied through the Supabase MCP migration tool after CI's database job (migrations from scratch plus `test/sql/focus_hours.sql`) passed on `4e4abf8`'s follow-up. It adds the internal `validate_schedules(jsonb)` helper and lets the shared setting `focus_hours` through `validate_shared_value`. Live checks afterwards: the live validator contains `focus_hours`; `authenticated` and `anon` cannot execute `validate_schedules` or `validate_shared_value`; `authenticated` can still execute `apply_shared_changes`. Clients before v1.6.9 reject an incoming `focus_hours` setting, so a device must update before another device turns Focus hours on.
