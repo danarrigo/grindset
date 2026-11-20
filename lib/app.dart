@@ -34,7 +34,7 @@ class LockinApp extends StatelessWidget {
     this.enableStartup,
     this.exportData,
     this.resetDevice,
-    this.themeMode = ThemeMode.system,
+    this.themeMode,
   });
   final AppController controller;
   final CloudSync? cloud;
@@ -42,22 +42,27 @@ class LockinApp extends StatelessWidget {
   final Future<void> Function()? enableStartup;
   final Future<bool> Function()? exportData;
   final Future<void> Function()? resetDevice;
-  final ThemeMode themeMode;
+
+  /// Overrides the device's Appearance setting (screenshots and tests).
+  final ThemeMode? themeMode;
 
   @override
-  Widget build(BuildContext context) => MaterialApp(
-    title: 'Grindset',
-    debugShowCheckedModeBanner: false,
-    theme: lockinTheme(Brightness.light),
-    darkTheme: lockinTheme(Brightness.dark),
-    themeMode: themeMode,
-    home: _Home(
-      controller: controller,
-      cloud: cloud,
-      startupWarning: startupWarning,
-      enableStartup: enableStartup,
-      exportData: exportData,
-      resetDevice: resetDevice,
+  Widget build(BuildContext context) => ListenableBuilder(
+    listenable: controller,
+    builder: (context, _) => MaterialApp(
+      title: 'Grindset',
+      debugShowCheckedModeBanner: false,
+      theme: lockinTheme(Brightness.light),
+      darkTheme: lockinTheme(Brightness.dark),
+      themeMode: themeMode ?? controller.themeMode,
+      home: _Home(
+        controller: controller,
+        cloud: cloud,
+        startupWarning: startupWarning,
+        enableStartup: enableStartup,
+        exportData: exportData,
+        resetDevice: resetDevice,
+      ),
     ),
   );
 }
@@ -1650,6 +1655,30 @@ class _HomeState extends State<_Home> {
               onSelected: (zone) {
                 if (zone != null) _run(() => c.setTimezone(zone));
               },
+            ),
+          ),
+        ],
+      ),
+    ),
+    _Section(
+      padding: const EdgeInsets.all(20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Appearance', style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 14),
+          SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<ThemeMode>(
+              showSelectedIcon: false,
+              segments: const [
+                ButtonSegment(value: ThemeMode.system, label: Text('System')),
+                ButtonSegment(value: ThemeMode.light, label: Text('Light')),
+                ButtonSegment(value: ThemeMode.dark, label: Text('Dark')),
+              ],
+              selected: {c.themeMode},
+              onSelectionChanged: (value) =>
+                  _run(() => c.setThemeMode(value.single)),
             ),
           ),
         ],

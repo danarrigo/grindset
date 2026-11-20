@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart' show ThemeMode;
 import 'package:timezone/timezone.dart' as tz;
 import 'package:uuid/uuid.dart';
 
@@ -32,6 +33,9 @@ class AppController extends ChangeNotifier {
   final CompletionAlerts? completionAlerts;
   bool completionAlertsEnabled = false;
   bool budgetWarningsEnabled = false;
+
+  /// Light, dark or following the system, on this device only.
+  ThemeMode themeMode = ThemeMode.system;
   String? budgetWarningsNotice;
   String _budgetWarningDay = '';
   final Set<String> _budgetWarnedRules = {};
@@ -226,6 +230,9 @@ class AppController extends ChangeNotifier {
           ),
         )
         .toList();
+    themeMode =
+        ThemeMode.values.asNameMap()[await store.setting('theme')] ??
+        ThemeMode.system;
     _lastAndroidImport = DateTime.tryParse(
       await store.setting('android_imported_until') ?? '',
     );
@@ -320,6 +327,12 @@ class AppController extends ChangeNotifier {
     });
     await _updateCompletionAlerts();
     await reloadUsage();
+  }
+
+  Future<void> setThemeMode(ThemeMode mode) async {
+    await store.saveSetting('theme', mode.name);
+    themeMode = mode;
+    _changed();
   }
 
   Future<void> setBudgetWarningsEnabled(bool enabled) async {

@@ -1104,4 +1104,38 @@ void main() {
       );
     }
   });
+
+  testWidgets('Appearance switches light and dark and is remembered', (
+    tester,
+  ) async {
+    final (controller, store) = await open();
+    viewport(tester, const Size(390, 844));
+    await tester.pumpWidget(
+      RepaintBoundary(
+        key: const ValueKey('appearance'),
+        child: LockinApp(controller: controller),
+      ),
+    );
+    await navigate(tester, 4);
+    await tester.ensureVisible(find.text('Appearance'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Dark'));
+    await tester.pumpAndSettle();
+    expect(
+      Theme.of(tester.element(find.text('Appearance'))).brightness,
+      Brightness.dark,
+    );
+    expect(await store.setting('theme'), 'dark');
+    await expectLater(
+      find.byKey(const ValueKey('appearance')),
+      matchesGoldenFile('goldens/mobile-appearance-dark.png'),
+    );
+    await tester.tap(find.text('Light'));
+    await tester.pumpAndSettle();
+    expect(
+      Theme.of(tester.element(find.text('Appearance'))).brightness,
+      Brightness.light,
+    );
+    expect(await store.setting('theme'), 'light');
+  });
 }
