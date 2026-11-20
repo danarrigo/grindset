@@ -92,6 +92,16 @@ try {
     Stop-OwnedApp $duplicate; $duplicate = $null
     Stop-OwnedApp $app; $app = $null
 
+    # The installed copy (default data folder) runs once. Strict mode's
+    # restart task relies on extra background starts exiting at once.
+    $app = Start-Process -FilePath $executable -WorkingDirectory $workingDirectory -ArgumentList @('--background') -PassThru
+    [void](Wait-FirstFrame $app $true)
+    $duplicate = Start-Process -FilePath $executable -WorkingDirectory $workingDirectory -ArgumentList @('--background') -PassThru
+    if (-not $duplicate.WaitForExit(5000) -or $duplicate.ExitCode -ne 0 -or $app.HasExited) { throw 'A second background start did not exit quietly.' }
+    Write-Output 'PASS: a second background start exits and leaves the running copy alone.'
+    Stop-OwnedApp $duplicate; $duplicate = $null
+    Stop-OwnedApp $app; $app = $null
+
     $invalidDirectory = Join-Path $testDirectory 'not-a-directory'
     [IO.File]::WriteAllText($invalidDirectory, 'Owned invalid-directory fixture')
     $app = Start-OwnedApp $invalidDirectory $true

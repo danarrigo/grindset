@@ -15,8 +15,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
 
   // One copy per user. Another launch shows the running copy instead; a
   // background launch (startup, strict mode's restart task) just exits.
-  // Isolated previews (--local-only) may run beside the installed copy.
-  const bool isolated = wcsstr(command_line, L"--local-only") != nullptr;
+  // Isolated copies (--local-only, or their own --data-dir) may run beside
+  // the installed one; a shared data folder is still guarded by its journal.
+  const bool isolated = wcsstr(command_line, L"--local-only") != nullptr ||
+                        wcsstr(command_line, L"--data-dir") != nullptr;
   ::CreateMutexW(nullptr, TRUE, L"Local\\Grindset.SingleInstance");
   if (!isolated && ::GetLastError() == ERROR_ALREADY_EXISTS) {
     if (!wcsstr(command_line, L"--background")) {
