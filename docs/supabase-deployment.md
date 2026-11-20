@@ -86,4 +86,4 @@ Applied through the Supabase MCP migration tool after confirming that all five p
 
 ## Strict mode (2026-11-20)
 
-`202611200002_strict_mode.sql` lets the shared setting `strict_mode` (`{"enabled": bool}`) through `validate_shared_value`; `test/sql/strict_mode.sql` covers it. Clients before v1.6.9 reject an incoming `strict_mode` setting, so a device must update before another turns strict mode on.
+`202611200002_strict_mode.sql` lets the shared setting `strict_mode` (`{"enabled": bool}`) through `validate_shared_value`; `test/sql/strict_mode.sql` covers it. Applied through the Supabase MCP migration tool after CI passed on `6144d8e`. Live checks afterwards: the validator contains `strict_mode`; `authenticated` and `anon` cannot execute `validate_shared_value`; `authenticated` can still execute `apply_shared_changes`. Clients before v1.6.9 reject an incoming `strict_mode` setting, so a device must update before another turns strict mode on.
