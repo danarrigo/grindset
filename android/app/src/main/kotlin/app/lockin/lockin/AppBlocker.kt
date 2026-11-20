@@ -41,6 +41,13 @@ object AppBlocker {
     /** Set by the Play Store edition's instant blocking service while Android runs it. */
     @Volatile var instantConnected = false
 
+    /**
+     * The app whose block screen last closed, and when. Apps leaving the
+     * front can still send a window event (YouTube does); until usage history
+     * shows the app opened again, instant blocking ignores its events.
+     */
+    @Volatile private var closed: Pair<String, Long>? = null
+
     /** When the user last left a blocked app with "Go home". */
     @Volatile var leftAt = 0L
         private set
@@ -117,7 +124,10 @@ object AppBlocker {
             // Older history must not undo a newer instant blocking note.
             if (event.timeStamp < notedAt) continue
             when (event.eventType) {
-                UsageEvents.Event.ACTIVITY_RESUMED -> foreground = event.packageName
+                UsageEvents.Event.ACTIVITY_RESUMED -> {
+                    foreground = event.packageName
+                    closed?.let { (pkg, at) -> if (pkg == event.packageName && event.timeStamp > at) closed = null }
+                }
                 UsageEvents.Event.ACTIVITY_PAUSED -> if (event.packageName == foreground) foreground = null
             }
         }
@@ -133,6 +143,7 @@ object AppBlocker {
      * notification shade, keyboards and dialogs keep the app behind them.
      */
     fun noteForeground(context: Context, pkg: String) {
+        if (closed?.first == pkg) return
         val counts = launchable.getOrPut(pkg) {
             context.packageManager.getLaunchIntentForPackage(pkg) != null ||
                 pkg in systemPackages(context)
@@ -245,6 +256,7 @@ object AppBlocker {
         overlay?.let { windows(context).removeView(it) }
         val pkg = blocked?.removePrefix("android:")
         if (pkg != null && blockedSince > 0L) recordPeriod(context, pkg, blockedSince, System.currentTimeMillis())
+        if (pkg != null && overlay != null) closed = pkg to System.currentTimeMillis()
         overlay = null
         blocked = null
         blockedSince = 0L
