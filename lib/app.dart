@@ -22,6 +22,7 @@ import 'ui/rule_editor.dart';
 import 'ui/rule_starters.dart';
 import 'ui/updates_panel.dart';
 import 'ui/tracking_health_panel.dart';
+import 'ui/focus_hours_dialog.dart';
 import 'ui/focus_profiles_panel.dart';
 import 'ui/weekly_insights_panel.dart';
 
@@ -350,11 +351,24 @@ class _HomeState extends State<_Home> {
     );
   }
 
-  Future<void> _editRule({
-    ActivityRule? rule,
-    RulePreset? preset,
-    bool scheduledFocus = false,
-  }) async {
+  Future<void> _editFocusHours() async {
+    final windows = await showDialog<List<ScheduleWindow>>(
+      context: context,
+      builder: (_) => FocusHoursDialog(
+        windows: c.focusHours,
+        timezone: c.location.name,
+        focusRules: [
+          for (final rule in c.rules)
+            if (rule.focusBlock) rule.name,
+        ],
+      ),
+    );
+    if (windows != null && mounted) {
+      await _run(() => c.setFocusHours(windows));
+    }
+  }
+
+  Future<void> _editRule({ActivityRule? rule, RulePreset? preset}) async {
     final baseRevision = rule == null ? 0 : c.ruleRevision(rule.id);
     final seen = {
       ...c.usage.map((i) => i.source),
@@ -371,7 +385,6 @@ class _HomeState extends State<_Home> {
         builder: (_, _) => RuleEditor(
           rule: rule,
           preset: preset,
-          scheduledFocus: scheduledFocus,
           timezone: c.location.name,
           loadWindowsApps: c.tracker.isWindows ? WindowsApps.list : null,
           browseWindowsApp: c.tracker.isWindows ? WindowsApps.browse : null,
@@ -775,6 +788,8 @@ class _HomeState extends State<_Home> {
           : 'Start break',
       status: finished
           ? (active.phase == SessionPhase.focus ? 'Focus done' : 'Break over')
+          : !running && c.focusHoursEnd != null
+          ? 'Focus hours until ${TimeOfDay(hour: c.focusHoursEnd! ~/ 60, minute: c.focusHoursEnd! % 60).format(context)}'
           : null,
       warning: warnings.isEmpty ? null : warnings.join('\n\n'),
       setupLabel: setupDone == setup.length
@@ -1132,9 +1147,11 @@ class _HomeState extends State<_Home> {
           runSpacing: 8,
           children: [
             OutlinedButton.icon(
-              onPressed: () => _editRule(scheduledFocus: true),
+              onPressed: _editFocusHours,
               icon: const Icon(Icons.schedule_rounded, size: 18),
-              label: const Text('Schedule focus hours'),
+              label: Text(
+                c.focusHours.isEmpty ? 'Focus hours' : 'Focus hours: on',
+              ),
             ),
             OutlinedButton.icon(
               onPressed: () => _showFocusProfiles(),

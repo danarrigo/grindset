@@ -1,14 +1,12 @@
-# Scheduled focus hours
+# Focus hours
 
-In **Rules > Schedule focus hours**, choose the apps/websites to restrict, select weekdays and times, then save. This creates a normal editable activity named Focus hours. It starts with weekday 09:00-17:00, no daily budget and no timer-only focus blocking; nothing is saved or enabled automatically.
+**Rules > Focus hours** sets times when every rule with **While I'm focusing** blocks, as if a focus session were running, with no timer. It is one schedule for the account, synced to all signed-in devices as the shared setting `focus_hours` (`{"schedules": [...]}`, validated like a rule's schedules, at most 64 windows; an empty list means off). Which rules block while focusing stays a per-device choice, as for focus sessions.
 
-Schedules restrict the selected sources even when no timer is running. Use **Add time window** for split work periods, evenings or separate weekend hours. Editing preserves every existing window, budget and activity identity. At least one weekday and different start/end times are required for each window. Up to 64 windows are supported.
+The block reason is **Focus hours**, and the Focus page shows "Focus hours until <time>" while no session runs. Times use the account timezone. An overnight window belongs to its starting weekday; boundaries are start-inclusive and end-exclusive.
 
-The editor and rule summary show the account timezone. An overnight window belongs to its starting weekday: Monday 22:00-02:00 includes early Tuesday. Boundaries are start-inclusive and end-exclusive; daylight-saving behavior follows the account's named timezone. Multiple windows combine as restrictions, not as additional timers. Overlapping rules still apply independently.
+Before v1.6.9, "Schedule focus hours" created an ordinary rule named Focus hours with its own apps and a schedule. Such rules keep working unchanged and can be edited or deleted like any rule.
 
-Tracking and the relevant blocking integration must be enabled. Windows needs Grindset running; website restrictions additionally need the paired browser extension. Android needs background tracking and the optional Display over other apps permission for app blocking. Quitting/turning tracking off stops enforcement; schedules do not create a service or bypass OS permissions. Physical Android background reliability remains a separate acceptance boundary.
-
-Canceling the editor does not change rules. Turning off Scheduled focus hours and saving explicitly removes that activity's windows. Other activities remain unchanged.
+Tracking and the relevant blocking integration must be enabled, as for any rule.
 
 ## v1.4.0 acceptance
 

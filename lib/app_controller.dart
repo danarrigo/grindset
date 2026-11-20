@@ -34,6 +34,16 @@ class AppController extends ChangeNotifier {
   bool completionAlertsEnabled = false;
   bool budgetWarningsEnabled = false;
 
+  /// When every "while I'm focusing" rule blocks without a timer. Shared by
+  /// all of the account's devices; empty when Focus hours are off.
+  List<ScheduleWindow> focusHours = const [];
+
+  bool get inFocusHours => focusHours.any((w) => w.contains(now, location));
+
+  /// Minute of the day the current Focus hours end, or null outside them.
+  int? get focusHoursEnd =>
+      focusHours.where((w) => w.contains(now, location)).firstOrNull?.endMinute;
+
   /// Light, dark or following the system, on this device only.
   ThemeMode themeMode = ThemeMode.system;
   String? budgetWarningsNotice;
@@ -233,6 +243,7 @@ class AppController extends ChangeNotifier {
     themeMode =
         ThemeMode.values.asNameMap()[await store.setting('theme')] ??
         ThemeMode.system;
+    focusHours = await _loadFocusHours();
     _lastAndroidImport = DateTime.tryParse(
       await store.setting('android_imported_until') ?? '',
     );
@@ -311,6 +322,7 @@ class AppController extends ChangeNotifier {
       rules = await store.rules();
       timezone = await store.setting('timezone') ?? timezone;
       tz.getLocation(timezone);
+      focusHours = await _loadFocusHours();
       final active = await store.setting('active_session');
       session = active == null
           ? null
@@ -663,6 +675,28 @@ class AppController extends ChangeNotifier {
       await sharedState.queue('rule', id, null, baseRevision: ruleRevision(id));
     });
     rules = await store.rules();
+    _changed();
+    onSharedChange?.call();
+  }
+
+  Future<List<ScheduleWindow>> _loadFocusHours() async {
+    final saved = await store.setting('focus_hours');
+    return saved == null ? const [] : decodeFocusHours(saved);
+  }
+
+  /// Saves Focus hours here and for the account's other devices. An empty
+  /// list turns them off.
+  Future<void> setFocusHours(List<ScheduleWindow> windows) async {
+    if (_resetting) throw StateError('Device reset is in progress.');
+    if (windows.length > 64) throw ArgumentError('Choose up to 64 times.');
+    final value = {
+      'schedules': [for (final w in windows) w.toJson()],
+    };
+    await store.transaction(() async {
+      await store.saveSetting('focus_hours', jsonEncode(value['schedules']));
+      await sharedState.queue('setting', 'focus_hours', value);
+    });
+    focusHours = List.unmodifiable(windows);
     _changed();
     onSharedChange?.call();
   }
@@ -1029,6 +1063,7 @@ class AppController extends ChangeNotifier {
         location: location,
         intervals: usage,
         focusing: session?.focusing(now) ?? false,
+        focusHours: inFocusHours,
       );
       if (reason != null) break;
     }

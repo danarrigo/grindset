@@ -205,6 +205,7 @@ String? blockingReason({
   required tz.Location location,
   required Iterable<UsageInterval> intervals,
   bool focusing = false,
+  bool focusHours = false,
 }) {
   if (rule.schedules.any((s) => s.contains(now, location))) {
     return 'Scheduled restriction';
@@ -223,5 +224,12 @@ String? blockingReason({
     }
   }
   if (focusing && rule.focusBlock) return 'Focus session in progress';
+  if (focusHours && rule.focusBlock) return 'Focus hours';
   return null;
 }
+
+/// Focus hours as stored: a JSON list of schedule windows.
+List<ScheduleWindow> decodeFocusHours(String json) => List.unmodifiable([
+  for (final window in jsonDecode(json) as List)
+    ScheduleWindow.fromJson(Map<String, dynamic>.from(window as Map)),
+]);

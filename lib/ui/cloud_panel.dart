@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart'
     show OtpType, SignOutScope;
@@ -115,11 +117,21 @@ class _CloudPanelState extends State<CloudPanel> {
 
   String _describe(String kind, Map<String, dynamic>? value) {
     if (value == null) return 'Deleted';
-    if (kind == 'setting') return 'Timezone: ${value['timezone']}';
-    final rule = ActivityRule.fromJson({...value, 'focus_block': false});
     String time(int minute) =>
         '${(minute ~/ 60).toString().padLeft(2, '0')}:${(minute % 60).toString().padLeft(2, '0')}';
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+    String windows(List<ScheduleWindow> list) => list
+        .map(
+          (s) =>
+              '${s.weekdays.map((d) => days[d - 1]).join(', ')} ${time(s.startMinute)}-${time(s.endMinute)}',
+        )
+        .join('\n');
+    if (kind == 'setting' && value['schedules'] is List) {
+      final hours = decodeFocusHours(jsonEncode(value['schedules']));
+      return 'Focus hours: ${hours.isEmpty ? 'Off' : '\n${windows(hours)}'}';
+    }
+    if (kind == 'setting') return 'Timezone: ${value['timezone']}';
+    final rule = ActivityRule.fromJson({...value, 'focus_block': false});
     final schedules = rule.schedules
         .map(
           (s) =>

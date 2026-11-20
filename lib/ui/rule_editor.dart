@@ -7,6 +7,7 @@ import '../core/rule_presets.dart';
 import '../core/service_catalog.dart';
 import '../platform/windows_apps.dart';
 import 'appearance.dart';
+import 'schedule_editor.dart';
 import 'schedule_summary.dart';
 import 'source_label.dart';
 
@@ -16,7 +17,6 @@ class RuleEditor extends StatefulWidget {
     required this.sources,
     this.rule,
     this.preset,
-    this.scheduledFocus = false,
     this.timezone = 'account timezone',
     this.loadWindowsApps,
     this.browseWindowsApp,
@@ -24,12 +24,10 @@ class RuleEditor extends StatefulWidget {
     this.labelFor,
     this.loadInstalledApps,
     this.recentUse = const [],
-  }) : assert(rule == null || preset == null),
-       assert(!scheduledFocus || rule == null);
+  }) : assert(rule == null || preset == null);
   final Set<String> sources;
   final ActivityRule? rule;
   final RulePreset? preset;
-  final bool scheduledFocus;
   final String timezone;
   final Future<List<WindowsApp>> Function()? loadWindowsApps;
   final Future<WindowsApp?> Function()? browseWindowsApp;
@@ -63,7 +61,7 @@ class _RuleEditorState extends State<RuleEditor> {
   late bool _customLimit;
   late bool _scheduled;
   late bool _picking;
-  late final List<_ScheduleDraft> _schedules;
+  late final List<ScheduleDraft> _schedules;
   final _windowsApps = <String, WindowsApp>{};
   final _installed = <String, String>{};
   bool _loadingApps = false;
@@ -77,24 +75,20 @@ class _RuleEditorState extends State<RuleEditor> {
     super.initState();
     final rule = widget.rule;
     final preset = widget.preset;
-    _name = TextEditingController(
-      text: widget.scheduledFocus ? 'Focus hours' : rule?.name ?? preset?.name,
-    );
+    _name = TextEditingController(text: rule?.name ?? preset?.name);
     final minutes = rule?.dailyMinutes ?? preset?.dailyMinutes ?? 30;
     _minutes = TextEditingController(text: '$minutes');
     _customLimit = !_limitChoices.contains(minutes);
     _selected = {...?rule?.sources, ...?preset?.sources};
     _picking = _selected.isEmpty;
-    _focus = widget.scheduledFocus ? false : rule?.focusBlock ?? true;
-    _budget =
-        !widget.scheduledFocus &&
-        (rule?.dailyMinutes != null || preset != null);
-    _scheduled = widget.scheduledFocus || (rule?.schedules.isNotEmpty ?? false);
+    _focus = rule?.focusBlock ?? true;
+    _budget = rule?.dailyMinutes != null || preset != null;
+    _scheduled = rule?.schedules.isNotEmpty ?? false;
     _schedules = [
       for (final window in rule?.schedules ?? <ScheduleWindow>[])
-        _ScheduleDraft(window),
+        ScheduleDraft(window),
     ];
-    if (_schedules.isEmpty) _schedules.add(_ScheduleDraft());
+    if (_schedules.isEmpty) _schedules.add(ScheduleDraft());
     widget.loadInstalledApps?.call().then((apps) {
       if (mounted) setState(() => _installed.addAll(apps));
     }, onError: (Object _) {});
@@ -438,26 +432,6 @@ class _RuleEditorState extends State<RuleEditor> {
     }
   }
 
-  Future<void> _pickTime(int index, bool start) async {
-    final draft = _schedules[index];
-    final value = await showTimePicker(
-      context: context,
-      initialTime: start ? draft.from : draft.until,
-      initialEntryMode: MediaQuery.sizeOf(context).width >= 840
-          ? TimePickerEntryMode.input
-          : TimePickerEntryMode.dial,
-    );
-    if (value != null && mounted) {
-      setState(() {
-        if (start) {
-          draft.from = value;
-        } else {
-          draft.until = value;
-        }
-      });
-    }
-  }
-
   String _limitLabel(int minutes) => minutes < 60
       ? '$minutes min'
       : minutes % 60 == 0
@@ -520,18 +494,14 @@ class _RuleEditorState extends State<RuleEditor> {
     );
     final desktop = MediaQuery.sizeOf(context).width >= 840;
     final (summary, nothingBlocked) = _summary();
-    final title = widget.scheduledFocus
-        ? 'Schedule focus hours'
-        : widget.rule != null
+    final title = widget.rule != null
         ? 'Edit rule'
         : widget.preset?.isCategory ?? false
         ? 'Limit ${_lowerFirst(widget.preset!.name)}'
         : widget.preset != null
         ? 'Limit ${widget.preset!.name}'
         : 'New rule';
-    final intro = widget.scheduledFocus
-        ? 'Pick what to block at set times. No timer needed.'
-        : widget.preset?.isCategory ?? false
+    final intro = widget.preset?.isCategory ?? false
         ? 'One daily limit shared by all these apps and sites. Remove any you need. Your other rules still apply.'
         : widget.rule == null && widget.preset == null
         ? 'Pick apps and websites, then choose when to block them.'
@@ -679,22 +649,9 @@ class _RuleEditorState extends State<RuleEditor> {
                 if (_scheduled)
                   Padding(
                     padding: EdgeInsets.only(left: _indent),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        for (var i = 0; i < _schedules.length; i++)
-                          _scheduleRow(i),
-                        TextButton.icon(
-                          style: TextButton.styleFrom(padding: EdgeInsets.zero),
-                          onPressed: _schedules.length >= 64
-                              ? null
-                              : () => setState(
-                                  () => _schedules.add(_ScheduleDraft()),
-                                ),
-                          icon: const Icon(Icons.add_rounded, size: 18),
-                          label: const Text('Add more times'),
-                        ),
-                      ],
+                    child: ScheduleWindowsEditor(
+                      drafts: _schedules,
+                      onChanged: () => setState(() {}),
                     ),
                   ),
                 const SizedBox(height: 16),
@@ -937,109 +894,13 @@ class _RuleEditorState extends State<RuleEditor> {
   /// Outlined when off, brand green when on, so every option reads as tappable.
   Widget _choice({
     required String label,
-    String? semanticsLabel,
     required bool selected,
     required ValueChanged<bool> onSelected,
-  }) {
-    final colors = Theme.of(context).colorScheme;
-    return ChoiceChip(
-      label: Text(label, semanticsLabel: semanticsLabel),
-      selected: selected,
-      onSelected: onSelected,
-      showCheckmark: false,
-      visualDensity: VisualDensity.compact,
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
-      labelPadding: const EdgeInsets.symmetric(horizontal: 6),
-      backgroundColor: colors.surface,
-      selectedColor: colors.primary,
-      side: BorderSide(color: selected ? colors.primary : colors.outline),
-      labelStyle: TextStyle(
-        fontWeight: FontWeight.w600,
-        color: selected ? colors.onPrimary : colors.onSurface,
-      ),
-    );
-  }
-
-  Widget _scheduleRow(int i) => Padding(
-    padding: const EdgeInsets.only(top: 8),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Wrap(
-          spacing: 4,
-          runSpacing: 4,
-          children: [
-            for (var day = 1; day <= 7; day++)
-              _choice(
-                label: const ['M', 'T', 'W', 'T', 'F', 'S', 'S'][day - 1],
-                semanticsLabel: const [
-                  'Monday',
-                  'Tuesday',
-                  'Wednesday',
-                  'Thursday',
-                  'Friday',
-                  'Saturday',
-                  'Sunday',
-                ][day - 1],
-                selected: _schedules[i].days.contains(day),
-                onSelected: (value) => setState(() {
-                  if (value) {
-                    _schedules[i].days.add(day);
-                  } else {
-                    _schedules[i].days.remove(day);
-                  }
-                }),
-              ),
-          ],
-        ),
-        const SizedBox(height: 4),
-        Wrap(
-          crossAxisAlignment: WrapCrossAlignment.center,
-          spacing: 8,
-          runSpacing: 4,
-          children: [
-            OutlinedButton(
-              onPressed: () => _pickTime(i, true),
-              child: Text(_schedules[i].from.format(context)),
-            ),
-            const Text('to'),
-            OutlinedButton(
-              onPressed: () => _pickTime(i, false),
-              child: Text(_schedules[i].until.format(context)),
-            ),
-            if (_schedules.length > 1)
-              IconButton(
-                tooltip: 'Remove these times',
-                icon: const Icon(Icons.close_rounded, size: 20),
-                onPressed: () => setState(() => _schedules.removeAt(i)),
-              ),
-          ],
-        ),
-      ],
-    ),
-  );
-}
-
-class _ScheduleDraft {
-  _ScheduleDraft([ScheduleWindow? window])
-    : days = {...?window?.weekdays},
-      from = TimeOfDay(
-        hour: (window?.startMinute ?? 540) ~/ 60,
-        minute: (window?.startMinute ?? 540) % 60,
-      ),
-      until = TimeOfDay(
-        hour: (window?.endMinute ?? 1020) ~/ 60,
-        minute: (window?.endMinute ?? 1020) % 60,
-      ) {
-    if (window == null) days.addAll({1, 2, 3, 4, 5});
-  }
-  final Set<int> days;
-  TimeOfDay from;
-  TimeOfDay until;
-  ScheduleWindow save() => ScheduleWindow(
-    weekdays: days,
-    startMinute: from.hour * 60 + from.minute,
-    endMinute: until.hour * 60 + until.minute,
+  }) => choiceChip(
+    context,
+    label: label,
+    selected: selected,
+    onSelected: onSelected,
   );
 }
 

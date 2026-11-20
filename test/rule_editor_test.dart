@@ -74,42 +74,37 @@ void main() {
       expect(saved!.toJson(), rule.toJson());
     },
   );
-  testWidgets(
-    'scheduled focus starts with explicit weekday hours, no timer or daily budget',
-    (tester) async {
-      ActivityRule? saved;
-      await open(
-        tester,
-        RuleEditor(
-          sources: {'windows:discord.exe'},
-          scheduledFocus: true,
-          timezone: 'Asia/Jakarta',
-        ),
-        (value) => saved = value,
-      );
-      await tester.enterText(
-        find.widgetWithText(TextField, 'Search apps and websites'),
-        'discord',
-      );
-      await tester.pumpAndSettle();
-      // Picking an app by name picks all of it: its apps and its website.
-      await tester.tap(find.widgetWithText(ListTile, 'Discord'));
-      await tester.pumpAndSettle();
-      await tap(tester, 'Add more times');
-      await tap(tester, 'Save rule');
-      expect(saved!.name, 'Focus hours');
-      expect(saved!.focusBlock, isFalse);
-      expect(saved!.dailyMinutes, isNull);
-      expect(
-        saved!.sources,
-        containsAll(['windows:discord.exe', 'web:discord.com']),
-      );
-      expect(saved!.schedules, hasLength(2));
-      expect(saved!.schedules.first.weekdays, {1, 2, 3, 4, 5});
-      expect(saved!.schedules.first.startMinute, 540);
-      expect(saved!.schedules.first.endMinute, 1020);
-    },
-  );
+  testWidgets('set times start as weekdays 9 to 5 and can have more windows', (
+    tester,
+  ) async {
+    ActivityRule? saved;
+    await open(
+      tester,
+      RuleEditor(sources: {'windows:discord.exe'}, timezone: 'Asia/Jakarta'),
+      (value) => saved = value,
+    );
+    await tester.enterText(
+      find.widgetWithText(TextField, 'Search apps and websites'),
+      'discord',
+    );
+    await tester.pumpAndSettle();
+    // Picking an app by name picks all of it: its apps and its website.
+    await tester.tap(find.widgetWithText(ListTile, 'Discord'));
+    await tester.pumpAndSettle();
+    await tap(tester, 'At set times');
+    expect(find.textContaining('Asia/Jakarta'), findsOneWidget);
+    await tap(tester, 'Add more times');
+    await tap(tester, 'Save rule');
+    expect(saved!.name, 'Discord');
+    expect(
+      saved!.sources,
+      containsAll(['windows:discord.exe', 'web:discord.com']),
+    );
+    expect(saved!.schedules, hasLength(2));
+    expect(saved!.schedules.first.weekdays, {1, 2, 3, 4, 5});
+    expect(saved!.schedules.first.startMinute, 540);
+    expect(saved!.schedules.first.endMinute, 1020);
+  });
   testWidgets(
     'a schedule can be removed without dropping another overnight window',
     (tester) async {

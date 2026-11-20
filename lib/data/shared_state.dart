@@ -168,6 +168,12 @@ class SharedState {
     await seedOne('setting', 'timezone', {
       'timezone': await store.setting('timezone') ?? 'UTC',
     });
+    final focusHours = await store.setting('focus_hours');
+    if (focusHours != null) {
+      await seedOne('setting', 'focus_hours', {
+        'schedules': jsonDecode(focusHours),
+      });
+    }
     final active = _decode(await store.setting('active_session'));
     if (active != null) {
       await seedOne('focus', 'active', active, bootstrap: false);
@@ -316,6 +322,13 @@ class SharedState {
           );
         }
         await store.saveRules(next);
+      case 'setting' when id == 'focus_hours':
+        if (value == null || value['schedules'] is! List) {
+          throw const FormatException('Invalid Focus hours.');
+        }
+        final encoded = jsonEncode(value['schedules']);
+        decodeFocusHours(encoded); // Rejects invalid windows before saving.
+        await store.saveSetting('focus_hours', encoded);
       case 'setting':
         if (id != 'timezone' || value == null || value['timezone'] is! String) {
           throw const FormatException('Invalid shared setting.');
