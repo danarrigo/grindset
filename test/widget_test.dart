@@ -1201,7 +1201,8 @@ void main() {
   testWidgets(
     'Lock in starts with a calm minute that can be skipped or cancelled',
     (tester) async {
-      final (controller, _) = await open();
+      var now = DateTime.utc(2026, 11, 10, 10);
+      final (controller, _) = await open(clock: () => now);
       viewport(tester, const Size(390, 844));
       await tester.pumpWidget(LockinApp(controller: controller));
       await tester.tap(find.text('Lock in'));
@@ -1209,14 +1210,17 @@ void main() {
       expect(find.text('Breathe in'), findsOneWidget);
       expect(find.text('Focus starts in 1:00'), findsOneWidget);
       expect(controller.session, isNull);
+      now = now.add(const Duration(seconds: 5));
       await tester.pump(const Duration(seconds: 5));
       expect(find.text('Breathe out'), findsOneWidget);
       expect(find.text('Focus starts in 0:55'), findsOneWidget);
 
       await tester.tap(find.text('Cancel'));
-      await tester.pumpAndSettle();
-      expect(controller.session, isNull);
+      await tester.pump();
       expect(find.text('Lock in'), findsOneWidget);
+      // A cancelled minute never starts a session later.
+      await tester.pump(const Duration(seconds: 61));
+      expect(controller.session, isNull);
 
       await tester.tap(find.text('Lock in'));
       await tester.pump();
@@ -1227,17 +1231,37 @@ void main() {
     },
   );
 
-  testWidgets('after a calm minute the session starts by itself', (
+  testWidgets('the calm minute keeps going on other tabs and then starts', (
     tester,
   ) async {
-    final (controller, _) = await open();
+    var now = DateTime.utc(2026, 11, 10, 10);
+    final (controller, _) = await open(clock: () => now);
     viewport(tester, const Size(390, 844));
     await tester.pumpWidget(LockinApp(controller: controller));
+    Future<void> wait(int seconds) async {
+      now = now.add(Duration(seconds: seconds));
+      await tester.pump(Duration(seconds: seconds));
+    }
+
+    Future<void> tab(int page) async {
+      await tester.tap(find.byKey(ValueKey('nav-$page')));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+
     await tester.tap(find.text('Lock in'));
-    await tester.pump(const Duration(seconds: 59));
-    expect(controller.session, isNull);
-    await tester.pump(const Duration(seconds: 1));
+    await tester.pump();
+    await wait(20);
+    await tab(2);
+    await wait(10);
+    await tab(0);
+    expect(find.text('Focus starts in 0:30'), findsOneWidget);
+    // It finishes while on another tab, and the session starts anyway.
+    await tab(1);
+    await wait(30);
     await tester.pumpAndSettle();
     expect(controller.session?.focusing(controller.now), isTrue);
+    await tab(0);
+    expect(find.text('End session'), findsOneWidget);
   });
 }

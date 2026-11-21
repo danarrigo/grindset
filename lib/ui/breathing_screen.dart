@@ -3,20 +3,24 @@ import 'package:flutter/cupertino.dart';
 import 'focus_screen.dart';
 
 /// A calm minute before a focus session: breathe in for 4 seconds, out for
-/// 6, then the session starts. Nothing is blocked until it does.
+/// 6. Nothing is blocked until the session starts. The app owns the minute
+/// and starts the session; this only shows where it is.
 class BreathingScreen extends StatefulWidget {
   const BreathingScreen({
     super.key,
-    required this.onDone,
+    required this.startedAt,
+    required this.now,
+    required this.duration,
+    required this.onStartNow,
     required this.onCancel,
-    this.duration = const Duration(seconds: 60),
     this.showBrand = true,
   });
 
-  /// Called once when the minute is over or "Start now" is tapped.
-  final VoidCallback onDone;
-  final VoidCallback onCancel;
+  final DateTime startedAt;
+  final DateTime Function() now;
   final Duration duration;
+  final VoidCallback onStartNow;
+  final VoidCallback onCancel;
   final bool showBrand;
 
   static const _inhale = Duration(seconds: 4);
@@ -28,26 +32,11 @@ class BreathingScreen extends StatefulWidget {
 
 class _BreathingScreenState extends State<BreathingScreen>
     with SingleTickerProviderStateMixin {
+  // Only redraws every frame; the time comes from [BreathingScreen.now].
   late final _clock = AnimationController(
     vsync: this,
-    duration: widget.duration,
-  );
-  var _done = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _clock.addStatusListener((status) {
-      if (status == AnimationStatus.completed) _finish();
-    });
-    _clock.forward();
-  }
-
-  void _finish() {
-    if (_done) return;
-    _done = true;
-    widget.onDone();
-  }
+    duration: const Duration(seconds: 1),
+  )..repeat();
 
   @override
   void dispose() {
@@ -83,7 +72,12 @@ class _BreathingScreenState extends State<BreathingScreen>
             child: AnimatedBuilder(
               animation: _clock,
               builder: (context, _) {
-                final elapsed = widget.duration * _clock.value;
+                final since = widget.now().difference(widget.startedAt);
+                final elapsed = since < Duration.zero
+                    ? Duration.zero
+                    : since > widget.duration
+                    ? widget.duration
+                    : since;
                 final inBreath = Duration(
                   microseconds:
                       elapsed.inMicroseconds %
@@ -154,7 +148,7 @@ class _BreathingScreenState extends State<BreathingScreen>
                           minimumSize: const Size(160, 48),
                           color: p.start,
                           borderRadius: BorderRadius.circular(24),
-                          onPressed: _finish,
+                          onPressed: widget.onStartNow,
                           child: Text(
                             'Start now',
                             style: TextStyle(

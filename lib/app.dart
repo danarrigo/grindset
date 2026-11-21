@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
@@ -135,6 +136,7 @@ class _HomeState extends State<_Home> {
 
   @override
   void dispose() {
+    _breathingTimer?.cancel();
     _pageScroll.dispose();
     super.dispose();
   }
@@ -794,14 +796,14 @@ class _HomeState extends State<_Home> {
       if (c.trackingInterruption != null)
         'Tracking was interrupted. See Settings.',
     ].nonNulls;
-    if (_breathing && !running) {
+    if (_breathingSince != null && !running) {
       return BreathingScreen(
         showBrand: !_desktopLayout,
-        onCancel: () => setState(() => _breathing = false),
-        onDone: () {
-          setState(() => _breathing = false);
-          _start();
-        },
+        startedAt: _breathingSince!,
+        now: () => c.now,
+        duration: _calmMinute,
+        onStartNow: _endBreathing,
+        onCancel: _cancelBreathing,
       );
     }
     return FocusScreen(
@@ -836,13 +838,34 @@ class _HomeState extends State<_Home> {
           : running
           ? () => _endSession(context)
           : phase == SessionPhase.focus
-          ? () => setState(() => _breathing = true)
+          ? _beginBreathing
           : _start,
     );
   }
 
-  /// A focus session first gets a calm minute (see [BreathingScreen]).
-  bool _breathing = false;
+  /// A focus session first gets a calm minute (see [BreathingScreen]). It
+  /// runs here, not in the screen, so it keeps going on other tabs.
+  static const _calmMinute = Duration(seconds: 60);
+  DateTime? _breathingSince;
+  Timer? _breathingTimer;
+
+  void _beginBreathing() {
+    setState(() => _breathingSince = c.now);
+    _breathingTimer = Timer(_calmMinute, _endBreathing);
+  }
+
+  void _cancelBreathing() {
+    _breathingTimer?.cancel();
+    setState(() => _breathingSince = null);
+  }
+
+  void _endBreathing() {
+    _breathingTimer?.cancel();
+    if (_breathingSince == null || !mounted) return;
+    setState(() => _breathingSince = null);
+    // A session started meanwhile (e.g. on another device) is left alone.
+    if (!(c.session?.running(c.now) ?? false)) _start();
+  }
 
   void _start() => _run(() async {
     await c.startSession(Duration(minutes: _minutes), _phase);
