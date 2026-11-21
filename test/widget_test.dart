@@ -1025,7 +1025,7 @@ void main() {
   });
 
   testWidgets(
-    'approved Focus layout stays minimal and dark in either system appearance',
+    'approved Focus layout stays minimal and follows the appearance',
     (tester) async {
       final (controller, _) = await open();
       for (final (name, size, mode) in [
@@ -1062,6 +1062,18 @@ void main() {
         await expectLater(tester, meetsGuideline(textContrastGuideline));
         await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
         await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+        if (name.startsWith('mobile')) {
+          await tester.tap(find.text('Lock in'));
+          await tester.pump(const Duration(seconds: 2));
+          await expectLater(
+            find.byKey(const ValueKey('screen')),
+            matchesGoldenFile('goldens/$name-breathing.png'),
+          );
+          await expectLater(tester, meetsGuideline(textContrastGuideline));
+          await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+          await tester.tap(find.text('Cancel'));
+          await tester.pumpAndSettle();
+        }
         if (name == 'mobile') {
           await tester.tap(find.byTooltip('More options'));
           await tester.pumpAndSettle();
@@ -1185,4 +1197,47 @@ void main() {
       expect(find.text('30 min left today · 0 min of 30 min'), findsOneWidget);
     },
   );
+
+  testWidgets(
+    'Lock in starts with a calm minute that can be skipped or cancelled',
+    (tester) async {
+      final (controller, _) = await open();
+      viewport(tester, const Size(390, 844));
+      await tester.pumpWidget(LockinApp(controller: controller));
+      await tester.tap(find.text('Lock in'));
+      await tester.pump();
+      expect(find.text('Breathe in'), findsOneWidget);
+      expect(find.text('Focus starts in 1:00'), findsOneWidget);
+      expect(controller.session, isNull);
+      await tester.pump(const Duration(seconds: 5));
+      expect(find.text('Breathe out'), findsOneWidget);
+      expect(find.text('Focus starts in 0:55'), findsOneWidget);
+
+      await tester.tap(find.text('Cancel'));
+      await tester.pumpAndSettle();
+      expect(controller.session, isNull);
+      expect(find.text('Lock in'), findsOneWidget);
+
+      await tester.tap(find.text('Lock in'));
+      await tester.pump();
+      await tester.tap(find.text('Start now'));
+      await tester.pumpAndSettle();
+      expect(controller.session?.focusing(controller.now), isTrue);
+      expect(find.text('End session'), findsOneWidget);
+    },
+  );
+
+  testWidgets('after a calm minute the session starts by itself', (
+    tester,
+  ) async {
+    final (controller, _) = await open();
+    viewport(tester, const Size(390, 844));
+    await tester.pumpWidget(LockinApp(controller: controller));
+    await tester.tap(find.text('Lock in'));
+    await tester.pump(const Duration(seconds: 59));
+    expect(controller.session, isNull);
+    await tester.pump(const Duration(seconds: 1));
+    await tester.pumpAndSettle();
+    expect(controller.session?.focusing(controller.now), isTrue);
+  });
 }

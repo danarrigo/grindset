@@ -15,6 +15,7 @@ import 'ui/appearance.dart';
 import 'ui/cloud_panel.dart';
 import 'ui/duration_dialog.dart';
 import 'ui/desktop_shell.dart';
+import 'ui/breathing_screen.dart';
 import 'ui/focus_screen.dart';
 import 'ui/schedule_summary.dart';
 import 'ui/source_label.dart';
@@ -515,7 +516,7 @@ class _HomeState extends State<_Home> {
       final workspace = _page == 0 ? _focusHome() : _secondaryPages(desktop);
       if (!desktop) return workspace;
       return Theme(
-        data: _page == 0 ? lockinTheme(Brightness.dark) : Theme.of(context),
+        data: _page == 0 ? _focusTheme(context) : Theme.of(context),
         child: DesktopShell(
           selected: _page,
           onSelected: (page) => setState(() => _page = page),
@@ -631,20 +632,34 @@ class _HomeState extends State<_Home> {
     );
   }
 
+  /// The app's theme with the Focus page's own background.
+  ThemeData _focusTheme(BuildContext context) {
+    final brightness = Theme.of(context).brightness;
+    return lockinTheme(brightness).copyWith(
+      scaffoldBackgroundColor: brightness == Brightness.dark
+          ? FocusPalette.dark.background
+          : FocusPalette.light.background,
+    );
+  }
+
   Widget _focusHome() {
-    final theme = lockinTheme(Brightness.dark)
-        .copyWith(scaffoldBackgroundColor: const Color(0xFF09090A));
+    final theme = _focusTheme(context);
+    final dark = theme.brightness == Brightness.dark;
     return Theme(
       data: theme,
       child: CupertinoTheme(
         data: MaterialBasedCupertinoThemeData(materialTheme: theme),
         child: Builder(
           builder: (context) => AnnotatedRegion<SystemUiOverlayStyle>(
-            value: SystemUiOverlayStyle.light.copyWith(
-              statusBarColor: Colors.transparent,
-              systemNavigationBarColor: const Color(0xFF09090A),
-              systemNavigationBarIconBrightness: Brightness.light,
-            ),
+            value:
+                (dark ? SystemUiOverlayStyle.light : SystemUiOverlayStyle.dark)
+                    .copyWith(
+                      statusBarColor: Colors.transparent,
+                      systemNavigationBarColor: theme.scaffoldBackgroundColor,
+                      systemNavigationBarIconBrightness: dark
+                          ? Brightness.light
+                          : Brightness.dark,
+                    ),
             child: Scaffold(
               body: SafeArea(
                 child: Stack(
@@ -779,6 +794,16 @@ class _HomeState extends State<_Home> {
       if (c.trackingInterruption != null)
         'Tracking was interrupted. See Settings.',
     ].nonNulls;
+    if (_breathing && !running) {
+      return BreathingScreen(
+        showBrand: !_desktopLayout,
+        onCancel: () => setState(() => _breathing = false),
+        onDone: () {
+          setState(() => _breathing = false);
+          _start();
+        },
+      );
+    }
     return FocusScreen(
       showBrand: !_desktopLayout,
       menuButtonKey: _focusMenuKey,
@@ -810,12 +835,19 @@ class _HomeState extends State<_Home> {
           ? null
           : running
           ? () => _endSession(context)
-          : () => _run(() async {
-              await c.startSession(Duration(minutes: _minutes), _phase);
-              if (mounted) setState(() => _configuringNext = false);
-            }),
+          : phase == SessionPhase.focus
+          ? () => setState(() => _breathing = true)
+          : _start,
     );
   }
+
+  /// A focus session first gets a calm minute (see [BreathingScreen]).
+  bool _breathing = false;
+
+  void _start() => _run(() async {
+    await c.startSession(Duration(minutes: _minutes), _phase);
+    if (mounted) setState(() => _configuringNext = false);
+  });
 
   Future<void> _showFocusProfiles([BuildContext? presentation]) =>
       showDialog<void>(
@@ -882,10 +914,6 @@ class _HomeState extends State<_Home> {
             builder: (sheetContext) => CupertinoTheme(
               data: theme,
               child: CupertinoActionSheet(
-                title: Text(
-                  'Grindset',
-                  style: textStyle.copyWith(color: const Color(0xFFE5E5EA)),
-                ),
                 actions: [
                   CupertinoActionSheetAction(
                     onPressed: () => Navigator.pop(sheetContext, profiles),
