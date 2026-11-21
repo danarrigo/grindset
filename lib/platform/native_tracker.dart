@@ -44,6 +44,7 @@ class WindowsActivityStatus {
     required this.idleKnown,
     required this.mediaAvailable,
     required this.mediaPlaying,
+    this.host,
   });
   factory WindowsActivityStatus.fromMap(Map<String, dynamic> value) =>
       WindowsActivityStatus(
@@ -52,12 +53,16 @@ class WindowsActivityStatus {
         idleKnown: value['idleKnown'] == true,
         mediaAvailable: value['mediaAvailable'] == true,
         mediaPlaying: value['mediaPlaying'] == true,
+        host: websiteHost(value['host'] as String? ?? ''),
       );
   final bool current;
   final Duration idle;
   final bool idleKnown;
   final bool mediaAvailable;
   final bool mediaPlaying;
+
+  /// The site in the browser's address bar, when asked for and readable.
+  final String? host;
 }
 
 class ForegroundApp {
@@ -144,9 +149,21 @@ class NativeTracker {
     }
   }
 
-  Future<WindowsActivityStatus> windowsActivity(int processId) async {
+  /// Closes the current tab of the browser [processId] while it is in front.
+  Future<bool> closeBrowserTab(int processId) async =>
+      await windowsChannel.invokeMethod<bool>('closeTab', {'pid': processId}) ??
+      false;
+
+  /// With [browser], also reads the site from the browser's address bar.
+  Future<WindowsActivityStatus> windowsActivity(
+    int processId, {
+    bool browser = false,
+  }) async {
     final value = await windowsChannel
-        .invokeMapMethod<String, dynamic>('activityState', {'pid': processId})
+        .invokeMapMethod<String, dynamic>('activityState', {
+          'pid': processId,
+          'browser': browser,
+        })
         .timeout(const Duration(seconds: 20));
     return WindowsActivityStatus.fromMap(value ?? {});
   }

@@ -74,6 +74,31 @@ class AppController extends ChangeNotifier {
 
   bool? _strictLocked;
 
+  /// The site in the front browser's address bar, read only when its
+  /// extension is not reporting (Windows).
+  ({String source, String host})? _addressBar;
+  ({String host, DateTime at})? _closedSite;
+
+  /// Closes a blocked site's tab in the front browser. Returns whether it did.
+  Future<bool> _closeBlockedSite(ForegroundApp browser) async {
+    final host = _addressBar!.host;
+    final reason = restrictionForSource('web:$host');
+    if (reason == null) return false;
+    // The tab takes a moment to close; do not close a second one meanwhile.
+    final last = _closedSite;
+    if (last != null &&
+        last.host == host &&
+        now.difference(last.at) < const Duration(seconds: 3)) {
+      return true;
+    }
+    if (!await tracker.closeBrowserTab(browser.processId)) return false;
+    _closedSite = (host: host, at: now);
+    unawaited(
+      completionAlerts?.showSiteClosed(host, reason).catchError((_) {}),
+    );
+    return true;
+  }
+
   /// Told when strict mode locks or unlocks, e.g. to keep Windows running.
   Future<void> Function(bool locked)? onStrictLockChanged;
   String? _foregroundSource;
@@ -86,6 +111,7 @@ class AppController extends ChangeNotifier {
   bool _browserWithoutExtension(String source) {
     final bridge = browserBridge;
     if (bridge == null ||
+        _addressBar?.source == source ||
         !source.startsWith('windows:') ||
         serviceFor(source)?.category != 'Whole browser' ||
         (websiteRestrictions()['blocked'] as List).isEmpty) {
@@ -958,6 +984,7 @@ class AppController extends ChangeNotifier {
           if (blockedSource != null) dismissBlock();
         } else if (tracker.isWindows) {
           var current = tracker.foreground();
+          if (current == null) _addressBar = null;
           if (current?.source != _foregroundSource) {
             _foregroundSource = current?.source;
             _foregroundSince = now;
@@ -968,8 +995,22 @@ class AppController extends ChangeNotifier {
             dismissBlock();
           }
           if (current != null) {
-            final activity = await tracker.windowsActivity(current.processId);
+            // Without the extension, the site comes from the address bar.
+            final browser =
+                serviceFor(current.source)?.category == 'Whole browser' &&
+                browserBridge?.observationFor(current.source) == null;
+            final activity = await tracker.windowsActivity(
+              current.processId,
+              browser: browser,
+            );
+            _addressBar = browser && activity.current && activity.host != null
+                ? (source: current.source, host: activity.host!)
+                : null;
             if (!activity.current) {
+              current = null;
+            } else if (_addressBar != null &&
+                restrictWindowsApp != null &&
+                await _closeBlockedSite(current)) {
               current = null;
             } else if (current.source != 'windows:lockin.exe' &&
                 restrictWindowsApp != null) {
@@ -1098,9 +1139,17 @@ class AppController extends ChangeNotifier {
   }
 
   Future<void> _recordBrowser(ForegroundApp? app, DateTime observed) async {
+    final bar = _addressBar;
     final snapshot = app == null
         ? null
-        : browserBridge?.observationFor(app.source);
+        : browserBridge?.observationFor(app.source) ??
+              (bar?.source == app.source
+                  ? BrowserObservation(
+                      source: 'web:${bar!.host}',
+                      observedAt: observed,
+                      mediaPlaying: false,
+                    )
+                  : null);
     final native = _openInterval;
     if (snapshot == null || native == null) {
       _webInterval = null;

@@ -5,6 +5,7 @@
 #include <appmodel.h>
 #include <audiopolicy.h>
 #include <mmdeviceapi.h>
+#include <uiautomation.h>
 #include <winrt/Windows.Foundation.h>
 #include <winrt/Windows.Foundation.Collections.h>
 #include <winrt/Windows.Media.Control.h>
@@ -96,6 +97,91 @@ bool IsPlaying(const MediaManager& manager, DWORD pid) {
   }
   return false;
 }
+// The site open in a browser window, read from its address bar through UI
+// Automation, for when the Grindset extension is not running there. Only the
+// host is kept: paths, queries and page content are never returned.
+// Chromium browsers name the bar's class OmniboxViewViews; Firefox-based ones
+// give it the id urlbar-input.
+struct AddressBar {
+  winrt::com_ptr<IUIAutomation> automation;
+  HWND window = nullptr;
+  winrt::com_ptr<IUIAutomationElement> bar;
+  ULONGLONG searched_at = 0;
+  std::wstring host;
+};
+
+std::wstring HostOf(std::wstring text) {
+  if (text.empty() || text.find_first_of(L" \t") != std::wstring::npos) return L"";
+  const auto scheme = text.find(L"://");
+  if (scheme != std::wstring::npos) {
+    const auto name = Lower(text.substr(0, scheme));
+    if (name != L"http" && name != L"https") return L"";
+    text = text.substr(scheme + 3);
+  }
+  text = text.substr(0, text.find_first_of(L"/?#"));
+  if (const auto at = text.rfind(L'@'); at != std::wstring::npos) text = text.substr(at + 1);
+  text = Lower(text.substr(0, text.find(L':')));
+  if (text.size() > 253 || text.find(L'.') == std::wstring::npos) return L"";
+  for (const auto c : text) {
+    if (!(std::iswalnum(c) || c == L'.' || c == L'-')) return L"";
+  }
+  return text;
+}
+
+std::wstring BrowserHost(AddressBar& state, HWND window) {
+  if (!state.automation &&
+      FAILED(CoCreateInstance(__uuidof(CUIAutomation), nullptr, CLSCTX_INPROC_SERVER,
+                              __uuidof(IUIAutomation), state.automation.put_void()))) return L"";
+  const auto now = GetTickCount64();
+  if (window != state.window) {
+    state = AddressBar{state.automation, window};
+  }
+  if (!state.bar && now - state.searched_at >= 5000) {
+    state.searched_at = now;
+    winrt::com_ptr<IUIAutomationElement> root;
+    winrt::com_ptr<IUIAutomationCondition> chromium, gecko, either;
+    VARIANT chromium_class{};
+    chromium_class.vt = VT_BSTR;
+    chromium_class.bstrVal = SysAllocString(L"OmniboxViewViews");
+    VARIANT gecko_id{};
+    gecko_id.vt = VT_BSTR;
+    gecko_id.bstrVal = SysAllocString(L"urlbar-input");
+    if (SUCCEEDED(state.automation->ElementFromHandle(window, root.put())) &&
+        SUCCEEDED(state.automation->CreatePropertyCondition(UIA_ClassNamePropertyId, chromium_class, chromium.put())) &&
+        SUCCEEDED(state.automation->CreatePropertyCondition(UIA_AutomationIdPropertyId, gecko_id, gecko.put())) &&
+        SUCCEEDED(state.automation->CreateOrCondition(chromium.get(), gecko.get(), either.put()))) {
+      root->FindFirst(TreeScope_Descendants, either.get(), state.bar.put());
+    }
+    VariantClear(&chromium_class);
+    VariantClear(&gecko_id);
+  }
+  if (!state.bar) return L"";
+  // While someone types in the bar it holds their text, not the page's site.
+  VARIANT focused{};
+  if (SUCCEEDED(state.bar->GetCurrentPropertyValue(UIA_HasKeyboardFocusPropertyId, &focused)) &&
+      focused.vt == VT_BOOL && focused.boolVal == VARIANT_TRUE) {
+    return state.host;
+  }
+  VARIANT value{};
+  if (FAILED(state.bar->GetCurrentPropertyValue(UIA_ValueValuePropertyId, &value))) {
+    state.bar = nullptr;
+    return L"";
+  }
+  state.host = value.vt == VT_BSTR && value.bstrVal ? HostOf(value.bstrVal) : L"";
+  VariantClear(&value);
+  return state.host;
+}
+
+std::string Utf8(const std::wstring& text) {
+  if (text.empty()) return "";
+  const int size = WideCharToMultiByte(CP_UTF8, 0, text.c_str(), static_cast<int>(text.size()), nullptr, 0, nullptr, nullptr);
+  std::string result(size, '\0');
+  WideCharToMultiByte(CP_UTF8, 0, text.c_str(), static_cast<int>(text.size()), result.data(), size, nullptr, nullptr);
+  return result;
+}
+
+AddressBar address_bar;
+
 constexpr UINT kForegroundChanged = WM_APP + 173;
 constexpr UINT kCatalogReady = WM_APP + 174;
 constexpr UINT kDetailsReady = WM_APP + 175;
@@ -196,6 +282,31 @@ ActivityProbe::ActivityProbe(flutter::BinaryMessenger* messenger, HWND window)
       result->Success(flutter::EncodableValue(status));
       return;
     }
+    if (call.method_name() == "closeTab") {
+      // Closes the current tab of a browser on a blocked site, only while that
+      // browser is still the window in front.
+      DWORD pid = 0;
+      if (args) {
+        const auto it = args->find(flutter::EncodableValue("pid"));
+        if (it != args->end()) {
+          if (const auto* pid32 = std::get_if<int32_t>(&it->second)) pid = static_cast<DWORD>(*pid32);
+          if (const auto* pid64 = std::get_if<int64_t>(&it->second)) pid = static_cast<DWORD>(*pid64);
+        }
+      }
+      DWORD foreground = 0;
+      GetWindowThreadProcessId(GetForegroundWindow(), &foreground);
+      if (pid == 0 || pid != foreground) { result->Success(flutter::EncodableValue(false)); return; }
+      INPUT keys[4]{};
+      for (auto& key : keys) key.type = INPUT_KEYBOARD;
+      keys[0].ki.wVk = VK_CONTROL;
+      keys[1].ki.wVk = 'W';
+      keys[2].ki.wVk = 'W';
+      keys[2].ki.dwFlags = KEYEVENTF_KEYUP;
+      keys[3].ki.wVk = VK_CONTROL;
+      keys[3].ki.dwFlags = KEYEVENTF_KEYUP;
+      result->Success(flutter::EncodableValue(SendInput(4, keys, sizeof(INPUT)) == 4));
+      return;
+    }
     if (call.method_name() != "activityState") { result->NotImplemented(); return; }
     const auto* arguments = std::get_if<flutter::EncodableMap>(call.arguments());
     if (!arguments) { result->Error("INVALID_PID", "A foreground process is required."); return; }
@@ -206,7 +317,13 @@ ActivityProbe::ActivityProbe(flutter::BinaryMessenger* messenger, HWND window)
       if (const auto* pid64 = std::get_if<int64_t>(&it->second)) pid = static_cast<DWORD>(*pid64);
     }
     DWORD foreground = 0;
-    GetWindowThreadProcessId(GetForegroundWindow(), &foreground);
+    const HWND foreground_window = GetForegroundWindow();
+    GetWindowThreadProcessId(foreground_window, &foreground);
+    const auto browser = arguments->find(flutter::EncodableValue("browser"));
+    const bool read_host = browser != arguments->end() &&
+        std::get_if<bool>(&browser->second) && std::get<bool>(browser->second);
+    const std::string host = read_host && pid != 0 && pid == foreground
+        ? Utf8(BrowserHost(address_bar, foreground_window)) : "";
     LASTINPUTINFO input{sizeof(LASTINPUTINFO), 0};
     const bool idle_known = GetLastInputInfo(&input) != FALSE;
     const DWORD idle = static_cast<DWORD>(GetTickCount64()) - input.dwTime;
@@ -224,6 +341,7 @@ ActivityProbe::ActivityProbe(flutter::BinaryMessenger* messenger, HWND window)
         {flutter::EncodableValue("idleKnown"), flutter::EncodableValue(idle_known)},
         {flutter::EncodableValue("mediaAvailable"), flutter::EncodableValue(available)},
         {flutter::EncodableValue("mediaPlaying"), flutter::EncodableValue(playing)},
+        {flutter::EncodableValue("host"), flutter::EncodableValue(host)},
     });
   });
 }

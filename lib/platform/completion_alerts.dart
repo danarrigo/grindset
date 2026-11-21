@@ -89,6 +89,19 @@ class CompletionAlerts {
     return null;
   }
 
+  /// Windows, without the browser extension: a blocked site's tab was closed.
+  Future<void> showSiteClosed(String host, String reason) async {
+    await _initialize();
+    await _plugin.show(
+      id: 4304,
+      title: '$host is blocked',
+      body: '$reason. Grindset closed the tab.',
+      notificationDetails: const NotificationDetails(
+        windows: WindowsNotificationDetails(),
+      ),
+    );
+  }
+
   Future<String?> synchronize({required bool enabled, FocusSession? session}) {
     final generation = ++_generation;
     final operation = _tail.then((_) async {

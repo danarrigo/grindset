@@ -21,6 +21,6 @@ Making things stricter always works.
 
 - **Android**: the notification's Stop button is ignored, and Android's uninstall screen (`com.android.packageinstaller`, `com.google.android.packageinstaller`) is blocked like a restricted app (`setStrictLock`). Removing permissions in Settings is not prevented.
 - **Windows**: Quit is disabled in the tray, and a per-user scheduled task `Grindset strict mode` starts `lockin.exe --background` every minute; a single-instance mutex in `windows/runner/main.cpp` makes extra starts exit. The task is removed when the lock ends and on uninstall.
-- **Browsers**: while websites are blocked, a browser in front whose extension has not reported for 10 seconds is blocked as a whole app. Browsers the extension cannot report from (Brave, Opera) are always blocked while locked.
+- **Browsers**: while websites are blocked, a browser in front is blocked as a whole app only when neither its extension reports nor its address bar can be read (see `docs/windows-address-bar.md`).
 
 Uninstalling Grindset on Windows is not prevented.
