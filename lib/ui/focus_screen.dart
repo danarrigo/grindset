@@ -53,6 +53,26 @@ class FocusPalette {
       Theme.of(context).brightness == Brightness.dark ? dark : light;
 }
 
+/// Focus hours on the Focus page: on now (with when they end and what they
+/// block) or starting later today.
+class FocusHoursBanner {
+  const FocusHoursBanner({
+    required this.title,
+    required this.active,
+    this.detail,
+  });
+  final String title;
+  final String? detail;
+  final bool active;
+}
+
+/// Something to fix, shown as a card; tapping it goes where it is fixed.
+class FocusNotice {
+  const FocusNotice(this.message, {this.onTap});
+  final String message;
+  final VoidCallback? onTap;
+}
+
 /// The working surface only. Session state and navigation belong to the app.
 class FocusScreen extends StatelessWidget {
   const FocusScreen({
@@ -65,7 +85,8 @@ class FocusScreen extends StatelessWidget {
     this.setupLabel,
     this.onSetup,
     this.status,
-    this.warning,
+    this.focusHours,
+    this.notices = const [],
     this.showBrand = true,
     this.menuButtonKey,
   });
@@ -80,7 +101,8 @@ class FocusScreen extends StatelessWidget {
   final String? setupLabel;
   final VoidCallback? onSetup;
   final String? status;
-  final String? warning;
+  final FocusHoursBanner? focusHours;
+  final List<FocusNotice> notices;
   final bool showBrand;
   final Key? menuButtonKey;
 
@@ -136,6 +158,14 @@ class FocusScreen extends StatelessWidget {
               ),
             ],
           ),
+          if (focusHours != null) ...[
+            const SizedBox(height: 12),
+            _FocusHoursCard(banner: focusHours!, palette: p),
+          ],
+          for (final notice in notices) ...[
+            const SizedBox(height: 8),
+            _NoticeCard(notice: notice, palette: p),
+          ],
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) => SingleChildScrollView(
@@ -150,14 +180,6 @@ class FocusScreen extends StatelessWidget {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          if (warning != null) ...[
-                            Text(
-                              warning!,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: p.warning, fontSize: 13),
-                            ),
-                            const SizedBox(height: 24),
-                          ],
                           Semantics(
                             label: running
                                 ? 'Time remaining'
@@ -277,4 +299,114 @@ class FocusScreen extends StatelessWidget {
       ),
     );
   }
+}
+
+class _FocusHoursCard extends StatelessWidget {
+  const _FocusHoursCard({required this.banner, required this.palette});
+  final FocusHoursBanner banner;
+  final FocusPalette palette;
+
+  @override
+  Widget build(BuildContext context) => ConstrainedBox(
+    constraints: const BoxConstraints(maxWidth: 430),
+    child: Container(
+      key: const ValueKey('focus-hours-banner'),
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      decoration: BoxDecoration(
+        color: banner.active ? palette.start : palette.chip,
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Container(
+              width: 8,
+              height: 8,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: banner.active ? palette.startInk : palette.faint,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  banner.title,
+                  style: TextStyle(
+                    color: banner.active ? palette.startInk : palette.ink,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                if (banner.detail != null) ...[
+                  const SizedBox(height: 2),
+                  Text(
+                    banner.detail!,
+                    style: TextStyle(
+                      color: banner.active ? palette.ink : palette.muted,
+                      fontSize: 13,
+                    ),
+                  ),
+                ],
+              ],
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
+
+class _NoticeCard extends StatelessWidget {
+  const _NoticeCard({required this.notice, required this.palette});
+  final FocusNotice notice;
+  final FocusPalette palette;
+
+  @override
+  Widget build(BuildContext context) => ConstrainedBox(
+    constraints: const BoxConstraints(maxWidth: 430),
+    child: CupertinoButton(
+      padding: EdgeInsets.zero,
+      minimumSize: const Size(48, 44),
+      onPressed: notice.onTap,
+      child: Container(
+        width: double.infinity,
+        padding: const EdgeInsets.fromLTRB(14, 11, 12, 11),
+        decoration: BoxDecoration(
+          color: palette.chip,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Row(
+          children: [
+            Icon(
+              CupertinoIcons.exclamationmark_triangle_fill,
+              color: palette.warning,
+              size: 17,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                notice.message,
+                style: TextStyle(color: palette.ink, fontSize: 13, height: 1.3),
+              ),
+            ),
+            if (notice.onTap != null) ...[
+              const SizedBox(width: 6),
+              Icon(
+                CupertinoIcons.chevron_right,
+                color: palette.faint,
+                size: 14,
+              ),
+            ],
+          ],
+        ),
+      ),
+    ),
+  );
 }

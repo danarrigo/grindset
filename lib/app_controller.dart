@@ -141,14 +141,32 @@ class AppController extends ChangeNotifier {
   int? get focusHoursEnd =>
       focusHours.where((w) => w.contains(now, location)).firstOrNull?.endMinute;
 
+  /// Minute of the day Focus hours next start today, or null if not today.
+  int? get focusHoursNextStart {
+    final local = tz.TZDateTime.from(now, location);
+    final minute = local.hour * 60 + local.minute;
+    final starts = [
+      for (final w in focusHours)
+        if (w.weekdays.contains(local.weekday) && w.startMinute > minute)
+          w.startMinute,
+    ]..sort();
+    return starts.firstOrNull;
+  }
+
   /// Light, dark or following the system, on this device only.
   ThemeMode themeMode = ThemeMode.system;
   String? budgetWarningsNotice;
   String _budgetWarningDay = '';
   final Set<String> _budgetWarnedRules = {};
+
+  /// Notifications for these are optional ([budgetWarningsEnabled]).
   List<BudgetWarning> get budgetWarnings =>
-      !budgetWarningsEnabled || !trackingEnabled
-      ? []
+      budgetWarningsEnabled ? nearLimits : const [];
+
+  /// Rules at 80% of their daily limit, shown in the app whether or not
+  /// notifications are on.
+  List<BudgetWarning> get nearLimits => !trackingEnabled
+      ? const []
       : nearBudgetWarnings(
           rules: rules,
           intervals: usage,

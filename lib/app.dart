@@ -786,16 +786,44 @@ class _HomeState extends State<_Home> {
     final phase = running ? active!.phase : _phase;
     final setup = setupSteps(c);
     final setupDone = setup.where((s) => s.done).length;
-    final budgetWarnings = c.budgetWarnings;
-    final warnings = [
-      for (final warning in budgetWarnings.take(2)) warning.message,
-      if (budgetWarnings.length > 2)
-        'More rules are near their daily limits. Review Rules.',
-      widget.startupWarning,
-      c.trackingError,
-      if (c.trackingInterruption != null)
-        'Tracking was interrupted. See Settings.',
-    ].nonNulls;
+    final nearLimits = c.nearLimits;
+    void open(int page) => setState(() => _page = page);
+    final notices = [
+      for (final warning in nearLimits.take(2))
+        FocusNotice(
+          '${warning.name}: ${(warning.remaining.inSeconds / 60).ceil()} min left today',
+          onTap: () => open(2),
+        ),
+      if (nearLimits.length > 2)
+        FocusNotice(
+          '${nearLimits.length - 2} more rules are near their daily limits.',
+          onTap: () => open(2),
+        ),
+      if (widget.startupWarning != null) FocusNotice(widget.startupWarning!),
+      if (c.trackingError != null)
+        FocusNotice(c.trackingError!, onTap: () => open(4))
+      else if (c.trackingInterruption != null)
+        FocusNotice('Tracking was interrupted.', onTap: () => open(4)),
+    ];
+    String clock(int minute) =>
+        TimeOfDay(hour: minute ~/ 60, minute: minute % 60).format(context);
+    final focusBlocks = c.rules.where((r) => r.focusBlock).length;
+    final hoursEnd = c.focusHoursEnd;
+    final hoursStart = c.focusHoursNextStart;
+    final focusHours = hoursEnd != null
+        ? FocusHoursBanner(
+            active: true,
+            title: 'Focus hours until ${clock(hoursEnd)}',
+            detail: focusBlocks == 0
+                ? 'No rules block during Focus hours yet'
+                : '$focusBlocks ${focusBlocks == 1 ? 'rule is' : 'rules are'} blocked now',
+          )
+        : hoursStart != null
+        ? FocusHoursBanner(
+            active: false,
+            title: 'Focus hours start at ${clock(hoursStart)}',
+          )
+        : null;
     if (_breathingSince != null && !running) {
       return BreathingScreen(
         showBrand: !_desktopLayout,
@@ -824,10 +852,9 @@ class _HomeState extends State<_Home> {
           : 'Start break',
       status: finished
           ? (active.phase == SessionPhase.focus ? 'Focus done' : 'Break over')
-          : !running && c.focusHoursEnd != null
-          ? 'Focus hours until ${TimeOfDay(hour: c.focusHoursEnd! ~/ 60, minute: c.focusHoursEnd! % 60).format(context)}'
           : null,
-      warning: warnings.isEmpty ? null : warnings.join('\n\n'),
+      focusHours: focusHours,
+      notices: notices,
       setupLabel: setupDone == setup.length
           ? null
           : 'Finish setup · $setupDone of ${setup.length} done',
@@ -1246,10 +1273,8 @@ class _HomeState extends State<_Home> {
           ],
         ),
         const SizedBox(height: 16),
-        if (c.budgetWarnings.isNotEmpty) ...[
-          _notice(
-            c.budgetWarnings.map((warning) => warning.message).join('\n'),
-          ),
+        if (c.nearLimits.isNotEmpty) ...[
+          _notice(c.nearLimits.map((warning) => warning.message).join('\n')),
           const SizedBox(height: 16),
         ],
         if (!c.trackingEnabled) ...[

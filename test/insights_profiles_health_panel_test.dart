@@ -54,7 +54,7 @@ void main() {
   }
 
   testWidgets(
-    'opt-in budget warning appears in Focus without changing the limit',
+    'Focus shows a near limit whether or not budget notifications are on',
     (tester) async {
       await c.saveRule(
         ActivityRule(
@@ -77,15 +77,14 @@ void main() {
       c.trackingEnabled = true;
       await tester.pumpWidget(LockinApp(controller: c));
       await tester.pumpAndSettle();
-      expect(find.textContaining('left in the daily budget'), findsNothing);
+      expect(find.text('Social: 10 min left today'), findsOneWidget);
+      expect(c.budgetWarnings, isEmpty);
       await c.setBudgetWarningsEnabled(true);
       await tester.pumpAndSettle();
-      expect(find.textContaining('left in the daily budget'), findsOneWidget);
+      expect(find.text('Social: 10 min left today'), findsOneWidget);
+      expect(c.budgetWarnings.single.name, 'Social');
       expect(c.rules.single.dailyMinutes, 50);
       expect(c.completionAlertsEnabled, isFalse);
-      await c.setBudgetWarningsEnabled(false);
-      await tester.pumpAndSettle();
-      expect(find.textContaining('left in the daily budget'), findsNothing);
     },
   );
 

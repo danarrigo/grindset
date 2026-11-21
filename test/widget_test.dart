@@ -1264,4 +1264,53 @@ void main() {
     await tab(0);
     expect(find.text('End session'), findsOneWidget);
   });
+
+  testWidgets(
+    'the Focus page shows Focus hours and warnings that lead to fixes',
+    (tester) async {
+      var now = DateTime.utc(2026, 11, 10, 7);
+      final (controller, store) = await open(clock: () => now);
+      controller.trackingEnabled = true;
+      await controller.saveRule(
+        ActivityRule(
+          id: 'v',
+          name: 'YouTube',
+          sources: ['web:youtube.com'],
+          dailyMinutes: 30,
+        ),
+      );
+      await store.putUsage(
+        UsageInterval(
+          id: 'u',
+          deviceId: controller.deviceId,
+          source: 'web:youtube.com',
+          start: DateTime.utc(2026, 11, 10, 6),
+          end: DateTime.utc(2026, 11, 10, 6, 26),
+        ),
+      );
+      await controller.reloadUsage();
+      await controller.setFocusHours([
+        ScheduleWindow(
+          weekdays: [1, 2, 3, 4, 5],
+          startMinute: 9 * 60,
+          endMinute: 17 * 60,
+        ),
+      ]);
+      viewport(tester, const Size(390, 844));
+      await tester.pumpWidget(LockinApp(controller: controller));
+      await tester.pumpAndSettle();
+      expect(find.text('Focus hours start at 9:00 AM'), findsOneWidget);
+      expect(find.text('YouTube: 4 min left today'), findsOneWidget);
+
+      now = DateTime.utc(2026, 11, 10, 10);
+      await controller.refresh();
+      await tester.pumpAndSettle();
+      expect(find.text('Focus hours until 5:00 PM'), findsOneWidget);
+      expect(find.text('1 rule is blocked now'), findsOneWidget);
+
+      await tester.tap(find.text('YouTube: 4 min left today'));
+      await tester.pumpAndSettle();
+      expect(find.text('Focus hours: on'), findsOneWidget);
+    },
+  );
 }
