@@ -33,6 +33,13 @@ object AppBlocker {
     @Volatile private var blocked: String? = null
     @Volatile private var foreground: String? = null
     @Volatile private var scannedUntil = 0L
+
+    /**
+     * Resumed activities ("package/class" to package), oldest first. Opening
+     * Recents resumes the launcher without pausing the app underneath; picking
+     * that app again only pauses the launcher. The newest one left is in front.
+     */
+    private val resumed = LinkedHashMap<String, String>()
     @Volatile private var lastSource: String? = null
     @Volatile private var system: Pair<Long, Set<String>>? = null
     @Volatile private var blockedSince = 0L
@@ -109,27 +116,36 @@ object AppBlocker {
     private fun windows(context: Context) =
         context.applicationContext.getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
-    /** Applies new activity events since the last scan; the latest event wins. */
+    /** Applies new activity events since the last scan. */
     private fun scan(context: Context) {
         val now = System.currentTimeMillis()
         // Seed from the last day once, then re-read a short overlap in case an
         // event becomes queryable slightly after its timestamp. Replaying events
-        // in order is idempotent for "latest foreground app".
+        // in order is idempotent for the set of resumed activities.
         val from = if (scannedUntil == 0L) now - 86_400_000L else scannedUntil - 5_000L
         val manager = context.getSystemService(Context.USAGE_STATS_SERVICE) as UsageStatsManager
         val events = manager.queryEvents(from, now) ?: return
         val event = UsageEvents.Event()
+        var changed = 0L
         while (events.hasNextEvent()) {
             events.getNextEvent(event)
-            // Older history must not undo a newer instant blocking note.
-            if (event.timeStamp < notedAt) continue
+            val activity = "${event.packageName}/${event.className}"
             when (event.eventType) {
                 UsageEvents.Event.ACTIVITY_RESUMED -> {
-                    foreground = event.packageName
-                    closed?.let { (pkg, at) -> if (pkg == event.packageName && event.timeStamp > at) closed = null }
+                    resumed.remove(activity)
+                    resumed[activity] = event.packageName
                 }
-                UsageEvents.Event.ACTIVITY_PAUSED -> if (event.packageName == foreground) foreground = null
+                UsageEvents.Event.ACTIVITY_PAUSED, UsageEvents.Event.ACTIVITY_STOPPED -> resumed.remove(activity)
+                UsageEvents.Event.DEVICE_SHUTDOWN, UsageEvents.Event.DEVICE_STARTUP -> resumed.clear()
+                else -> continue
             }
+            // Older history must not undo a newer instant blocking note.
+            if (event.timeStamp >= notedAt) changed = event.timeStamp
+        }
+        if (changed > 0L) {
+            foreground = resumed.values.lastOrNull()
+            // The app whose block screen closed is in front again.
+            closed?.let { (pkg, at) -> if (pkg == foreground && changed > at) closed = null }
         }
         scannedUntil = now
     }
@@ -162,6 +178,7 @@ object AppBlocker {
         if (!TrackingRuntime.enabled(context) || !permitted(context) || !UsageReader.hasAccess(context)) {
             foreground = null
             scannedUntil = 0L
+            resumed.clear()
             return null
         }
         val power = context.getSystemService(Context.POWER_SERVICE) as PowerManager
