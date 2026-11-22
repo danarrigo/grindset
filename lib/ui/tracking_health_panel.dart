@@ -20,6 +20,7 @@ List<SetupStep> setupSteps(
   VoidCallback? onAppBlocking,
   VoidCallback? onInstantBlocking,
   VoidCallback? onRules,
+  VoidCallback? onStartup,
 }) {
   if (!c.tracker.supported) return const [];
   final ruleCount = c.rules
@@ -96,6 +97,17 @@ List<SetupStep> setupSteps(
         action: null,
         onAction: null,
       ),
+    if (c.tracker.isWindows && c.windowsStartup != null)
+      (
+        title: 'Starts with Windows',
+        status: c.windowsStartup!
+            ? 'On. Grindset opens in the tray when you sign in.'
+            : 'Off. After a restart, nothing is blocked until you open Grindset.',
+        done: c.windowsStartup!,
+        broken: c.trackingEnabled && !c.windowsStartup!,
+        action: c.windowsStartup! ? null : 'Turn on',
+        onAction: onStartup,
+      ),
     if (c.tracker.isWindows)
       (
         title: 'Browser extension',
@@ -133,6 +145,7 @@ class TrackingHealthPanel extends StatefulWidget {
     this.onAppBlocking,
     this.onInstantBlocking,
     this.onRules,
+    this.onStartup,
   });
   final AppController controller;
   final VoidCallback? onTracking;
@@ -140,6 +153,7 @@ class TrackingHealthPanel extends StatefulWidget {
   final VoidCallback? onAppBlocking;
   final VoidCallback? onInstantBlocking;
   final VoidCallback? onRules;
+  final VoidCallback? onStartup;
   @override
   State<TrackingHealthPanel> createState() => _TrackingHealthPanelState();
 }
@@ -175,6 +189,7 @@ class _TrackingHealthPanelState extends State<TrackingHealthPanel> {
         onAppBlocking: widget.onAppBlocking,
         onInstantBlocking: widget.onInstantBlocking,
         onRules: widget.onRules,
+        onStartup: widget.onStartup,
       );
       final done = steps.where((s) => s.done).length;
       // Only the first unfinished step gets the prominent button.

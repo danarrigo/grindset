@@ -122,6 +122,34 @@ void main() {
       expect(find.text('Not working. Restart Grindset.'), findsOneWidget);
     },
   );
+  testWidgets('Starts with Windows shows when startup was turned off', (
+    tester,
+  ) async {
+    var turnedOn = 0;
+    Future<void> panel() => show(
+      tester,
+      TrackingHealthPanel(controller: c, onStartup: () => turnedOn++),
+    );
+    await panel();
+    expect(find.text('Starts with Windows'), findsNothing);
+    c.trackingEnabled = true;
+    c.windowsStartup = false;
+    await panel();
+    expect(
+      find.text(
+        'Off. After a restart, nothing is blocked until you open Grindset.',
+      ),
+      findsOneWidget,
+    );
+    await tester.tap(find.text('Turn on'));
+    expect(turnedOn, 1);
+    c.windowsStartup = true;
+    await panel();
+    expect(
+      find.text('On. Grindset opens in the tray when you sign in.'),
+      findsOneWidget,
+    );
+  });
   testWidgets(
     'Work creation is inert until the user explicitly confirms Use profile',
     (tester) async {

@@ -833,7 +833,11 @@ class _HomeState extends State<_Home> {
     final focusBlocks = c.rules.where((r) => r.focusBlock).length;
     final hoursEnd = c.focusHoursEnd;
     final hoursStart = c.focusHoursNextStart;
-    final focusHours = hoursEnd != null
+    // During Focus hours the page counts down to their end: already focusing.
+    final hoursMode = !running && hoursEnd != null;
+    final focusHours = hoursMode
+        ? null
+        : hoursEnd != null
         ? FocusHoursBanner(
             active: true,
             title: 'Focus hours until ${clock(hoursEnd)}',
@@ -860,7 +864,9 @@ class _HomeState extends State<_Home> {
     return FocusScreen(
       showBrand: !_desktopLayout,
       menuButtonKey: _focusMenuKey,
-      remaining: completed
+      remaining: hoursMode
+          ? c.focusHoursLeft!
+          : completed
           ? Duration(minutes: _minutes)
           : running
           ? active!.remaining(now)
@@ -873,7 +879,11 @@ class _HomeState extends State<_Home> {
           : phase == SessionPhase.focus
           ? 'Lock in'
           : 'Start break',
-      status: finished
+      eyebrow: hoursMode ? 'Focus hours' : null,
+      showAction: !hoursMode,
+      status: hoursMode
+          ? 'until ${clock(hoursEnd)} · ${focusBlocks == 0 ? 'no rules block yet' : '$focusBlocks ${focusBlocks == 1 ? 'rule' : 'rules'} blocked'}'
+          : finished
           ? (active.phase == SessionPhase.focus ? 'Focus done' : 'Break over')
           : null,
       focusHours: focusHours,
@@ -1576,6 +1586,9 @@ class _HomeState extends State<_Home> {
               ? _enableInstantBlocking
               : null,
           onRules: () => setState(() => _page = 2),
+          onStartup: _busy || widget.enableStartup == null
+              ? null
+              : () => _run(widget.enableStartup!),
         ),
       ),
       const SizedBox(height: 20),

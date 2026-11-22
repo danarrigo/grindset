@@ -48,6 +48,15 @@ class AppController extends ChangeNotifier {
 
   bool get inFocusHours => focusHours.any((w) => w.contains(now, location));
 
+  /// Whether Grindset starts with Windows; null where it is not managed.
+  bool? get windowsStartup => _windowsStartup;
+  bool? _windowsStartup;
+  set windowsStartup(bool? value) {
+    if (value == _windowsStartup) return;
+    _windowsStartup = value;
+    notifyListeners();
+  }
+
   /// Whether the first-launch walkthrough is done (or skipped) on this device.
   bool onboarded = true;
 
@@ -160,6 +169,21 @@ class AppController extends ChangeNotifier {
   /// Minute of the day the current Focus hours end, or null outside them.
   int? get focusHoursEnd =>
       focusHours.where((w) => w.contains(now, location)).firstOrNull?.endMinute;
+
+  /// Time left until the current Focus hours end, or null outside them.
+  Duration? get focusHoursLeft {
+    final end = focusHoursEnd;
+    if (end == null) return null;
+    final local = tz.TZDateTime.from(now, location);
+    var until = tz.TZDateTime(
+      location,
+      local.year,
+      local.month,
+      local.day,
+    ).add(Duration(minutes: end));
+    if (!until.isAfter(local)) until = until.add(const Duration(days: 1));
+    return until.difference(local);
+  }
 
   /// Minute of the day Focus hours next start today, or null if not today.
   int? get focusHoursNextStart {

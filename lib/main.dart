@@ -90,6 +90,7 @@ Future<void> main(List<String> args) async {
       }
     }
     DesktopLifecycle? desktop;
+    Future<void> Function()? enableWindowsStartup;
     Future<void>? closing;
     Future<void> quit() => closing ??= () async {
       await cloud?.close();
@@ -197,6 +198,24 @@ Future<void> main(List<String> args) async {
               'Grindset could not add itself to Windows startup: $error';
         }
       }
+      // Shown in Settings. Task Manager can turn startup off at any time.
+      Future<void> checkStartup() async {
+        try {
+          controller.windowsStartup = await desktop!.startupEnabled();
+        } catch (_) {
+          controller.windowsStartup = false;
+        }
+      }
+
+      await checkStartup();
+      Timer.periodic(
+        const Duration(seconds: 30),
+        (_) => unawaited(checkStartup()),
+      );
+      enableWindowsStartup = () async {
+        await desktop!.enableStartup();
+        await checkStartup();
+      };
     }
     runApp(
       LockinApp(
@@ -204,7 +223,7 @@ Future<void> main(List<String> args) async {
         cloud: cloud,
         startupWarning: startupWarning,
         enableStartup: desktop?.manageStartup == true
-            ? desktop?.enableStartup
+            ? enableWindowsStartup
             : null,
         exportData: () => ExportFiles.save(store, exportedAt: controller.now),
         resetDevice: resetDevice,

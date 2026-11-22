@@ -1312,8 +1312,14 @@ void main() {
       now = DateTime.utc(2026, 11, 10, 10);
       await controller.refresh();
       await tester.pumpAndSettle();
-      expect(find.text('Focus hours until 5:00 PM'), findsOneWidget);
-      expect(find.text('1 rule is blocked now'), findsOneWidget);
+      expect(find.byKey(const ValueKey('focus-eyebrow')), findsOneWidget);
+      expect(find.text('7:00:00'), findsOneWidget);
+      expect(find.text('until 5:00 PM · 1 rule blocked'), findsOneWidget);
+      expect(find.text('Lock in'), findsNothing);
+      now = DateTime.utc(2026, 11, 10, 10, 0, 1);
+      await controller.refresh();
+      await tester.pumpAndSettle();
+      expect(find.text('6:59:59'), findsOneWidget);
 
       await tester.tap(find.text('YouTube: 4 min left today'));
       await tester.pumpAndSettle();

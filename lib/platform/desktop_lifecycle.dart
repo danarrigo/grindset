@@ -58,6 +58,11 @@ class DesktopLifecycle with WindowListener, TrayListener {
     }
   }
 
+  /// Whether Grindset starts when the user signs in to Windows, including
+  /// Task Manager's Startup apps switch. Null where startup is not managed.
+  Future<bool?> startupEnabled() async =>
+      manageStartup ? await _startup.isEnabled() : null;
+
   Future<void> enableStartup() async {
     if (manageStartup) await _startup.enable();
   }

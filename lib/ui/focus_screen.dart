@@ -85,6 +85,8 @@ class FocusScreen extends StatelessWidget {
     this.setupLabel,
     this.onSetup,
     this.status,
+    this.eyebrow,
+    this.showAction = true,
     this.focusHours,
     this.notices = const [],
     this.showBrand = true,
@@ -101,6 +103,12 @@ class FocusScreen extends StatelessWidget {
   final String? setupLabel;
   final VoidCallback? onSetup;
   final String? status;
+
+  /// A label above the clock, e.g. "Focus hours" when it counts down to them ending.
+  final String? eyebrow;
+
+  /// False while Focus hours already block distractions: nothing to start.
+  final bool showAction;
   final FocusHoursBanner? focusHours;
   final List<FocusNotice> notices;
   final bool showBrand;
@@ -180,8 +188,22 @@ class FocusScreen extends StatelessWidget {
                       child: Column(
                         mainAxisSize: MainAxisSize.min,
                         children: [
+                          if (eyebrow != null) ...[
+                            Text(
+                              eyebrow!,
+                              key: const ValueKey('focus-eyebrow'),
+                              style: TextStyle(
+                                color: p.startInk,
+                                fontSize: 17,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                            const SizedBox(height: 4),
+                          ],
                           Semantics(
-                            label: running
+                            label: eyebrow != null
+                                ? '$eyebrow remaining'
+                                : running
                                 ? 'Time remaining'
                                 : 'Session duration',
                             value: _clock,
@@ -211,44 +233,46 @@ class FocusScreen extends StatelessWidget {
                               style: TextStyle(color: p.muted, fontSize: 13),
                             ),
                           ],
-                          const SizedBox(height: 42),
-                          CupertinoButton(
-                            padding: EdgeInsets.zero,
-                            minimumSize: const Size(84, 84),
-                            onPressed: onAction,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Container(
-                                  width: 84,
-                                  height: 84,
-                                  decoration: BoxDecoration(
-                                    shape: BoxShape.circle,
-                                    color: running ? p.stop : p.start,
-                                  ),
-                                  child: Icon(
-                                    running
-                                        ? CupertinoIcons.stop_fill
-                                        : CupertinoIcons.play_fill,
-                                    semanticLabel: actionLabel,
-                                    color: running ? p.clock : p.startInk,
-                                    size: 28,
-                                  ),
-                                ),
-                                const SizedBox(height: 13),
-                                ExcludeSemantics(
-                                  child: Text(
-                                    actionLabel,
-                                    style: TextStyle(
-                                      fontSize: 15,
-                                      fontWeight: FontWeight.w500,
-                                      color: running ? p.muted : p.startInk,
+                          if (showAction) ...[
+                            const SizedBox(height: 42),
+                            CupertinoButton(
+                              padding: EdgeInsets.zero,
+                              minimumSize: const Size(84, 84),
+                              onPressed: onAction,
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  Container(
+                                    width: 84,
+                                    height: 84,
+                                    decoration: BoxDecoration(
+                                      shape: BoxShape.circle,
+                                      color: running ? p.stop : p.start,
+                                    ),
+                                    child: Icon(
+                                      running
+                                          ? CupertinoIcons.stop_fill
+                                          : CupertinoIcons.play_fill,
+                                      semanticLabel: actionLabel,
+                                      color: running ? p.clock : p.startInk,
+                                      size: 28,
                                     ),
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(height: 13),
+                                  ExcludeSemantics(
+                                    child: Text(
+                                      actionLabel,
+                                      style: TextStyle(
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w500,
+                                        color: running ? p.muted : p.startInk,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
-                          ),
+                          ],
                         ],
                       ),
                     ),
