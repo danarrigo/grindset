@@ -18,6 +18,7 @@ import 'ui/duration_dialog.dart';
 import 'ui/desktop_shell.dart';
 import 'ui/breathing_screen.dart';
 import 'ui/focus_screen.dart';
+import 'ui/onboarding.dart';
 import 'ui/schedule_summary.dart';
 import 'ui/source_label.dart';
 import 'platform/windows_apps.dart';
@@ -331,7 +332,7 @@ class _HomeState extends State<_Home> {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             const Text(
-              'Load the extension/ folder from this repo in Chrome or Edge using Developer Mode. Open its options and enter this code:',
+              'Install the Grindset extension in your browser, open its options and enter this code:',
             ),
             const SizedBox(height: 24),
             SelectableText(
@@ -512,6 +513,28 @@ class _HomeState extends State<_Home> {
           child: Builder(
             builder: (context) => Scaffold(body: _blocked(context)),
           ),
+        );
+      }
+      if (!c.onboarded) {
+        return Onboarding(
+          controller: c,
+          onTracking: _enableTracking,
+          onAppBlocking: c.tracker.isAndroid ? _enableAndroidBlocking : null,
+          onInstantBlocking: c.tracker.isAndroid
+              ? _enableInstantBlocking
+              : null,
+          onFocusHours: _editFocusHours,
+          onBrowser: c.tracker.isWindows && c.browserBridge?.isListening == true
+              ? _pairBrowser
+              : null,
+          onSignIn: widget.cloud == null
+              ? null
+              : () => _run(() async {
+                  await c.finishOnboarding();
+                  if (mounted) setState(() => _page = 4);
+                }),
+          signedIn: widget.cloud?.client.auth.currentUser != null,
+          onDone: () => _run(c.finishOnboarding),
         );
       }
       final desktop = _desktopLayout;

@@ -187,6 +187,16 @@ Future<void> main(List<String> args) async {
         await windowManager.setPreventClose(false);
         await windowManager.show();
       }
+      // The startup entry is added when tracking is turned on, but it can be
+      // lost later (a reinstall removes it). Restore it on every launch.
+      if (controller.trackingEnabled) {
+        try {
+          await desktop.enableStartup();
+        } catch (error) {
+          startupWarning ??=
+              'Grindset could not add itself to Windows startup: $error';
+        }
+      }
     }
     runApp(
       LockinApp(

@@ -60,6 +60,7 @@ void main() {
         tracker: _WindowsTracker(),
       );
       await controller.initialize(poll: false);
+      controller.onboarded = true;
       addTearDown(() async {
         controller.dispose();
         await store.close();
@@ -89,6 +90,7 @@ void main() {
       await store.close();
     });
     await controller.initialize(poll: false);
+    controller.onboarded = true;
     return (controller, store);
   }
 
@@ -167,6 +169,7 @@ void main() {
       await store.close();
     });
     await controller.initialize(poll: false);
+    controller.onboarded = true;
     viewport(tester, const Size(800, 900));
     await tester.pumpWidget(LockinApp(controller: controller));
     await navigate(tester, 4);
@@ -270,6 +273,7 @@ void main() {
       );
       try {
         await first.initialize(poll: false);
+        first.onboarded = true;
         await first.setPreferredMinutes(SessionPhase.rest, 8);
         await first.startSession(
           const Duration(minutes: 37),
@@ -293,6 +297,7 @@ void main() {
         await store.close();
       });
       await controller.initialize(poll: false);
+      controller.onboarded = true;
       return controller;
     }))!;
     await tester.pumpWidget(LockinApp(controller: restored));
@@ -350,6 +355,7 @@ void main() {
       );
       addTearDown(restored.dispose);
       await restored.initialize(poll: false);
+      restored.onboarded = true;
       await tester.pumpWidget(LockinApp(controller: restored));
       await tester.pumpAndSettle();
       await tester.tap(find.byTooltip('More options'));
@@ -407,6 +413,7 @@ void main() {
     final restored = AppController(store: store, tracker: NativeTracker());
     addTearDown(restored.dispose);
     await restored.initialize(poll: false);
+    restored.onboarded = true;
     await tester.pumpWidget(LockinApp(controller: restored));
     await tester.pumpAndSettle();
     expect(find.text('37:00'), findsOneWidget);
@@ -1311,6 +1318,61 @@ void main() {
       await tester.tap(find.text('YouTube: 4 min left today'));
       await tester.pumpAndSettle();
       expect(find.text('Focus hours: on'), findsOneWidget);
+    },
+  );
+
+  testWidgets('first launch walks through onboarding once', (tester) async {
+    final (controller, store) = await open();
+    controller.onboarded = false;
+    viewport(tester, const Size(390, 844));
+    await tester.pumpWidget(LockinApp(controller: controller));
+    await tester.pumpAndSettle();
+    expect(find.text('Less scrolling, more done.'), findsOneWidget);
+    await tester.tap(find.text('Get started'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('YouTube'));
+    await tester.tap(find.text('Reddit'));
+    await tester.tap(find.text('1 hour'));
+    await tester.pumpAndSettle();
+    await tester.pumpAndSettle();
+    await tester.tap(find.byKey(const ValueKey('onboarding-next')));
+    await tester.pumpAndSettle();
+    expect(
+      controller.rules.map((r) => (r.name, r.dailyMinutes, r.focusBlock)),
+      unorderedEquals([('YouTube', 60, true), ('Reddit', 60, true)]),
+    );
+    // No permissions step here: tests do not run on Windows or Android.
+    expect(find.text('3 of 3'), findsOneWidget);
+    await tester.tap(find.text('Start focusing'));
+    await tester.pumpAndSettle();
+    expect(controller.onboarded, isTrue);
+    expect(await store.setting('onboarded'), 'true');
+    expect(find.text('Lock in'), findsOneWidget);
+  });
+
+  test(
+    'onboarding is skipped for people who already set Grindset up',
+    () async {
+      Future<bool> onboardedWith(Map<String, String> settings) async {
+        final store = LocalStore.memory();
+        for (final e in settings.entries) {
+          await store.saveSetting(e.key, e.value);
+        }
+        final controller = AppController(
+          store: store,
+          tracker: NativeTracker(),
+        );
+        await controller.initialize(poll: false);
+        final result = controller.onboarded;
+        controller.dispose();
+        await store.close();
+        return result;
+      }
+
+      expect(await onboardedWith({}), isFalse);
+      expect(await onboardedWith({'tracking_enabled': 'true'}), isTrue);
+      expect(await onboardedWith({'cloud_owner': 'someone'}), isTrue);
+      expect(await onboardedWith({'onboarded': 'true'}), isTrue);
     },
   );
 }

@@ -48,6 +48,26 @@ class AppController extends ChangeNotifier {
 
   bool get inFocusHours => focusHours.any((w) => w.contains(now, location));
 
+  /// Whether the first-launch walkthrough is done (or skipped) on this device.
+  bool onboarded = true;
+
+  Future<void> finishOnboarding() async {
+    await store.saveSetting('onboarded', 'true');
+    onboarded = true;
+    notifyListeners();
+  }
+
+  /// Creates a rule from a starter during onboarding.
+  Future<void> addStarterRule(String name, Set<String> sources, int? minutes) =>
+      saveRule(
+        ActivityRule(
+          id: _uuid.v4(),
+          name: name,
+          sources: sources.toList(),
+          dailyMinutes: minutes,
+        ),
+      );
+
   /// Strict mode: while blocking is in force, nothing can be loosened.
   /// Shared by all of the account's devices.
   bool strictMode = false;
@@ -398,6 +418,12 @@ class AppController extends ChangeNotifier {
     await _updateCompletionAlerts();
     await _loadSharedRevisions();
     await reloadUsage();
+    // People who set Grindset up before onboarding existed skip it.
+    onboarded =
+        await store.setting('onboarded') == 'true' ||
+        trackingEnabled ||
+        rules.isNotEmpty ||
+        await store.setting('cloud_owner') != null;
     if (tracker.isWindows) {
       tracker.bindWindowsForeground(requestForegroundCheck);
       final watching = await tracker.setWindowsForegroundWatch(trackingEnabled);

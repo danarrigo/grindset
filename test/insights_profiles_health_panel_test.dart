@@ -33,6 +33,7 @@ void main() {
     store = LocalStore.memory();
     c = AppController(store: store, tracker: _Windows(), clock: () => now);
     await c.initialize(poll: false);
+    c.onboarded = true;
   });
   tearDown(() async {
     c.dispose();
