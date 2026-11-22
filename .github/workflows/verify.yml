@@ -95,17 +95,17 @@ jobs:
         with:
           name: grindset-android-arm64-debug
           path: build/app/outputs/flutter-apk/app-arm64-v8a-sideload-debug.apk
-          retention-days: 7
+          retention-days: 3
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: grindset-android-x64-debug
           path: build/app/outputs/flutter-apk/app-x86_64-sideload-debug.apk
-          retention-days: 7
+          retention-days: 3
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: grindset-android-play-arm64-debug
           path: build/app/outputs/flutter-apk/app-play-debug.apk
-          retention-days: 7
+          retention-days: 3
 
   windows:
     runs-on: windows-latest
@@ -139,9 +139,9 @@ jobs:
         with:
           name: grindset-windows-unsigned
           path: build/windows/x64/runner/Release/
-          retention-days: 7
+          retention-days: 3
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: grindset-windows-installer-unsigned
           path: build/installers/*-setup.exe
-          retention-days: 7
+          retention-days: 3

@@ -64,14 +64,14 @@ jobs:
           path: |
             build/app/outputs/flutter-apk/app-arm64-v8a-sideload-release.apk
             build/app/outputs/flutter-apk/signing-certificate.txt
-          retention-days: 14
+          retention-days: 3
       - name: Build Google Play bundle
         run: flutter build appbundle --release --flavor play --build-number "$GITHUB_RUN_NUMBER" --dart-define-from-file="$RUNNER_TEMP/lockin-client-config.json"
       - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: grindset-android-play-bundle
           path: build/app/outputs/bundle/playRelease/app-play-release.aab
-          retention-days: 14
+          retention-days: 3
       - name: Remove runner signing material
         if: always()
         run: rm -f "$RUNNER_TEMP/lockin-release.jks" "$RUNNER_TEMP/lockin-client-config.json"
