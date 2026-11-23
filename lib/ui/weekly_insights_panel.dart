@@ -16,12 +16,16 @@ class WeeklyInsightsPanel extends StatefulWidget {
     required this.controller,
     this.deviceId,
     this.allDevices = false,
+    this.deviceName = 'this device',
   });
   final AppController controller;
 
   /// The device to show; this device when null, unless [allDevices].
   final String? deviceId;
   final bool allDevices;
+
+  /// Lowercase, as in "Today on all devices".
+  final String deviceName;
   @override
   State<WeeklyInsightsPanel> createState() => _WeeklyInsightsPanelState();
 }
@@ -159,7 +163,7 @@ class _WeeklyInsightsPanelState extends State<WeeklyInsightsPanel> {
           ],
         ),
         Text(
-          'This device · Last 7 local calendar days, including today · ${c.timezone}',
+          '${widget.deviceName[0].toUpperCase()}${widget.deviceName.substring(1)} · Last 7 local calendar days, including today · ${c.timezone}',
         ),
         const SizedBox(height: 12),
         const Text(

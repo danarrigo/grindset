@@ -362,6 +362,11 @@ class _HomeState extends State<_Home> {
     );
   }
 
+  // "Limit" and "Edit" share a width so usage bars line up.
+  static final _rowAction = TextButton.styleFrom(
+    minimumSize: const Size(72, 40),
+  );
+
   Future<void> _editFocusHours() async {
     final windows = await showDialog<List<ScheduleWindow>>(
       context: context,
@@ -1158,6 +1163,7 @@ class _HomeState extends State<_Home> {
             controller: c,
             deviceId: device,
             allDevices: device == null,
+            deviceName: deviceName,
           ),
         ],
       );
@@ -1282,17 +1288,34 @@ class _HomeState extends State<_Home> {
                     ],
                   ),
                 ),
-                if (!c.rules.any(
-                  (rule) => rule.sources.any(
-                    (source) =>
-                        item.sources.any((s) => matchesSource(source, s)),
-                  ),
-                ))
+                if (c.rules
+                        .where(
+                          (rule) => rule.sources.any(
+                            (source) => item.sources.any(
+                              (s) => matchesSource(source, s),
+                            ),
+                          ),
+                        )
+                        .firstOrNull
+                    case final rule?)
+                  Padding(
+                    padding: const EdgeInsets.only(left: 8),
+                    child: Tooltip(
+                      message: 'Edit ${rule.name}',
+                      child: TextButton(
+                        style: _rowAction,
+                        onPressed: () => _editRule(rule: rule),
+                        child: const Text('Edit'),
+                      ),
+                    ),
+                  )
+                else
                   Padding(
                     padding: const EdgeInsets.only(left: 8),
                     child: Tooltip(
                       message: 'Limit ${displayName(c, item.source)}',
                       child: TextButton(
+                        style: _rowAction,
                         onPressed: () => _editRule(
                           preset: RulePreset(
                             serviceFor(item.source)?.name ??

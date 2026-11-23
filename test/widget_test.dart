@@ -1452,6 +1452,7 @@ void main() {
     await tester.tap(find.text('Weekly insights'));
     await tester.pumpAndSettle();
     expect(find.text('This week on all devices'), findsOneWidget);
+    expect(find.textContaining('All devices · Last 7'), findsOneWidget);
     expect(find.textContaining('WhatsApp'), findsWidgets);
     await tester.tap(find.text('This device'));
     await tester.pumpAndSettle();
