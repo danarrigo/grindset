@@ -85,6 +85,63 @@ void main() {
     expect(controller.restrictionForSource('web:game.test'), isNull);
   });
 
+  test(
+    'turned-off Focus hours keep their times here and on other devices',
+    () async {
+      await controller.setFocusHours([weekdays]);
+      await controller.setFocusHours([]);
+      expect(controller.focusHoursSaved.single.toJson(), weekdays.toJson());
+      final shared = SharedState(store, clock: () => now);
+      final change = (await shared.pending()).firstWhere(
+        (c) => c.id == 'focus_hours',
+      );
+      expect(change.value, {
+        'schedules': [],
+        'saved': [weekdays.toJson()],
+      });
+
+      final reopened = AppController(
+        store: store,
+        tracker: NativeTracker(),
+        clock: () => now,
+      );
+      await reopened.initialize(poll: false);
+      addTearDown(reopened.dispose);
+      expect(reopened.focusHours, isEmpty);
+      expect(reopened.focusHoursSaved.single.toJson(), weekdays.toJson());
+
+      // Uploaded; another device then changes the times and turns them off.
+      await store.customStatement('DELETE FROM sync_outbox');
+      final saturday = ScheduleWindow(
+        weekdays: [6],
+        startMinute: 13 * 60,
+        endMinute: 15 * 60,
+      );
+      await shared.receive({
+        'kind': 'setting',
+        'id': 'focus_hours',
+        'revision': 5,
+        'value': {
+          'schedules': [],
+          'saved': [saturday.toJson()],
+        },
+      });
+      await controller.reloadSharedState();
+      expect(controller.focusHours, isEmpty);
+      expect(controller.focusHoursSaved.single.toJson(), saturday.toJson());
+
+      // An older version turning them off sends no times; keep the known ones.
+      await shared.receive({
+        'kind': 'setting',
+        'id': 'focus_hours',
+        'revision': 6,
+        'value': {'schedules': []},
+      });
+      await controller.reloadSharedState();
+      expect(controller.focusHoursSaved.single.toJson(), saturday.toJson());
+    },
+  );
+
   test('Focus hours set on another device apply here', () async {
     final shared = SharedState(store, clock: () => now);
     await shared.receive({

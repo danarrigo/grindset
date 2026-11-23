@@ -46,6 +46,9 @@ class AppController extends ChangeNotifier {
   /// all of the account's devices; empty when Focus hours are off.
   List<ScheduleWindow> focusHours = const [];
 
+  /// The times Focus hours use when on; kept while they are off.
+  List<ScheduleWindow> focusHoursSaved = const [];
+
   bool get inFocusHours => focusHours.any((w) => w.contains(now, location));
 
   /// Whether Grindset starts with Windows; null where it is not managed.
@@ -403,6 +406,7 @@ class AppController extends ChangeNotifier {
         ThemeMode.values.asNameMap()[await store.setting('theme')] ??
         ThemeMode.system;
     focusHours = await _loadFocusHours();
+    focusHoursSaved = await _loadFocusHoursSaved();
     strictMode = await store.setting('strict_mode') == 'true';
     _lastAndroidImport = DateTime.tryParse(
       await store.setting('android_imported_until') ?? '',
@@ -489,6 +493,7 @@ class AppController extends ChangeNotifier {
       timezone = await store.setting('timezone') ?? timezone;
       tz.getLocation(timezone);
       focusHours = await _loadFocusHours();
+      focusHoursSaved = await _loadFocusHoursSaved();
       strictMode = await store.setting('strict_mode') == 'true';
       final active = await store.setting('active_session');
       session = active == null
@@ -862,6 +867,12 @@ class AppController extends ChangeNotifier {
     return saved == null ? const [] : decodeFocusHours(saved);
   }
 
+  Future<List<ScheduleWindow>> _loadFocusHoursSaved() async {
+    if (focusHours.isNotEmpty) return focusHours;
+    final saved = await store.setting('focus_hours_saved');
+    return saved == null ? const [] : decodeFocusHours(saved);
+  }
+
   /// Saves Focus hours here and for the account's other devices. An empty
   /// list turns them off.
   Future<void> setFocusHours(List<ScheduleWindow> windows) async {
@@ -870,14 +881,27 @@ class AppController extends ChangeNotifier {
     if (!coversWindows(windows, focusHours)) {
       requireUnlocked('shorten or turn off Focus hours');
     }
+    // Turning them off keeps the times, to restore when turned back on.
+    final saved = windows.isNotEmpty
+        ? windows
+        : focusHours.isNotEmpty
+        ? focusHours
+        : focusHoursSaved;
     final value = {
       'schedules': [for (final w in windows) w.toJson()],
+      if (windows.isEmpty && saved.isNotEmpty)
+        'saved': [for (final w in saved) w.toJson()],
     };
     await store.transaction(() async {
       await store.saveSetting('focus_hours', jsonEncode(value['schedules']));
+      await store.saveSetting(
+        'focus_hours_saved',
+        jsonEncode([for (final w in saved) w.toJson()]),
+      );
       await sharedState.queue('setting', 'focus_hours', value);
     });
     focusHours = List.unmodifiable(windows);
+    focusHoursSaved = List.unmodifiable(saved);
     _changed();
     onSharedChange?.call();
   }

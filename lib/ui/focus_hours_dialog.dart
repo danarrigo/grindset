@@ -10,10 +10,14 @@ class FocusHoursDialog extends StatefulWidget {
   const FocusHoursDialog({
     super.key,
     required this.windows,
+    this.saved = const [],
     required this.timezone,
     required this.focusRules,
   });
   final List<ScheduleWindow> windows;
+
+  /// The times to offer when turning Focus hours back on.
+  final List<ScheduleWindow> saved;
   final String timezone;
 
   /// Names of this device's rules that block while focusing.
@@ -26,8 +30,10 @@ class FocusHoursDialog extends StatefulWidget {
 class _FocusHoursDialogState extends State<FocusHoursDialog> {
   late bool _on = widget.windows.isNotEmpty;
   late final _drafts = [
-    for (final window in widget.windows) ScheduleDraft(window),
-    if (widget.windows.isEmpty) ScheduleDraft(),
+    for (final window
+        in widget.windows.isNotEmpty ? widget.windows : widget.saved)
+      ScheduleDraft(window),
+    if (widget.windows.isEmpty && widget.saved.isEmpty) ScheduleDraft(),
   ];
   String? _error;
 

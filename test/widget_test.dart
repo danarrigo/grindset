@@ -1458,4 +1458,37 @@ void main() {
     expect(find.text('This week on this device'), findsOneWidget);
     expect(find.textContaining('WhatsApp'), findsNothing);
   });
+
+  testWidgets('turning Focus hours off and on again keeps the saved times', (
+    tester,
+  ) async {
+    final (controller, _) = await open();
+    final saturday = ScheduleWindow(
+      weekdays: [6],
+      startMinute: 13 * 60,
+      endMinute: 15 * 60,
+    );
+    await controller.setFocusHours([saturday]);
+    viewport(tester, const Size(390, 844));
+    await tester.pumpWidget(LockinApp(controller: controller));
+    await tester.pumpAndSettle();
+    await navigate(tester, 2);
+
+    await tester.tap(find.text('Focus hours: on'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Use Focus hours'));
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(controller.focusHours, isEmpty);
+    expect(find.text('Focus hours'), findsOneWidget);
+
+    await tester.tap(find.text('Focus hours'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Use Focus hours'));
+    await tester.pumpAndSettle();
+    expect(find.text('1:00 PM'), findsOneWidget);
+    await tester.tap(find.text('Save'));
+    await tester.pumpAndSettle();
+    expect(controller.focusHours.single.toJson(), saturday.toJson());
+  });
 }

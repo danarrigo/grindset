@@ -367,6 +367,7 @@ class _HomeState extends State<_Home> {
       context: context,
       builder: (_) => FocusHoursDialog(
         windows: c.focusHours,
+        saved: c.focusHoursSaved,
         timezone: c.location.name,
         focusRules: [
           for (final rule in c.rules)
