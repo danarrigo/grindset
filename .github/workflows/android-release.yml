@@ -13,7 +13,7 @@ on:
         required: true
 
 permissions:
-  contents: read
+  contents: write
 
 jobs:
   android-release:
@@ -58,20 +58,19 @@ jobs:
         run: |
           signer=$(find "$ANDROID_HOME/build-tools" -name apksigner -type f | sort -V | tail -n 1)
           "$signer" verify --verbose --print-certs build/app/outputs/flutter-apk/app-arm64-v8a-sideload-release.apk | tee build/app/outputs/flutter-apk/signing-certificate.txt
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: grindset-android-arm64-release
-          path: |
-            build/app/outputs/flutter-apk/app-arm64-v8a-sideload-release.apk
-            build/app/outputs/flutter-apk/signing-certificate.txt
-          retention-days: 3
       - name: Build Google Play bundle
         run: flutter build appbundle --release --flavor play --build-number "$GITHUB_RUN_NUMBER" --dart-define-from-file="$RUNNER_TEMP/lockin-client-config.json"
-      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: grindset-android-play-bundle
-          path: build/app/outputs/bundle/playRelease/app-play-release.aab
-          retention-days: 3
+      # Release assets do not count toward the private repository's artifact
+      # storage. The draft is deleted after the release is published.
+      - name: Put the signed files on a draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ci-${{ github.run_id }}-signed
+        run: |
+          cd build/app/outputs
+          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --draft --target "$GITHUB_SHA" \
+            --title "CI build $GITHUB_RUN_ID (signed Android)" --notes "Signed build files for run $GITHUB_RUN_ID. Deleted after use." \
+            flutter-apk/app-arm64-v8a-sideload-release.apk flutter-apk/signing-certificate.txt bundle/playRelease/app-play-release.aab
       - name: Remove runner signing material
         if: always()
         run: rm -f "$RUNNER_TEMP/lockin-release.jks" "$RUNNER_TEMP/lockin-client-config.json"
