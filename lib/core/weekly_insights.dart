@@ -18,11 +18,13 @@ class RecordedDay {
 }
 
 /// A projection of confirmed intervals, never an estimate of unobserved time.
+/// One device's, or every device's with overlapping time counted once when
+/// [deviceId] is null.
 class WeeklyInsights {
   WeeklyInsights({
     required Iterable<UsageInterval> intervals,
     required Iterable<ActivityRule> rules,
-    required String deviceId,
+    required String? deviceId,
     required DateTime now,
     required tz.Location location,
   }) {
@@ -36,7 +38,7 @@ class WeeklyInsights {
     final recorded = intervals
         .where(
           (i) =>
-              i.deviceId == deviceId &&
+              (deviceId == null || i.deviceId == deviceId) &&
               i.end.isAfter(start) &&
               i.start.isBefore(now),
         )

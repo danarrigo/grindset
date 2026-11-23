@@ -140,4 +140,35 @@ void main() {
     expect(project(40).days.last.budgetOverruns, isEmpty);
     expect(project(60).budgetDays, 0);
   });
+
+  test('all devices together count time on two devices at once once', () {
+    final now = DateTime.utc(2026, 11, 16, 12);
+    final report = WeeklyInsights(
+      intervals: [
+        row(
+          'pc',
+          DateTime.utc(2026, 11, 16, 9),
+          DateTime.utc(2026, 11, 16, 10),
+        ),
+        row(
+          'phone',
+          DateTime.utc(2026, 11, 16, 9, 30),
+          DateTime.utc(2026, 11, 16, 10, 30),
+          device: 'phone',
+        ),
+        row(
+          'phone-earlier',
+          DateTime.utc(2026, 11, 14, 20),
+          DateTime.utc(2026, 11, 14, 20, 15),
+          device: 'phone',
+        ),
+      ],
+      rules: const [],
+      deviceId: null,
+      now: now,
+      location: tz.UTC,
+    );
+    expect(report.total, const Duration(minutes: 105));
+    expect(report.recordedDays, 2);
+  });
 }

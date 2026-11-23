@@ -29,6 +29,7 @@ class _CloudServer {
   int sharedDownloads = 0;
   int uploads = 0;
   int downloads = 0;
+  final downloadedSince = <String>[];
   bool failUploads = false;
   Completer<void>? uploadGate;
   Completer<void>? uploadArrived;
@@ -144,6 +145,7 @@ class _CloudServer {
         }
       } else if (path == '/rest/v1/usage_intervals') {
         downloads++;
+        downloadedSince.add(request.uri.queryParameters['ended_at']!);
         final offset = int.parse(request.uri.queryParameters['offset'] ?? '0');
         final limit = int.parse(request.uri.queryParameters['limit'] ?? '500');
         response = rows.skip(offset).take(limit).toList();
@@ -243,6 +245,23 @@ void main() {
       expect(await store.usage(pendingOnly: true), isEmpty);
       expect(sync.lastSync, isNotNull);
       expect(sync.lastError, isNull);
+    },
+  );
+
+  test(
+    'the first sync fetches the past week for insights, later ones today',
+    () async {
+      Future<void> once() => sync.synchronize(
+        deviceId: 'desktop',
+        platform: 'Windows',
+        since: since,
+      );
+      await once();
+      await once();
+      expect(server.downloadedSince, [
+        'gt.${since.subtract(const Duration(days: 7)).toIso8601String()}',
+        'gt.${since.toIso8601String()}',
+      ]);
     },
   );
 

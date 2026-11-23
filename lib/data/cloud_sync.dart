@@ -19,6 +19,11 @@ class CloudSync extends ChangeNotifier {
   String? notice;
   static const _requestTimeout = Duration(seconds: 20);
   Future<void>? _inFlight;
+
+  /// Past days rarely change: the last 7 days are fetched on the first sync
+  /// and hourly after, for weekly insights across devices; today every sync.
+  DateTime? _weekFetchedAt;
+  static const _weekRefresh = Duration(hours: 1);
   Timer? _timer;
   StreamSubscription<AuthState>? _auth;
   bool _busy = false;
@@ -106,6 +111,7 @@ class CloudSync extends ChangeNotifier {
       if (visibleUser != user) {
         visibleUser = user;
         devices = [];
+        _weekFetchedAt = null;
         conflicts = [];
         notice = null;
         lastSync = null;
@@ -178,7 +184,13 @@ class CloudSync extends ChangeNotifier {
       await _synchronizeShared(user.id, deviceId);
       final zone = tz.getLocation(await store.setting('timezone') ?? 'UTC');
       final canonicalDay = accountDay(DateTime.now().toUtc(), zone).$1;
-      final usageSince = canonicalDay.isBefore(since) ? canonicalDay : since;
+      final fetchWeek =
+          _weekFetchedAt == null ||
+          DateTime.now().difference(_weekFetchedAt!) >= _weekRefresh;
+      final today = canonicalDay.isBefore(since) ? canonicalDay : since;
+      final usageSince = fetchWeek
+          ? today.subtract(const Duration(days: 7))
+          : today;
       final pending = await store.usage(pendingOnly: true);
       for (var start = 0; start < pending.length; start += 100) {
         _checkActive(user.id);
@@ -222,6 +234,7 @@ class CloudSync extends ChangeNotifier {
           .timeout(_requestTimeout);
       _checkActive(user.id);
       final completed = DateTime.now().toUtc();
+      if (fetchWeek) _weekFetchedAt = completed;
       await store.saveSetting('last_usage_sync', completed.toIso8601String());
       devices = confirmedDevices;
       lastSync = completed;

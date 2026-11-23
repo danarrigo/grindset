@@ -103,6 +103,9 @@ class _HomeState extends State<_Home> {
   /// The finished session whose follow-up was already offered.
   String? _offeredAfter;
   bool _weeklyInsights = false;
+
+  /// Activity's device filter: null for all devices, else a device id.
+  String? _activityDevice;
   final _pageScroll = ScrollController();
   final _focusMenuKey = GlobalKey();
   static const _pages = ['Focus', 'Activity', 'Rules', 'Devices', 'Settings'];
@@ -1082,12 +1085,27 @@ class _HomeState extends State<_Home> {
   );
 
   Widget _activity() {
+    final remote =
+        widget.cloud?.devices.where((d) => d['id'] != c.deviceId).toList() ??
+        [];
+    // A device that left the account falls back to all devices.
+    if (_activityDevice != null &&
+        _activityDevice != c.deviceId &&
+        !remote.any((d) => d['id'] == _activityDevice)) {
+      _activityDevice = null;
+    }
+    final device = remote.isEmpty ? c.deviceId : _activityDevice;
+    final deviceName = device == null
+        ? 'all devices'
+        : device == c.deviceId
+        ? 'this device'
+        : remote.firstWhere((d) => d['id'] == device)['label'] as String;
     final header = <Widget>[
       _heading(
         'Activity',
         subtitle: _weeklyInsights
-            ? 'This week on this device'
-            : 'Today on this device',
+            ? 'This week on $deviceName'
+            : 'Today on $deviceName',
       ),
       Wrap(
         spacing: 8,
@@ -1104,6 +1122,30 @@ class _HomeState extends State<_Home> {
           ),
         ],
       ),
+      if (remote.isNotEmpty) ...[
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            for (final (id, label) in [
+              (null, 'All devices'),
+              (c.deviceId, 'This device'),
+              for (final d in remote)
+                (
+                  d['id'] as String,
+                  (d['label'] as String).replaceFirst(RegExp(r' device$'), ''),
+                ),
+            ])
+              ChoiceChip(
+                key: ValueKey('activity-device-${id ?? 'all'}'),
+                label: Text(label),
+                selected: _activityDevice == id,
+                onSelected: (_) => setState(() => _activityDevice = id),
+              ),
+          ],
+        ),
+      ],
       const SizedBox(height: 20),
     ];
     if (_weeklyInsights) {
@@ -1111,28 +1153,41 @@ class _HomeState extends State<_Home> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           ...header,
-          WeeklyInsightsPanel(controller: c),
+          WeeklyInsightsPanel(
+            controller: c,
+            deviceId: device,
+            allDevices: device == null,
+          ),
         ],
       );
     }
-    final sources = c.usage
-        .where((i) => i.deviceId == c.deviceId)
-        .map((i) => i.source)
-        .toSet();
-    final totals = [
-      for (final source in sources)
-        (
-          source: source,
-          used: combinedUsage(
-            c.usage.where(
-              (i) => i.deviceId == c.deviceId && i.source == source,
-            ),
-            from: accountDay(c.now, c.location).$1,
-            until: c.now,
-          ),
-        ),
-    ]..sort((a, b) => b.used.compareTo(a.used));
-    c.requestAppDetails(sources);
+    final from = accountDay(c.now, c.location).$1;
+    final shown = c.usage.where((i) => device == null || i.deviceId == device);
+    // Across devices, an app and its website (YouTube and youtube.com) are one
+    // row, counted once while both are open.
+    final groups = <String, Set<String>>{};
+    for (final i in shown) {
+      final key = device == null
+          ? serviceFor(i.source)?.name ?? i.source
+          : i.source;
+      (groups[key] ??= {}).add(i.source);
+    }
+    final totals =
+        [
+            for (final MapEntry(:key, value: sources) in groups.entries)
+              (
+                source: sources.first,
+                sources: sources,
+                name: sources.length > 1 ? key : null,
+                used: combinedUsage(
+                  shown.where((i) => sources.contains(i.source)),
+                  from: from,
+                  until: c.now,
+                ),
+              ),
+          ].where((t) => t.used > Duration.zero).toList()
+          ..sort((a, b) => b.used.compareTo(a.used));
+    c.requestAppDetails(groups.values.expand((s) => s).toSet());
     final longest = totals.isEmpty ? Duration.zero : totals.first.used;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -1141,7 +1196,7 @@ class _HomeState extends State<_Home> {
         Row(
           children: [
             for (final (i, (label, value)) in [
-              ('Screen time', c.deviceUsage(c.deviceId)),
+              ('Screen time', combinedUsage(shown, from: from, until: c.now)),
               ('Focused', c.focusedToday),
             ].indexed) ...[
               if (i > 0) const SizedBox(width: 12),
@@ -1185,8 +1240,8 @@ class _HomeState extends State<_Home> {
               children: [
                 SourceIcon(
                   controller: c,
-                  sources: [item.source],
-                  name: displayName(c, item.source),
+                  sources: item.sources.toList(),
+                  name: item.name ?? displayName(c, item.source),
                   size: 36,
                 ),
                 const SizedBox(width: 14),
@@ -1198,7 +1253,7 @@ class _HomeState extends State<_Home> {
                         children: [
                           Expanded(
                             child: Text(
-                              displayName(c, item.source),
+                              item.name ?? displayName(c, item.source),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: Theme.of(context).textTheme.bodyLarge,
@@ -1228,7 +1283,8 @@ class _HomeState extends State<_Home> {
                 ),
                 if (!c.rules.any(
                   (rule) => rule.sources.any(
-                    (source) => matchesSource(source, item.source),
+                    (source) =>
+                        item.sources.any((s) => matchesSource(source, s)),
                   ),
                 ))
                   Padding(
@@ -1240,7 +1296,10 @@ class _HomeState extends State<_Home> {
                           preset: RulePreset(
                             serviceFor(item.source)?.name ??
                                 displayName(c, item.source),
-                            {...?serviceFor(item.source)?.sources, item.source},
+                            {
+                              ...?serviceFor(item.source)?.sources,
+                              ...item.sources,
+                            },
                           ),
                         ),
                         child: const Text('Limit'),

@@ -11,8 +11,17 @@ import '../core/weekly_insights.dart';
 import 'appearance.dart';
 
 class WeeklyInsightsPanel extends StatefulWidget {
-  const WeeklyInsightsPanel({super.key, required this.controller});
+  const WeeklyInsightsPanel({
+    super.key,
+    required this.controller,
+    this.deviceId,
+    this.allDevices = false,
+  });
   final AppController controller;
+
+  /// The device to show; this device when null, unless [allDevices].
+  final String? deviceId;
+  final bool allDevices;
   @override
   State<WeeklyInsightsPanel> createState() => _WeeklyInsightsPanelState();
 }
@@ -29,6 +38,9 @@ class _WeeklyInsightsPanelState extends State<WeeklyInsightsPanel> {
   WeeklyInsights? _report;
   String _scope(AppController c) =>
       '${c.deviceId}/${c.timezone}/${accountDay(c.now, c.location).$1}';
+
+  String? get _device =>
+      widget.allDevices ? null : widget.deviceId ?? widget.controller.deviceId;
   @override
   void initState() {
     super.initState();
@@ -44,6 +56,9 @@ class _WeeklyInsightsPanelState extends State<WeeklyInsightsPanel> {
     if (oldWidget.controller != widget.controller ||
         _requestedScope != _scope(widget.controller)) {
       _load();
+    } else if (oldWidget.deviceId != widget.deviceId ||
+        oldWidget.allDevices != widget.allDevices) {
+      _projectedRules = null;
     }
   }
 
@@ -118,7 +133,7 @@ class _WeeklyInsightsPanelState extends State<WeeklyInsightsPanel> {
       _report = WeeklyInsights(
         intervals: _rows!,
         rules: c.rules,
-        deviceId: c.deviceId,
+        deviceId: _device,
         now: _snapshotAt!,
         location: c.location,
       );

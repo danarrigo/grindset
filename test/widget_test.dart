@@ -8,9 +8,11 @@ import 'package:lockin/app.dart';
 import 'package:lockin/app_controller.dart';
 import 'package:lockin/core/activity.dart';
 import 'package:lockin/core/focus_session.dart';
+import 'package:lockin/data/cloud_sync.dart';
 import 'package:lockin/data/local_store.dart';
 import 'package:lockin/platform/native_tracker.dart';
 import 'package:lockin/ui/focus_screen.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 
 class _WindowsTracker extends NativeTracker {
@@ -1381,4 +1383,79 @@ void main() {
       expect(await onboardedWith({'onboarded': 'true'}), isTrue);
     },
   );
+
+  testWidgets('Activity shows other devices, together or one at a time', (
+    tester,
+  ) async {
+    final (controller, store) = await open();
+    late SupabaseClient client;
+    await tester.runAsync(() async {
+      client = SupabaseClient(
+        'https://fixture.supabase.co',
+        'public-test-key',
+        authOptions: const AuthClientOptions(autoRefreshToken: false),
+      );
+    });
+    final cloud = CloudSync(client: client, store: store)
+      ..devices = [
+        {'id': controller.deviceId, 'label': 'Windows device'},
+        {'id': 'phone', 'label': 'Android device'},
+      ];
+    addTearDown(() async {
+      await cloud.close();
+      await tester.runAsync(client.dispose);
+    });
+    UsageInterval use(
+      String id,
+      String device,
+      String source,
+      int from,
+      int to,
+    ) => UsageInterval(
+      id: id,
+      deviceId: device,
+      source: source,
+      start: DateTime.utc(2026, 11, 10, 9, from),
+      end: DateTime.utc(2026, 11, 10, 9, to),
+    );
+    // YouTube on the PC 9:00-9:20 and on the phone 9:10-9:30: 30 min, not 40.
+    await store.putUsage(
+      use('a', controller.deviceId, 'web:youtube.com', 0, 20),
+    );
+    await store.putUsage(
+      use('b', 'phone', 'android:com.google.android.youtube', 10, 30),
+    );
+    await store.putUsage(use('c', 'phone', 'android:com.whatsapp', 40, 45));
+    await controller.reloadUsage();
+    viewport(tester, const Size(390, 844));
+    await tester.pumpWidget(LockinApp(controller: controller, cloud: cloud));
+    await tester.pumpAndSettle();
+    await navigate(tester, 1);
+    expect(find.text('Today on all devices'), findsOneWidget);
+    expect(find.text('YouTube'), findsOneWidget);
+    expect(find.text('30 min'), findsOneWidget);
+    expect(find.text('35 min'), findsOneWidget);
+    expect(find.text('WhatsApp'), findsOneWidget);
+
+    await tester.tap(find.byKey(const ValueKey('activity-device-phone')));
+    await tester.pumpAndSettle();
+    expect(find.text('Today on Android device'), findsOneWidget);
+    expect(find.text('20 min'), findsOneWidget);
+    expect(find.text('WhatsApp'), findsOneWidget);
+
+    await tester.tap(find.text('This device'));
+    await tester.pumpAndSettle();
+    expect(find.text('Today on this device'), findsOneWidget);
+    expect(find.text('WhatsApp'), findsNothing);
+
+    await tester.tap(find.text('All devices'));
+    await tester.tap(find.text('Weekly insights'));
+    await tester.pumpAndSettle();
+    expect(find.text('This week on all devices'), findsOneWidget);
+    expect(find.textContaining('WhatsApp'), findsWidgets);
+    await tester.tap(find.text('This device'));
+    await tester.pumpAndSettle();
+    expect(find.text('This week on this device'), findsOneWidget);
+    expect(find.textContaining('WhatsApp'), findsNothing);
+  });
 }
