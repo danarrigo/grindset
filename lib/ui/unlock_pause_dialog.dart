@@ -14,6 +14,7 @@ class UnlockPauseDialog extends StatefulWidget {
     required this.seconds,
     required this.because,
     this.action = 'Continue',
+    this.judge,
   });
 
   /// What is being unlocked, as in "end this focus session early".
@@ -26,6 +27,10 @@ class UnlockPauseDialog extends StatefulWidget {
   /// The label of the button that goes ahead.
   final String action;
 
+  /// Asks an AI whether the reason is good enough. Null when not used. May
+  /// throw an exception whose message is for people.
+  final Future<({bool allow, String message})> Function(String reason)? judge;
+
   @override
   State<UnlockPauseDialog> createState() => _UnlockPauseDialogState();
 }
@@ -35,6 +40,10 @@ class _UnlockPauseDialogState extends State<UnlockPauseDialog>
   final _reason = TextEditingController();
   late int _left = widget.seconds;
   Timer? _timer;
+  bool _checking = false;
+
+  /// The AI's answer or why there is none, shown under the reason.
+  String? _verdict;
 
   @override
   void initState() {
@@ -70,13 +79,37 @@ class _UnlockPauseDialogState extends State<UnlockPauseDialog>
     super.dispose();
   }
 
+  Future<void> _continue() async {
+    final reason = _reason.text.trim();
+    final judge = widget.judge;
+    if (judge == null) return Navigator.pop(context, reason);
+    setState(() {
+      _checking = true;
+      _verdict = null;
+    });
+    try {
+      final verdict = await judge(reason);
+      if (!mounted) return;
+      if (verdict.allow) return Navigator.pop(context, reason);
+      // A no means waiting again before the next try.
+      setState(() {
+        _verdict = verdict.message.isEmpty ? 'Not this time.' : verdict.message;
+        _start();
+      });
+    } catch (error) {
+      if (mounted) setState(() => _verdict = error.toString());
+    } finally {
+      if (mounted) setState(() => _checking = false);
+    }
+  }
+
   String get _wait =>
       '${_left ~/ 60}:${(_left % 60).toString().padLeft(2, '0')}';
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final ready = _left <= 0 && _reason.text.trim().isNotEmpty;
+    final ready = _left <= 0 && _reason.text.trim().isNotEmpty && !_checking;
     return AlertDialog(
       scrollable: true,
       title: const Text('Why do you need this?'),
@@ -86,7 +119,8 @@ class _UnlockPauseDialogState extends State<UnlockPauseDialog>
         children: [
           Text(
             'Blocking is on ${widget.because}. Before you ${widget.what}, '
-            'say why and take a moment. Leaving Grindset starts the wait again.',
+            'say why and take a moment. Leaving Grindset starts the wait again.'
+            '${widget.judge == null ? '' : ' An AI reads your reason and decides.'}',
             style: theme.textTheme.bodyMedium,
           ),
           const SizedBox(height: 16),
@@ -103,6 +137,15 @@ class _UnlockPauseDialogState extends State<UnlockPauseDialog>
             ),
             onChanged: (_) => setState(() {}),
           ),
+          if (_verdict != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 12),
+              child: Text(
+                _verdict!,
+                key: const ValueKey('unlock-verdict'),
+                style: TextStyle(color: theme.colorScheme.error),
+              ),
+            ),
         ],
       ),
       actions: [
@@ -112,10 +155,16 @@ class _UnlockPauseDialogState extends State<UnlockPauseDialog>
         ),
         FilledButton(
           key: const ValueKey('unlock-continue'),
-          onPressed: ready
-              ? () => Navigator.pop(context, _reason.text.trim())
-              : null,
-          child: Text(_left > 0 ? 'Wait $_wait' : widget.action),
+          onPressed: ready ? _continue : null,
+          child: Text(
+            _checking
+                ? 'Asking AI…'
+                : _left > 0
+                ? 'Wait $_wait'
+                : widget.judge == null
+                ? widget.action
+                : 'Ask AI',
+          ),
         ),
       ],
     );

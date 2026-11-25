@@ -29,6 +29,9 @@ class _CloudServer {
   int sharedDownloads = 0;
   int uploads = 0;
   int downloads = 0;
+  int unlockStatus = 200;
+  Map<String, dynamic> unlockResponse = {'allow': true, 'message': 'Okay.'};
+  final unlockRequests = <Map<String, dynamic>>[];
   final downloadedSince = <String>[];
   bool failUploads = false;
   Completer<void>? uploadGate;
@@ -159,6 +162,10 @@ class _CloudServer {
             'last_seen_at': '2026-11-10T10:00:00Z',
           },
         ];
+      } else if (path == '/functions/v1/unlock-check') {
+        unlockRequests.add(Map<String, dynamic>.from(jsonDecode(body) as Map));
+        request.response.statusCode = unlockStatus;
+        response = unlockResponse;
       } else if (path != '/rest/v1/devices') {
         request.response.statusCode = 404;
         response = {'message': 'Unexpected request: $path'};
@@ -245,6 +252,55 @@ void main() {
       expect(await store.usage(pendingOnly: true), isEmpty);
       expect(sync.lastSync, isNotNull);
       expect(sync.lastError, isNull);
+    },
+  );
+
+  test(
+    'the AI unlock check sends the reason and returns the verdict',
+    () async {
+      Future<({bool allow, String message})> ask() => sync.checkUnlock(
+        what: 'end this focus session early',
+        because: 'during your focus session',
+        reason: 'Teacher needs the YouTube link',
+        localTime: 'Tue 10:05 AM',
+        unlocksToday: 1,
+      );
+      final allowed = await ask();
+      expect(allowed.allow, isTrue);
+      expect(server.unlockRequests.single, {
+        'what': 'end this focus session early',
+        'because': 'during your focus session',
+        'reason': 'Teacher needs the YouTube link',
+        'localTime': 'Tue 10:05 AM',
+        'unlocksToday': 1,
+      });
+
+      server.unlockResponse = {'allow': false, 'message': 'That can wait.'};
+      final denied = await ask();
+      expect(denied.allow, isFalse);
+      expect(denied.message, 'That can wait.');
+
+      // No key on the server yet: the server's own message is shown.
+      server
+        ..unlockStatus = 503
+        ..unlockResponse = {
+          'error': 'not_configured',
+          'message': "The AI check isn't set up on the server yet.",
+        };
+      await expectLater(
+        ask(),
+        throwsA(
+          isA<UnlockCheckFailed>().having(
+            (e) => e.message,
+            'message',
+            "The AI check isn't set up on the server yet.",
+          ),
+        ),
+      );
+
+      await client.auth.signOut();
+      await expectLater(ask(), throwsA(isA<UnlockCheckFailed>()));
+      expect(server.unlockRequests, hasLength(3));
     },
   );
 

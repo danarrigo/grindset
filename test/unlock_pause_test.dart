@@ -1,8 +1,10 @@
+import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lockin/app_controller.dart';
 import 'package:lockin/core/activity.dart';
 import 'package:lockin/data/local_store.dart';
 import 'package:lockin/platform/native_tracker.dart';
+import 'package:lockin/ui/unlock_pause_dialog.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 
 void main() {
@@ -153,5 +155,109 @@ void main() {
     now = DateTime.utc(2026, 11, 11, 10);
     expect(reopened.unlocksToday, isEmpty);
     expect(reopened.unlocks, hasLength(2));
+  });
+
+  test('turning off the AI check while blocking needs the pause', () async {
+    await controller.setUnlockPause(30);
+    await controller.setAiUnlock(true);
+    await expectLater(
+      controller.setAiUnlock(false),
+      throwsA(isA<UnlockPauseNeeded>()),
+    );
+    expect(controller.aiUnlock, isTrue);
+    now = DateTime.utc(2026, 11, 10, 18);
+    await controller.setAiUnlock(false);
+    expect(controller.aiUnlock, isFalse);
+  });
+
+  testWidgets('the AI says no with a reason, then yes after another wait', (
+    tester,
+  ) async {
+    final asked = <String>[];
+    var allow = false;
+    String? result;
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () async {
+              result = await showDialog<String>(
+                context: context,
+                builder: (_) => UnlockPauseDialog(
+                  what: 'end this focus session early',
+                  seconds: 5,
+                  because: 'during your focus session',
+                  judge: (reason) async {
+                    asked.add(reason);
+                    return allow
+                        ? (allow: true, message: 'Okay, go ahead.')
+                        : (allow: false, message: 'A video can wait.');
+                  },
+                ),
+              );
+            },
+            child: const Text('Open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('unlock-reason')),
+      'Bored',
+    );
+    await tester.pump(const Duration(seconds: 5));
+    expect(find.text('Ask AI'), findsOneWidget);
+    await tester.tap(find.text('Ask AI'));
+    await tester.pump();
+    expect(find.text('A video can wait.'), findsOneWidget);
+    expect(find.text('Wait 0:05'), findsOneWidget);
+
+    allow = true;
+    await tester.enterText(
+      find.byKey(const ValueKey('unlock-reason')),
+      'Teacher sent the lesson video',
+    );
+    await tester.pump(const Duration(seconds: 5));
+    await tester.tap(find.text('Ask AI'));
+    await tester.pumpAndSettle();
+    expect(result, 'Teacher sent the lesson video');
+    expect(asked, ['Bored', 'Teacher sent the lesson video']);
+  });
+
+  testWidgets('without an answer from the AI, it stays locked', (tester) async {
+    String? result = 'unset';
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Builder(
+          builder: (context) => TextButton(
+            onPressed: () async {
+              result = await showDialog<String>(
+                context: context,
+                builder: (_) => UnlockPauseDialog(
+                  what: 'take a 15-minute break',
+                  seconds: 1,
+                  because: 'during Focus hours',
+                  judge: (_) async => throw Exception('offline'),
+                ),
+              );
+            },
+            child: const Text('Open'),
+          ),
+        ),
+      ),
+    );
+    await tester.tap(find.text('Open'));
+    await tester.pumpAndSettle();
+    await tester.enterText(find.byKey(const ValueKey('unlock-reason')), 'Call');
+    await tester.pump(const Duration(seconds: 1));
+    await tester.tap(find.text('Ask AI'));
+    await tester.pump();
+    expect(find.byKey(const ValueKey('unlock-verdict')), findsOneWidget);
+    expect(find.byType(AlertDialog), findsOneWidget);
+    await tester.tap(find.text('Never mind'));
+    await tester.pumpAndSettle();
+    expect(result, isNull);
   });
 }

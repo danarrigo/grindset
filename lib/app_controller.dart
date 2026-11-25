@@ -192,6 +192,16 @@ class AppController extends ChangeNotifier {
   int unlockPause = 0;
   static const unlockPauses = [0, 30, 60, 300];
 
+  /// Whether an AI must also accept the reason. This device only.
+  bool aiUnlock = false;
+
+  Future<void> setAiUnlock(bool enabled) async {
+    if (!enabled && aiUnlock) requireUnlocked('turn off the AI check');
+    await store.saveSetting('unlock_ai', '$enabled');
+    aiUnlock = enabled;
+    _changed();
+  }
+
   /// After the pause is passed, the change it was for may go ahead.
   DateTime? _unlockedForChange;
 
@@ -275,6 +285,7 @@ class AppController extends ChangeNotifier {
   Future<void> _loadUnlocks() async {
     unlockPause = int.tryParse(await store.setting('unlock_pause') ?? '') ?? 0;
     if (!unlockPauses.contains(unlockPause)) unlockPause = 0;
+    aiUnlock = await store.setting('unlock_ai') == 'true';
     breakUntil = DateTime.tryParse(await store.setting('break_until') ?? '');
     try {
       unlocks = List.unmodifiable([

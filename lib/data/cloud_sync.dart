@@ -10,6 +10,14 @@ import 'local_store.dart';
 import 'shared_state.dart';
 
 /// Confirmed usage is retryable and idempotent; offline intervals are never guessed.
+/// The AI unlock check could not give an answer. Its message is for people.
+class UnlockCheckFailed implements Exception {
+  const UnlockCheckFailed(this.message);
+  final String message;
+  @override
+  String toString() => message;
+}
+
 class CloudSync extends ChangeNotifier {
   CloudSync({required this.client, required this.store});
   final SupabaseClient client;
@@ -354,6 +362,51 @@ class CloudSync extends ChangeNotifier {
 
   void _changed() {
     if (!_disposed) notifyListeners();
+  }
+
+  bool get signedIn => client.auth.currentUser != null;
+
+  /// Asks the server's AI whether [reason] is good enough to loosen a block.
+  /// Throws [UnlockCheckFailed] when there is no answer.
+  Future<({bool allow, String message})> checkUnlock({
+    required String what,
+    required String because,
+    required String reason,
+    required String localTime,
+    required int unlocksToday,
+  }) async {
+    if (!signedIn) {
+      throw const UnlockCheckFailed('Sign in to use the AI check.');
+    }
+    const offline = "Couldn't reach the AI. Try again in a moment.";
+    try {
+      final response = await client.functions
+          .invoke(
+            'unlock-check',
+            body: {
+              'what': what,
+              'because': because,
+              'reason': reason,
+              'localTime': localTime,
+              'unlocksToday': unlocksToday,
+            },
+          )
+          .timeout(const Duration(seconds: 30));
+      final data = response.data;
+      if (data is! Map || data['allow'] is! bool) {
+        throw const UnlockCheckFailed(offline);
+      }
+      return (
+        allow: data['allow'] as bool,
+        message: data['message'] is String ? data['message'] as String : '',
+      );
+    } on FunctionException catch (error) {
+      final details = error.details;
+      final message = details is Map ? details['message'] : null;
+      throw UnlockCheckFailed(message is String ? message : offline);
+    } on TimeoutException {
+      throw const UnlockCheckFailed(offline);
+    }
   }
 
   Future<void> close() async {
