@@ -68,9 +68,12 @@ class FocusHoursBanner {
 
 /// Something to fix, shown as a card; tapping it goes where it is fixed.
 class FocusNotice {
-  const FocusNotice(this.message, {this.onTap});
+  const FocusNotice(this.message, {this.onTap, this.warning = true});
   final String message;
   final VoidCallback? onTap;
+
+  /// A warning gets the warning sign; anything else a calm pause sign.
+  final bool warning;
 }
 
 /// The working surface only. Session state and navigation belong to the app.
@@ -409,8 +412,10 @@ class _NoticeCard extends StatelessWidget {
         child: Row(
           children: [
             Icon(
-              CupertinoIcons.exclamationmark_triangle_fill,
-              color: palette.warning,
+              notice.warning
+                  ? CupertinoIcons.exclamationmark_triangle_fill
+                  : CupertinoIcons.pause_circle_fill,
+              color: notice.warning ? palette.warning : palette.faint,
               size: 17,
             ),
             const SizedBox(width: 10),

@@ -26,6 +26,20 @@ class StrictModeLocked implements Exception {
   String toString() => message;
 }
 
+/// A loosening change that waits for the unlock pause: a reason and a
+/// countdown, shown by the app before it tries again.
+class UnlockPauseNeeded implements Exception {
+  UnlockPauseNeeded(this.what);
+
+  /// What is being unlocked, as in "you can't [what] right now".
+  final String what;
+  @override
+  String toString() => 'Give a reason to $what.';
+}
+
+/// One time the unlock pause was passed on this device.
+typedef UnlockRecord = ({DateTime at, String what, String reason});
+
 class AppController extends ChangeNotifier {
   AppController({
     required this.store,
@@ -85,8 +99,11 @@ class AppController extends ChangeNotifier {
   bool strictMode = false;
 
   /// When strict mode is locked, why: "during Focus hours". Null otherwise.
-  String? get strictLock {
-    if (!strictMode) return null;
+  String? get strictLock => strictMode ? blockingNow : null;
+
+  /// Why blocking is in force right now, as in "locked during Focus hours",
+  /// or null when nothing blocks. A break does not count.
+  String? get blockingNow {
     if (session?.focusing(now) ?? false) return 'during your focus session';
     if (inFocusHours) return 'during Focus hours';
     for (final rule in rules) {
@@ -166,6 +183,111 @@ class AppController extends ChangeNotifier {
     final lock = strictLock;
     if (lock != null) {
       throw StrictModeLocked('Strict mode: you can\'t $what $lock.');
+    }
+    if (needsUnlockPause) throw UnlockPauseNeeded(what);
+  }
+
+  /// Seconds to wait, with a reason, before loosening anything while
+  /// blocking is in force. 0 turns the pause off. This device only.
+  int unlockPause = 0;
+  static const unlockPauses = [0, 30, 60, 300];
+
+  /// After the pause is passed, the change it was for may go ahead.
+  DateTime? _unlockedForChange;
+
+  /// A break: blocking is off on this device until then.
+  DateTime? breakUntil;
+  static const breakLength = Duration(minutes: 15);
+
+  bool get onBreak => breakUntil != null && now.isBefore(breakUntil!);
+
+  /// Whether loosening something now first needs the unlock pause.
+  bool get needsUnlockPause =>
+      unlockPause > 0 &&
+      !strictMode &&
+      blockingNow != null &&
+      !onBreak &&
+      !(_unlockedForChange != null && now.isBefore(_unlockedForChange!));
+
+  /// The last week of passed unlock pauses, newest first.
+  List<UnlockRecord> unlocks = const [];
+
+  /// Unlocks since the start of today.
+  List<UnlockRecord> get unlocksToday {
+    final today = accountDay(now, location).$1;
+    return [
+      for (final u in unlocks)
+        if (!u.at.isBefore(today)) u,
+    ];
+  }
+
+  Future<void> setUnlockPause(int seconds) async {
+    if (!unlockPauses.contains(seconds)) {
+      throw ArgumentError('Choose one of $unlockPauses seconds.');
+    }
+    if (seconds < unlockPause) requireUnlocked('shorten the unlock pause');
+    await store.saveSetting('unlock_pause', '$seconds');
+    unlockPause = seconds;
+    _changed();
+  }
+
+  /// Records a passed unlock pause. Lets the change it was for go ahead, or
+  /// with [takeBreak] turns blocking off on this device for [breakLength].
+  Future<void> recordUnlock(
+    String what,
+    String reason, {
+    bool takeBreak = false,
+  }) async {
+    final trimmed = reason.trim();
+    if (trimmed.isEmpty) throw ArgumentError('Give a reason.');
+    final at = now;
+    final kept = [
+      (at: at, what: what, reason: trimmed),
+      for (final u in unlocks)
+        if (at.difference(u.at) < const Duration(days: 8)) u,
+    ];
+    await store.saveSetting(
+      'unlock_log',
+      jsonEncode([
+        for (final u in kept)
+          {'at': u.at.toIso8601String(), 'what': u.what, 'reason': u.reason},
+      ]),
+    );
+    if (takeBreak) {
+      breakUntil = at.add(breakLength);
+      await store.saveSetting('break_until', breakUntil!.toIso8601String());
+    } else {
+      _unlockedForChange = at.add(const Duration(minutes: 2));
+    }
+    unlocks = List.unmodifiable(kept);
+    _changed();
+    if (takeBreak) requestForegroundCheck();
+  }
+
+  /// Ends a break early: blocking is back on now.
+  Future<void> endBreak() async {
+    breakUntil = null;
+    await store.saveSetting('break_until', '');
+    _changed();
+    requestForegroundCheck();
+  }
+
+  Future<void> _loadUnlocks() async {
+    unlockPause = int.tryParse(await store.setting('unlock_pause') ?? '') ?? 0;
+    if (!unlockPauses.contains(unlockPause)) unlockPause = 0;
+    breakUntil = DateTime.tryParse(await store.setting('break_until') ?? '');
+    try {
+      unlocks = List.unmodifiable([
+        for (final u
+            in jsonDecode(await store.setting('unlock_log') ?? '[]') as List)
+          (
+            at: DateTime.parse(u['at'] as String),
+            what: u['what'] as String,
+            reason: u['reason'] as String,
+          ),
+      ]);
+    } on Object {
+      unlocks = const [];
     }
   }
 
@@ -408,6 +530,7 @@ class AppController extends ChangeNotifier {
     focusHours = await _loadFocusHours();
     focusHoursSaved = await _loadFocusHoursSaved();
     strictMode = await store.setting('strict_mode') == 'true';
+    await _loadUnlocks();
     _lastAndroidImport = DateTime.tryParse(
       await store.setting('android_imported_until') ?? '',
     );
@@ -711,6 +834,9 @@ class AppController extends ChangeNotifier {
       throw StrictModeLocked(
         'Strict mode: this focus session runs to the end.',
       );
+    }
+    if (active.focusing(now) && needsUnlockPause) {
+      throw UnlockPauseNeeded('end this focus session early');
     }
     // An immediate stop must still produce a positive, valid interval.
     if (!now.isAfter(active.start)) return;
@@ -1317,6 +1443,8 @@ class AppController extends ChangeNotifier {
           ? 'Strict mode: turn on the Grindset extension in this browser to use it $lock.'
           : 'Strict mode: Grindset can\'t check websites in this browser. Use Chrome, Edge, Firefox or Zen $lock.';
     }
+    // A break turns rules off here; strict mode never allows one.
+    if (onBreak && !strictMode) return null;
     String? reason;
     for (final rule in rules.where(
       (r) => r.sources.any((candidate) => matchesSource(candidate, source)),

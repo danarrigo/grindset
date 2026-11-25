@@ -1492,4 +1492,85 @@ void main() {
     await tester.pumpAndSettle();
     expect(controller.focusHours.single.toJson(), saturday.toJson());
   });
+
+  testWidgets('the unlock pause asks why and waits before ending early', (
+    tester,
+  ) async {
+    var now = DateTime.utc(2026, 11, 10, 10);
+    final (controller, _) = await open(clock: () => now);
+    await controller.saveRule(
+      ActivityRule(id: 'games', name: 'Games', sources: ['web:game.test']),
+    );
+    await controller.setUnlockPause(30);
+    viewport(tester, const Size(390, 844));
+    await tester.pumpWidget(LockinApp(controller: controller));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Lock in'));
+    await tester.pumpAndSettle();
+    now = now.add(const Duration(minutes: 5));
+
+    await tester.tap(find.text('End session'));
+    await tester.pump();
+    expect(find.text('Why do you need this?'), findsOneWidget);
+    expect(find.text('End this session?'), findsNothing);
+    FilledButton go() => tester.widget<FilledButton>(
+      find.byKey(const ValueKey('unlock-continue')),
+    );
+    expect(find.text('Wait 0:30'), findsOneWidget);
+    await tester.enterText(
+      find.byKey(const ValueKey('unlock-reason')),
+      'Tutorial',
+    );
+    await tester.pump(const Duration(seconds: 10));
+    expect(go().onPressed, isNull);
+    // Leaving the app starts the wait again.
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+    await tester.pump(const Duration(seconds: 60));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.hidden);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump();
+    expect(find.text('Wait 0:30'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 30));
+    expect(go().onPressed, isNotNull);
+    await tester.tap(find.byKey(const ValueKey('unlock-continue')));
+    await tester.pumpAndSettle();
+    expect(controller.session?.focusing(controller.now), isFalse);
+
+    // A break, from the Focus menu while a session blocks.
+    await tester.tap(find.text('Lock in'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byTooltip('More options'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Take a 15-minute break'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('unlock-reason')),
+      'Lunch',
+    );
+    await tester.pump(const Duration(seconds: 30));
+    await tester.tap(find.text('Start break'));
+    await tester.pumpAndSettle();
+    expect(controller.restrictionForSource('web:game.test'), isNull);
+    expect(
+      find.text('On a break until 10:20 AM. Tap to block again.'),
+      findsOneWidget,
+    );
+    await tester.tap(
+      find.text('On a break until 10:20 AM. Tap to block again.'),
+    );
+    await tester.pumpAndSettle();
+    expect(
+      controller.restrictionForSource('web:game.test'),
+      'Focus session in progress',
+    );
+
+    await navigate(tester, 1);
+    expect(
+      find.text('Unlocked 2 times today: Tutorial, Lunch'),
+      findsOneWidget,
+    );
+  });
 }

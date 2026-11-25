@@ -29,6 +29,7 @@ import 'ui/tracking_health_panel.dart';
 import 'ui/focus_hours_dialog.dart';
 import 'ui/focus_profiles_panel.dart';
 import 'ui/weekly_insights_panel.dart';
+import 'ui/unlock_pause_dialog.dart';
 
 class LockinApp extends StatelessWidget {
   const LockinApp({
@@ -148,7 +149,11 @@ class _HomeState extends State<_Home> {
   Future<void> _run(Future<void> Function() action) async {
     setState(() => _busy = true);
     try {
-      await action();
+      try {
+        await action();
+      } on UnlockPauseNeeded catch (pause) {
+        if (await _passUnlockPause(pause.what)) await action();
+      }
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context)
@@ -157,6 +162,27 @@ class _HomeState extends State<_Home> {
     } finally {
       if (mounted) setState(() => _busy = false);
     }
+  }
+
+  /// Shows the unlock pause for [what]. Returns whether it was passed.
+  Future<bool> _passUnlockPause(
+    String what, {
+    bool takeBreak = false,
+    String action = 'Continue',
+  }) async {
+    final reason = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => UnlockPauseDialog(
+        what: what,
+        seconds: c.unlockPause,
+        because: c.blockingNow ?? 'right now',
+        action: action,
+      ),
+    );
+    if (reason == null || !mounted) return false;
+    await c.recordUnlock(what, reason, takeBreak: takeBreak);
+    return true;
   }
 
   Future<void> _enableTracking() async {
@@ -264,6 +290,10 @@ class _HomeState extends State<_Home> {
     if (c.strictLock != null) {
       return _run(() async => c.requireUnlocked('reset this device'));
     }
+    if (c.needsUnlockPause && !await _passUnlockPause('reset this device')) {
+      return;
+    }
+    if (!mounted) return;
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -482,6 +512,16 @@ class _HomeState extends State<_Home> {
   Future<void> _endSession(BuildContext dialogContext) async {
     if (c.strictLock != null && c.session!.focusing(c.now)) {
       return _run(c.endSession);
+    }
+    // The pause asks for a reason instead of a plain confirmation.
+    if (c.needsUnlockPause && c.session!.focusing(c.now)) {
+      if (await _passUnlockPause(
+        'end this focus session early',
+        action: 'End session',
+      )) {
+        await _run(c.endSession);
+      }
+      return;
     }
     final yes = await showDialog<bool>(
       context: dialogContext,
@@ -821,6 +861,12 @@ class _HomeState extends State<_Home> {
     final nearLimits = c.nearLimits;
     void open(int page) => setState(() => _page = page);
     final notices = [
+      if (c.onBreak)
+        FocusNotice(
+          'On a break until ${TimeOfDay.fromDateTime(tz.TZDateTime.from(c.breakUntil!, c.location)).format(context)}. Tap to block again.',
+          onTap: () => _run(c.endBreak),
+          warning: false,
+        ),
       for (final warning in nearLimits.take(2))
         FocusNotice(
           '${warning.name}: ${(warning.remaining.inSeconds / 60).ceil()} min left today',
@@ -974,11 +1020,21 @@ class _HomeState extends State<_Home> {
     const duration = -1;
     const phase = -2;
     const profiles = -3;
+    const takeBreak = -4;
+    final canBreak =
+        c.unlockPause > 0 &&
+        !c.strictMode &&
+        c.blockingNow != null &&
+        !c.onBreak;
+    final breakLabel =
+        'Take a ${AppController.breakLength.inMinutes}-minute break';
     final choice = _desktopLayout
         ? await showMenu<int>(
             context: context,
             position: _desktopMenuPosition(context),
             items: [
+              if (canBreak)
+                PopupMenuItem(value: takeBreak, child: Text(breakLabel)),
               PopupMenuItem(
                 value: profiles,
                 child: Text(
@@ -1007,6 +1063,11 @@ class _HomeState extends State<_Home> {
               data: theme,
               child: CupertinoActionSheet(
                 actions: [
+                  if (canBreak)
+                    CupertinoActionSheetAction(
+                      onPressed: () => Navigator.pop(sheetContext, takeBreak),
+                      child: Text(breakLabel, style: textStyle),
+                    ),
                   CupertinoActionSheetAction(
                     onPressed: () => Navigator.pop(sheetContext, profiles),
                     child: const Text('Focus profiles', style: textStyle),
@@ -1035,7 +1096,13 @@ class _HomeState extends State<_Home> {
             ),
           );
     if (!mounted || !context.mounted || choice == null) return;
-    if (choice == profiles) {
+    if (choice == takeBreak) {
+      await _passUnlockPause(
+        'take a ${AppController.breakLength.inMinutes}-minute break',
+        takeBreak: true,
+        action: 'Start break',
+      );
+    } else if (choice == profiles) {
       await _showFocusProfiles(context);
     } else if (choice == duration) {
       await _customDuration(context);
@@ -1235,6 +1302,18 @@ class _HomeState extends State<_Home> {
           ],
         ),
         const SizedBox(height: 12),
+        // Unlock reasons are kept on the device they were given on.
+        if (c.unlocksToday.isNotEmpty &&
+            (device == null || device == c.deviceId))
+          Padding(
+            padding: const EdgeInsets.only(bottom: 4),
+            child: Text(
+              key: const ValueKey('unlocks-today'),
+              'Unlocked ${c.unlocksToday.length == 1 ? 'once' : '${c.unlocksToday.length} times'} today: '
+              '${c.unlocksToday.reversed.map((u) => u.reason).join(', ')}',
+              style: TextStyle(fontSize: 13, color: colors.onSurfaceVariant),
+            ),
+          ),
         if (totals.isEmpty)
           _empty(
             'No activity yet',
@@ -1946,6 +2025,40 @@ class _HomeState extends State<_Home> {
             c.strictLock != null
                 ? 'Locked ${c.strictLock}. Until then rules can only get stricter, and Grindset keeps running.'
                 : 'While you focus, during Focus hours, or once a limit is reached: no ending early, loosening rules, or stopping Grindset. On all your devices.',
+          ),
+          const SizedBox(height: 20),
+          Text(
+            'Pause before unlocking',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 6),
+          const Text(
+            'Without strict mode: before ending early, loosening a rule or taking a break while blocking is on, say why and wait. On this device.',
+          ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<int>(
+              key: const ValueKey('unlock-pause'),
+              showSelectedIcon: false,
+              segments: [
+                for (final seconds in AppController.unlockPauses)
+                  ButtonSegment(
+                    value: seconds,
+                    label: Text(
+                      seconds == 0
+                          ? 'Off'
+                          : seconds < 60
+                          ? '$seconds sec'
+                          : '${seconds ~/ 60} min',
+                    ),
+                  ),
+              ],
+              selected: {c.unlockPause},
+              onSelectionChanged: _busy
+                  ? null
+                  : (value) => _run(() => c.setUnlockPause(value.single)),
+            ),
           ),
         ],
       ),
