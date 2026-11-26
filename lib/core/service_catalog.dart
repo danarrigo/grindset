@@ -925,8 +925,19 @@ final Map<String, CatalogService> _byName = {
 
 CatalogService? serviceNamed(String name) => _byName[name];
 
-/// The service an identifier belongs to, if it is in the catalog.
+/// Answers by identifier. The catalog never changes, and identifiers come
+/// from the apps and sites seen, so this stays small.
+final _serviceFor = <String, CatalogService?>{};
+
+/// The service an identifier belongs to, if it is in the catalog. Asked for
+/// every usage record when Activity is built, so answers are remembered.
 CatalogService? serviceFor(String source) {
+  if (_serviceFor.containsKey(source)) return _serviceFor[source];
+  if (_serviceFor.length > 10000) _serviceFor.clear();
+  return _serviceFor[source] = _findService(source);
+}
+
+CatalogService? _findService(String source) {
   if (source.startsWith('windows:')) source = source.toLowerCase();
   for (final service in catalogServices) {
     if (service.sources.contains(source)) return service;

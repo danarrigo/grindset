@@ -775,9 +775,7 @@ class AppController extends ChangeNotifier {
     until: now,
   );
   Duration ruleUsage(ActivityRule rule) => combinedUsage(
-    usage.where(
-      (i) => rule.sources.any((source) => matchesSource(source, i.source)),
-    ),
+    usageOf(rule, usage),
     from: accountDay(now, location).$1,
     until: now,
   );
@@ -1429,6 +1427,8 @@ class AppController extends ChangeNotifier {
 
   Map<String, Object> websiteRestrictions() {
     final blocked = <Map<String, String>>[];
+    // Hundreds of sites share a few rules: decide each rule once.
+    final reasons = <ActivityRule, String?>{};
     for (final source
         in rules
             .expand((rule) => rule.sources)
@@ -1436,7 +1436,7 @@ class AppController extends ChangeNotifier {
             .where((source) => source.startsWith('web:'))) {
       final host = websiteHost(source.substring(4));
       if (host == null) continue;
-      final reason = restrictionForSource('web:$host');
+      final reason = restrictionForSource('web:$host', reasons: reasons);
       if (trackingEnabled && reason != null) {
         blocked.add({'domain': host, 'reason': reason});
       }
@@ -1444,8 +1444,16 @@ class AppController extends ChangeNotifier {
     return {'enabled': trackingEnabled, 'blocked': blocked};
   }
 
-  String? restrictionForSource(String source) {
-    final lock = strictLock;
+  /// Why [source] is blocked now, or null. [reasons] remembers each rule's
+  /// answer across calls made at the same moment.
+  String? restrictionForSource(
+    String source, {
+    Map<ActivityRule, String?>? reasons,
+  }) {
+    // Only these checks need the lock, and working it out visits every rule.
+    final lock = uninstallers.contains(source) || source.startsWith('windows:')
+        ? strictLock
+        : null;
     if (lock != null && uninstallers.contains(source)) {
       return 'Strict mode: uninstalling apps is paused $lock.';
     }
@@ -1460,7 +1468,7 @@ class AppController extends ChangeNotifier {
     for (final rule in rules.where(
       (r) => r.sources.any((candidate) => matchesSource(candidate, source)),
     )) {
-      reason = blockingReason(
+      String? decide() => blockingReason(
         rule: rule,
         now: now,
         location: location,
@@ -1468,6 +1476,11 @@ class AppController extends ChangeNotifier {
         focusing: session?.focusing(now) ?? false,
         focusHours: inFocusHours,
       );
+      reason = reasons == null
+          ? decide()
+          : reasons.containsKey(rule)
+          ? reasons[rule]
+          : reasons[rule] = decide();
       if (reason != null) break;
     }
     return reason;

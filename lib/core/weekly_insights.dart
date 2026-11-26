@@ -110,13 +110,7 @@ class WeeklyInsights {
           (
             name: rule.name,
             limit: Duration(minutes: rule.dailyMinutes!),
-            used: combinedUsage(
-              rows.where(
-                (i) => rule.sources.any((s) => matchesSource(s, i.source)),
-              ),
-              from: start,
-              until: until,
-            ),
+            used: combinedUsage(usageOf(rule, rows), from: start, until: until),
           ),
     ];
     return RecordedDay(

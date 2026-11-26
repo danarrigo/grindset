@@ -2,17 +2,38 @@ import 'dart:convert';
 
 import 'package:timezone/timezone.dart' as tz;
 
+final _hostLabel = RegExp(r'^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$');
+
 /// Host identifiers only. URL paths, queries and fragments are never accepted.
 String? websiteHost(String value) {
   var host = value.toLowerCase();
   if (host.endsWith('.')) host = host.substring(0, host.length - 1);
   if (host.startsWith('www.')) host = host.substring(4);
   if (host.isEmpty || host.length > 253) return null;
-  final label = RegExp(r'^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?$');
-  return host.split('.').every(label.hasMatch) ? host : null;
+  return host.split('.').every(_hostLabel.hasMatch) ? host : null;
 }
 
+/// Answers by rule source, then observed source. Both come from small sets
+/// (rule and catalog sources, apps and sites seen), so this stays small.
+final _matches = <String, Map<String, bool>>{};
+var _matchCount = 0;
+
+/// Whether a rule's source covers an observed one. Asked for every rule,
+/// source and usage record on each refresh, so answers are remembered.
 bool matchesSource(String ruleSource, String observedSource) {
+  final known = _matches[ruleSource]?[observedSource];
+  if (known != null) return known;
+  if (++_matchCount > 100000) {
+    _matches.clear();
+    _matchCount = 1;
+  }
+  return (_matches[ruleSource] ??= {})[observedSource] = _matchesSource(
+    ruleSource,
+    observedSource,
+  );
+}
+
+bool _matchesSource(String ruleSource, String observedSource) {
   if (ruleSource.startsWith('windows:') &&
       observedSource.startsWith('windows:')) {
     return ruleSource.toLowerCase() == observedSource.toLowerCase();
@@ -198,6 +219,20 @@ class ActivityRule {
   String encode() => jsonEncode(toJson());
 }
 
+/// The records [rule] covers. A day has thousands of records but few apps
+/// and sites, so each source is checked against the rule once.
+Iterable<UsageInterval> usageOf(
+  ActivityRule rule,
+  Iterable<UsageInterval> intervals,
+) {
+  final covered = <String, bool>{};
+  return intervals.where(
+    (i) => covered[i.source] ??= rule.sources.any(
+      (source) => matchesSource(source, i.source),
+    ),
+  );
+}
+
 /// Call for each rule matching the foreground source. No rule lifts another.
 String? blockingReason({
   required ActivityRule rule,
@@ -213,9 +248,7 @@ String? blockingReason({
   if (rule.dailyMinutes != null) {
     final (start, end) = accountDay(now, location);
     final used = combinedUsage(
-      intervals.where(
-        (i) => rule.sources.any((source) => matchesSource(source, i.source)),
-      ),
+      usageOf(rule, intervals),
       from: start,
       until: now.isBefore(end) ? now : end,
     );

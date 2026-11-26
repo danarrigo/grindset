@@ -35,13 +35,7 @@ List<BudgetWarning> nearBudgetWarnings({
       if (rule.dailyMinutes != null)
         ..._warning(
           rule,
-          combinedUsage(
-            intervals.where(
-              (i) => rule.sources.any((s) => matchesSource(s, i.source)),
-            ),
-            from: start,
-            until: now,
-          ),
+          combinedUsage(usageOf(rule, intervals), from: start, until: now),
         ),
   ];
 }
