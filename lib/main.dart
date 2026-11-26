@@ -24,6 +24,7 @@ import 'platform/completion_alerts.dart';
 import 'platform/export_files.dart';
 import 'platform/site_logos.dart';
 import 'ui/appearance.dart';
+import 'ui/while_visible.dart';
 
 Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -227,6 +228,12 @@ Future<void> main(List<String> args) async {
             : null,
         exportData: () => ExportFiles.save(store, exportedAt: controller.now),
         resetDevice: resetDevice,
+        changes: desktop == null
+            ? null
+            : WhileVisible(
+                Listenable.merge([controller, ?cloud]),
+                desktop.visible,
+              ),
       ),
     );
   } catch (error) {

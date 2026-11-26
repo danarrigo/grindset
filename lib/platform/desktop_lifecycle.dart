@@ -24,6 +24,9 @@ class DesktopLifecycle with WindowListener, TrayListener {
   bool _restrictionRequested = false;
   bool _restrictionVisible = false;
 
+  /// Whether the window can be seen: not hidden in the tray or minimized.
+  final visible = ValueNotifier(true);
+
   Future<void> initialize({bool background = false}) async {
     await windowManager.ensureInitialized();
     if (manageStartup) {
@@ -56,6 +59,7 @@ class DesktopLifecycle with WindowListener, TrayListener {
     } else {
       await show();
     }
+    visible.value = !background;
   }
 
   /// Whether Grindset starts when the user signs in to Windows, including
@@ -156,6 +160,16 @@ class DesktopLifecycle with WindowListener, TrayListener {
       ),
     ],
   );
+
+  @override
+  void onWindowEvent(String eventName) {
+    switch (eventName) {
+      case 'show' || 'restore':
+        visible.value = true;
+      case 'hide' || 'minimize':
+        visible.value = false;
+    }
+  }
 
   @override
   void onWindowClose() {

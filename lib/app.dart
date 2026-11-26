@@ -41,6 +41,7 @@ class LockinApp extends StatelessWidget {
     this.exportData,
     this.resetDevice,
     this.themeMode,
+    this.changes,
   });
   final AppController controller;
   final CloudSync? cloud;
@@ -52,9 +53,13 @@ class LockinApp extends StatelessWidget {
   /// Overrides the device's Appearance setting (screenshots and tests).
   final ThemeMode? themeMode;
 
+  /// When to rebuild, if not on every change of [controller] and [cloud]:
+  /// on Windows, only while the window can be seen.
+  final Listenable? changes;
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: controller,
+    listenable: changes ?? controller,
     builder: (context, _) => MaterialApp(
       title: 'Grindset',
       debugShowCheckedModeBanner: false,
@@ -68,6 +73,7 @@ class LockinApp extends StatelessWidget {
         enableStartup: enableStartup,
         exportData: exportData,
         resetDevice: resetDevice,
+        changes: changes,
       ),
     ),
   );
@@ -81,7 +87,9 @@ class _Home extends StatefulWidget {
     this.enableStartup,
     this.exportData,
     this.resetDevice,
+    this.changes,
   });
+  final Listenable? changes;
   final AppController controller;
   final CloudSync? cloud;
   final String? startupWarning;
@@ -568,7 +576,9 @@ class _HomeState extends State<_Home> {
 
   @override
   Widget build(BuildContext context) => ListenableBuilder(
-    listenable: Listenable.merge([c, if (widget.cloud != null) widget.cloud!]),
+    listenable:
+        widget.changes ??
+        Listenable.merge([c, if (widget.cloud != null) widget.cloud!]),
     builder: (context, _) {
       if (c.tracker.isWindows && c.blockedSource != null) {
         return Theme(
