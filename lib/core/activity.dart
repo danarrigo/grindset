@@ -13,6 +13,26 @@ String? websiteHost(String value) {
   return host.split('.').every(_hostLabel.hasMatch) ? host : null;
 }
 
+final _androidSource = RegExp(r'^android:[A-Za-z0-9_]+(\.[A-Za-z0-9_]+)+$');
+final _windowsSource = RegExp(r'^windows:[^/\\:\x00-\x1f]+\.exe$');
+
+/// Whether the server accepts [source]: the same rules as its
+/// `valid_source` check. Anything else (an installer running as setup.tmp)
+/// is kept on this device only.
+bool syncableSource(String source) {
+  if (source.length > 512) return false;
+  if (source.startsWith('android:')) return _androidSource.hasMatch(source);
+  if (source.startsWith('windows:')) return _windowsSource.hasMatch(source);
+  if (!source.startsWith('web:')) return false;
+  final host = source.substring(4);
+  if (host.isEmpty || host.length > 253) return false;
+  var trimmed = host.toLowerCase();
+  while (trimmed.endsWith('.')) {
+    trimmed = trimmed.substring(0, trimmed.length - 1);
+  }
+  return trimmed.split('.').every(_hostLabel.hasMatch);
+}
+
 /// Answers by rule source, then observed source. Both come from small sets
 /// (rule and catalog sources, apps and sites seen), so this stays small.
 final _matches = <String, Map<String, bool>>{};

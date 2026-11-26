@@ -199,7 +199,15 @@ class CloudSync extends ChangeNotifier {
       final usageSince = fetchWeek
           ? today.subtract(const Duration(days: 7))
           : today;
-      final pending = await store.usage(pendingOnly: true);
+      final pending = <UsageInterval>[];
+      for (final interval in await store.usage(pendingOnly: true)) {
+        if (syncableSource(interval.source)) {
+          pending.add(interval);
+        } else {
+          // The server would refuse the whole batch over it; keep it here.
+          await store.markUploaded(interval);
+        }
+      }
       for (var start = 0; start < pending.length; start += 100) {
         _checkActive(user.id);
         final batch = pending.skip(start).take(100).toList();

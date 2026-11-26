@@ -139,6 +139,17 @@ class _CloudServer {
         if (failUploads) {
           request.response.statusCode = 503;
           response = {'code': 'OFFLINE_TEST', 'message': 'Network unavailable'};
+        } else if ((jsonDecode(body) as List).any(
+          (row) =>
+              (row['source'] as String).startsWith('windows:') &&
+              !(row['source'] as String).endsWith('.exe'),
+        )) {
+          // Like the usage_source_identifier check: one bad row fails all.
+          request.response.statusCode = 400;
+          response = {
+            'code': '23514',
+            'message': 'new row for relation "usage_intervals" violates check constraint "usage_source_identifier"',
+          };
         } else {
           uploaded.addAll(
             (jsonDecode(body) as List).map(
@@ -192,10 +203,11 @@ void main() {
     String id, {
     String device = 'desktop',
     int minutes = 1,
+    String source = 'web:example.test',
   }) => UsageInterval(
     id: id,
     deviceId: device,
-    source: 'web:example.test',
+    source: source,
     start: since.add(const Duration(hours: 9)),
     end: since.add(Duration(hours: 9, minutes: minutes)),
   );
@@ -254,6 +266,32 @@ void main() {
       expect(sync.lastError, isNull);
     },
   );
+
+  test('usage the server cannot accept stays on this device instead of blocking the rest', () async {
+    // An installer runs as setup.tmp, not an .exe.
+    await store.putUsage(
+      interval('installer', source: 'windows:grindset-setup.tmp'),
+    );
+    await store.putUsage(interval('browser', source: 'windows:zen.exe'));
+    final downloaded = Completer<void>();
+    await sync.startAutomatic(
+      deviceId: 'desktop',
+      platform: 'Windows',
+      since: () => since,
+      onDownloaded: () async {
+        if (!downloaded.isCompleted) downloaded.complete();
+      },
+    );
+    await downloaded.future.timeout(const Duration(seconds: 5));
+    expect(sync.lastError, isNull);
+    expect(server.uploaded.map((row) => row['id']), ['browser']);
+    expect(await store.usage(pendingOnly: true), isEmpty);
+    // Still shown in this device's Activity.
+    expect(
+      (await store.usage()).map((i) => i.source),
+      contains('windows:grindset-setup.tmp'),
+    );
+  });
 
   test(
     'the AI unlock check sends the reason and returns the verdict',
