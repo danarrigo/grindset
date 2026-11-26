@@ -12,6 +12,16 @@ import '../platform/app_links.dart';
 
 import 'package:url_launcher/url_launcher.dart';
 
+/// What a saved edit was to, as people know it.
+String conflictTitle(SharedChange change) => change.kind == 'setting'
+    ? switch (change.id) {
+        'timezone' => 'Account timezone',
+        'focus_hours' => 'Focus hours',
+        'strict_mode' => 'Strict mode',
+        _ => 'A setting',
+      }
+    : change.value?['name'] as String? ?? 'Deleted rule';
+
 class CloudPanel extends StatefulWidget {
   const CloudPanel({
     super.key,
@@ -360,12 +370,7 @@ class _CloudPanelState extends State<CloudPanel> {
             for (final conflict in cloud.conflicts)
               ListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text(
-                  conflict.change.kind == 'setting'
-                      ? 'Account timezone'
-                      : (conflict.change.value?['name'] as String? ??
-                            'Deleted rule'),
-                ),
+                title: Text(conflictTitle(conflict.change)),
                 subtitle: const Text(
                   'Confirmed state is in use. Your edit is saved for review.',
                 ),

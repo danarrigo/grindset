@@ -522,6 +522,84 @@ void main() {
     expect(desktop.focusedToday, const Duration(minutes: 5));
   });
 
+  test('signing in with local rules adds only what the account lacks, and its settings win quietly', () async {
+    var clock = since.add(const Duration(hours: 10));
+    final desktop = AppController(
+      store: store,
+      tracker: NativeTracker(),
+      clock: () => clock,
+    );
+    await desktop.initialize(poll: false);
+    final warning = driftRuntimeOptions.dontWarnAboutMultipleDatabases;
+    driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
+    addTearDown(
+      () => driftRuntimeOptions.dontWarnAboutMultipleDatabases = warning,
+    );
+    final phoneStore = LocalStore.memory();
+    final phone = AppController(
+      store: phoneStore,
+      tracker: NativeTracker(),
+      clock: () => clock,
+    );
+    final phoneSync = CloudSync(client: client, store: phoneStore);
+    addTearDown(() async {
+      desktop.dispose();
+      phone.dispose();
+      await phoneSync.close();
+      await phoneStore.close();
+    });
+    ScheduleWindow hours(int from, int to) => ScheduleWindow(
+      weekdays: [1, 2, 3, 4, 5],
+      startMinute: from * 60,
+      endMinute: to * 60,
+    );
+    await desktop.addStarterRule('YouTube', {'web:youtube.com'}, 30);
+    await desktop.setFocusHours([hours(8, 16)]);
+    await sync.synchronize(
+      deviceId: desktop.deviceId,
+      platform: 'Windows',
+      since: since,
+    );
+    await desktop.reloadSharedState();
+
+    // The phone was set up without an account first.
+    await phone.initialize(poll: false);
+    await phone.addStarterRule('YouTube', {'web:youtube.com'}, 60);
+    await phone.addStarterRule('Reddit', {'web:reddit.com'}, 15);
+    await phone.setFocusHours([hours(9, 17)]);
+    await phoneSync.synchronize(
+      deviceId: phone.deviceId,
+      platform: 'Android',
+      since: since,
+    );
+    await phone.reloadSharedState();
+    await sync.synchronize(
+      deviceId: desktop.deviceId,
+      platform: 'Windows',
+      since: since,
+    );
+    await desktop.reloadSharedState();
+
+    for (final device in [phone, desktop]) {
+      expect(
+        device.rules.map((r) => (r.name, r.dailyMinutes)),
+        unorderedEquals([('YouTube', 30), ('Reddit', 15)]),
+      );
+      expect(device.focusHours.single.startMinute, 8 * 60);
+    }
+    expect(phoneSync.conflicts, isEmpty);
+
+    // Later edits on a signed-in device are real edits again.
+    await phone.addStarterRule('X', {'web:x.com'}, 10);
+    await phoneSync.synchronize(
+      deviceId: phone.deviceId,
+      platform: 'Android',
+      since: since,
+    );
+    await phone.reloadSharedState();
+    expect(phone.rules.map((r) => r.name), contains('X'));
+  });
+
   test(
     'shared state downloads use revision keysets beyond the server row limit',
     () async {

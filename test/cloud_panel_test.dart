@@ -7,6 +7,7 @@ import 'package:http/testing.dart';
 import 'package:lockin/app_controller.dart';
 import 'package:lockin/data/cloud_sync.dart';
 import 'package:lockin/data/local_store.dart';
+import 'package:lockin/data/shared_state.dart';
 import 'package:lockin/platform/app_links.dart';
 import 'package:lockin/platform/native_tracker.dart';
 import 'package:lockin/ui/cloud_panel.dart';
@@ -27,6 +28,22 @@ class _PkceStorage extends GotrueAsyncStorage {
 }
 
 void main() {
+  test('a saved edit is named for what it changed', () {
+    SharedChange change(String kind, String id, [Map<String, dynamic>? v]) =>
+        SharedChange(
+          kind: kind,
+          id: id,
+          mutationId: 'm',
+          baseRevision: 1,
+          value: v,
+        );
+    expect(conflictTitle(change('setting', 'focus_hours')), 'Focus hours');
+    expect(conflictTitle(change('setting', 'timezone')), 'Account timezone');
+    expect(conflictTitle(change('setting', 'strict_mode')), 'Strict mode');
+    expect(conflictTitle(change('rule', 'r', {'name': 'Games'})), 'Games');
+    expect(conflictTitle(change('rule', 'r')), 'Deleted rule');
+  });
+
   testWidgets('signup and resend request the public confirmation destination', (
     tester,
   ) async {

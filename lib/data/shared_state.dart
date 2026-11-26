@@ -142,57 +142,90 @@ class SharedState {
   static Map<String, dynamic> sharedRule(ActivityRule rule) =>
       Map<String, dynamic>.from(rule.toJson())..remove('focus_block');
 
-  Future<void> seed() => store.transaction(() async {
-    if (await store.setting('shared_seeded') == 'true') return;
-    Future<void> seedOne(
-      String kind,
-      String id,
-      Map<String, dynamic> value, {
-      bool bootstrap = true,
-    }) async {
-      final queued = await store
-          .customSelect(
-            'SELECT 1 FROM sync_outbox WHERE kind=? AND id=?',
-            variables: [Variable(kind), Variable(id)],
-          )
-          .getSingleOrNull();
-      if (queued == null && await revision(kind, id) == 0) {
-        await queue(kind, id, value, bootstrap: bootstrap);
-      }
-    }
+  /// Whether this device has joined its account's shared state yet.
+  Future<bool> seeded() async => await store.setting('shared_seeded') == 'true';
 
-    for (final rule in await store.rules()) {
-      await rememberFocusFlag(rule);
-      await seedOne('rule', rule.id, sharedRule(rule), bootstrap: false);
-    }
-    await seedOne('setting', 'timezone', {
-      'timezone': await store.setting('timezone') ?? 'UTC',
-    });
-    final strict = await store.setting('strict_mode');
-    if (strict != null) {
-      await seedOne('setting', 'strict_mode', {'enabled': strict == 'true'});
-    }
-    final focusHours = await store.setting('focus_hours');
-    if (focusHours != null) {
-      final saved = await store.setting('focus_hours_saved');
-      final schedules = jsonDecode(focusHours) as List;
-      await seedOne('setting', 'focus_hours', {
-        'schedules': schedules,
-        if (schedules.isEmpty && saved != null && saved != '[]')
-          'saved': jsonDecode(saved),
+  /// Joins the account: queues this device's state for upload, once.
+  /// [accountRules] are the sources of the account's rules. A rule made here
+  /// before signing in whose sources they all cover only repeats one, so it
+  /// is dropped and the account's version arrives instead.
+  Future<void> seed({List<List<String>> accountRules = const []}) =>
+      store.transaction(() async {
+        if (await seeded()) return;
+        // Settings made before signing in were this device's setup, not edits
+        // to the account: where the account has its own, it wins quietly.
+        await store.customStatement(
+          "UPDATE sync_outbox SET bootstrap=1 WHERE kind='setting'",
+        );
+        Future<void> seedOne(
+          String kind,
+          String id,
+          Map<String, dynamic> value, {
+          bool bootstrap = true,
+        }) async {
+          final queued = await store
+              .customSelect(
+                'SELECT 1 FROM sync_outbox WHERE kind=? AND id=?',
+                variables: [Variable(kind), Variable(id)],
+              )
+              .getSingleOrNull();
+          if (queued == null && await revision(kind, id) == 0) {
+            await queue(kind, id, value, bootstrap: bootstrap);
+          }
+        }
+
+        final rules = await store.rules();
+        final kept = <ActivityRule>[];
+        for (final rule in rules) {
+          final repeats =
+              await revision('rule', rule.id) == 0 &&
+              rule.sources.every(
+                (source) => accountRules.any(
+                  (sources) => sources.any((s) => matchesSource(s, source)),
+                ),
+              );
+          if (repeats) {
+            await store.customStatement(
+              "DELETE FROM sync_outbox WHERE kind='rule' AND id=?",
+              [rule.id],
+            );
+            continue;
+          }
+          kept.add(rule);
+          await rememberFocusFlag(rule);
+          await seedOne('rule', rule.id, sharedRule(rule), bootstrap: false);
+        }
+        if (kept.length != rules.length) await store.saveRules(kept);
+        await seedOne('setting', 'timezone', {
+          'timezone': await store.setting('timezone') ?? 'UTC',
+        });
+        final strict = await store.setting('strict_mode');
+        if (strict != null) {
+          await seedOne('setting', 'strict_mode', {
+            'enabled': strict == 'true',
+          });
+        }
+        final focusHours = await store.setting('focus_hours');
+        if (focusHours != null) {
+          final saved = await store.setting('focus_hours_saved');
+          final schedules = jsonDecode(focusHours) as List;
+          await seedOne('setting', 'focus_hours', {
+            'schedules': schedules,
+            if (schedules.isEmpty && saved != null && saved != '[]')
+              'saved': jsonDecode(saved),
+          });
+        }
+        final active = _decode(await store.setting('active_session'));
+        if (active != null) {
+          await seedOne('focus', 'active', active, bootstrap: false);
+        }
+        for (final row
+            in await store.customSelect('SELECT value FROM sessions').get()) {
+          final session = _decode(row.read<String>('value'))!;
+          await seedOne('session', session['id'] as String, session);
+        }
+        await store.saveSetting('shared_seeded', 'true');
       });
-    }
-    final active = _decode(await store.setting('active_session'));
-    if (active != null) {
-      await seedOne('focus', 'active', active, bootstrap: false);
-    }
-    for (final row
-        in await store.customSelect('SELECT value FROM sessions').get()) {
-      final session = _decode(row.read<String>('value'))!;
-      await seedOne('session', session['id'] as String, session);
-    }
-    await store.saveSetting('shared_seeded', 'true');
-  });
 
   Future<void> accept(
     SharedChange change, {

@@ -264,7 +264,12 @@ class CloudSync extends ChangeNotifier {
   }
 
   Future<void> _synchronizeShared(String owner, String deviceId) async {
-    await _shared.seed();
+    // Only a device joining with rules of its own has anything to compare.
+    await _shared.seed(
+      accountRules: await _shared.seeded() || (await store.rules()).isEmpty
+          ? const []
+          : await _accountRules(owner),
+    );
     Future<void> upload(List<SharedChange> changes) async {
       if (changes.isEmpty) return;
       _checkActive(owner);
@@ -341,6 +346,30 @@ class CloudSync extends ChangeNotifier {
     }
     conflicts = await _shared.conflicts();
     notice = await store.setting('shared_notice');
+  }
+
+  /// The sources of the account's rules, read before this device joins.
+  Future<List<List<String>>> _accountRules(String owner) async {
+    _checkActive(owner);
+    final rows = await client
+        .from('shared_state')
+        .select('kind,id,revision,value')
+        .eq('user_id', owner)
+        .eq('kind', 'rule')
+        .gt('revision', 0)
+        .order('revision', ascending: true)
+        .limit(1000)
+        .timeout(_requestTimeout);
+    _checkActive(owner);
+    return [
+      for (final row in rows)
+        if (row['kind'] == 'rule' && row['value'] is Map)
+          [
+            for (final source
+                in (row['value'] as Map)['sources'] as List? ?? [])
+              '$source',
+          ],
+    ];
   }
 
   Future<void> resolveConflict(
