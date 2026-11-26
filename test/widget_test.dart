@@ -1323,6 +1323,14 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('6:59:59'), findsOneWidget);
 
+      // A break stops blocking here, so the status says so instead.
+      await controller.recordUnlock('take a break', 'Lunch', takeBreak: true);
+      await tester.pumpAndSettle();
+      expect(find.text('until 5:00 PM · on a break'), findsOneWidget);
+      await controller.endBreak();
+      await tester.pumpAndSettle();
+      expect(find.text('until 5:00 PM · 1 rule blocked'), findsOneWidget);
+
       await tester.tap(find.text('YouTube: 4 min left today'));
       await tester.pumpAndSettle();
       expect(find.text('Focus hours: on'), findsOneWidget);

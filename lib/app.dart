@@ -951,7 +951,11 @@ class _HomeState extends State<_Home> {
       eyebrow: hoursMode ? 'Focus hours' : null,
       showAction: !hoursMode,
       status: hoursMode
-          ? 'until ${clock(hoursEnd)} · ${focusBlocks == 0 ? 'no rules block yet' : '$focusBlocks ${focusBlocks == 1 ? 'rule' : 'rules'} blocked'}'
+          ? 'until ${clock(hoursEnd)} · ${c.onBreak && !c.strictMode
+                ? 'on a break'
+                : focusBlocks == 0
+                ? 'no rules block yet'
+                : '$focusBlocks ${focusBlocks == 1 ? 'rule' : 'rules'} blocked'}'
           : finished
           ? (active.phase == SessionPhase.focus ? 'Focus done' : 'Break over')
           : null,
