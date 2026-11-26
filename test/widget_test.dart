@@ -1366,6 +1366,59 @@ void main() {
     expect(find.text('Lock in'), findsOneWidget);
   });
 
+  testWidgets(
+    'onboarding offers groups, and apps in a picked group are covered',
+    (tester) async {
+      final (controller, _) = await open();
+      controller.onboarded = false;
+      viewport(tester, const Size(390, 844));
+      await tester.pumpWidget(
+        RepaintBoundary(
+          key: const ValueKey('onboarding-screen'),
+          child: LockinApp(controller: controller),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Get started'));
+      await tester.pumpAndSettle();
+      FilterChip chip(String name) =>
+          tester.widget(find.widgetWithText(FilterChip, name));
+
+      await tester.tap(find.text('Instagram'));
+      await tester.tap(find.text('YouTube'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Social media'));
+      await tester.pumpAndSettle();
+      // Instagram is part of Social media now: shown included, not a second rule.
+      expect(chip('Instagram').selected, isTrue);
+      expect(chip('Instagram').onSelected, isNull);
+      expect(chip('TikTok').selected, isTrue);
+      expect(chip('YouTube').onSelected, isNotNull);
+      expect(
+        find.text('Apps in a group you picked share its limit.'),
+        findsOneWidget,
+      );
+      await expectLater(
+        find.byKey(const ValueKey('onboarding-screen')),
+        matchesGoldenFile('goldens/mobile-onboarding-groups.png'),
+      );
+
+      await tester.tap(find.byKey(const ValueKey('onboarding-next')));
+      await tester.pumpAndSettle();
+      expect(
+        controller.rules.map((r) => (r.name, r.dailyMinutes)),
+        unorderedEquals([('Social media', 30), ('YouTube', 30)]),
+      );
+      final social = controller.rules.firstWhere(
+        (r) => r.name == 'Social media',
+      );
+      expect(
+        social.sources,
+        containsAll(['web:instagram.com', 'web:tiktok.com']),
+      );
+    },
+  );
+
   test(
     'onboarding is skipped for people who already set Grindset up',
     () async {

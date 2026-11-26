@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../app_controller.dart';
 import '../core/rule_presets.dart';
+import '../core/service_catalog.dart';
 import 'tracking_health_panel.dart';
 
 /// First launch: what Grindset does, what to limit, the permissions rules
@@ -67,12 +68,33 @@ class _OnboardingState extends State<Onboarding> {
         preset,
   ].take(12).toList();
 
+  /// Whole groups sharing one limit. The rest are in Rules > Add.
+  static final _groups = [
+    for (final name in const [
+      'Social media',
+      'Video and streaming',
+      'Games',
+      'Shopping',
+    ])
+      categoryPresets.firstWhere((preset) => preset.name == name),
+  ];
+
+  /// The picked group that already includes [preset], if any.
+  RulePreset? _groupOf(RulePreset preset) => _groups
+      .where(
+        (group) =>
+            _picked.contains(group.name) &&
+            preset.sources.every(group.sources.contains),
+      )
+      .firstOrNull;
+
   Future<void> _next() async {
     if (_screen == 1 && _picked.isNotEmpty) {
       setState(() => _saving = true);
       try {
-        for (final preset in _presets) {
-          if (_picked.contains(preset.name)) {
+        for (final preset in [..._groups, ..._presets]) {
+          if (_picked.contains(preset.name) &&
+              (preset.isCategory || _groupOf(preset) == null)) {
             await c.addStarterRule(preset.name, preset.sources, _minutes);
           }
         }
@@ -238,6 +260,17 @@ class _OnboardingState extends State<Onboarding> {
 
   Widget _distractions(BuildContext context) {
     final colors = Theme.of(context).colorScheme;
+    final text = Theme.of(context).textTheme;
+    FilterChip chip(RulePreset preset, {bool covered = false}) => FilterChip(
+      label: Text(preset.name),
+      selected: covered || _picked.contains(preset.name),
+      onSelected: covered
+          ? null
+          : (on) => setState(
+              () => on ? _picked.add(preset.name) : _picked.remove(preset.name),
+            ),
+    );
+    final anyCovered = _presets.any((preset) => _groupOf(preset) != null);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -246,22 +279,31 @@ class _OnboardingState extends State<Onboarding> {
           'What pulls you away?',
           'Pick the apps and sites to limit. They are also blocked while you focus.',
         ),
+        Text('Groups', style: text.titleSmall),
+        const SizedBox(height: 10),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [for (final group in _groups) chip(group)],
+        ),
+        const SizedBox(height: 20),
+        Text('Apps', style: text.titleSmall),
+        const SizedBox(height: 10),
         Wrap(
           spacing: 8,
           runSpacing: 8,
           children: [
             for (final preset in _presets)
-              FilterChip(
-                label: Text(preset.name),
-                selected: _picked.contains(preset.name),
-                onSelected: (on) => setState(
-                  () => on
-                      ? _picked.add(preset.name)
-                      : _picked.remove(preset.name),
-                ),
-              ),
+              chip(preset, covered: _groupOf(preset) != null),
           ],
         ),
+        if (anyCovered) ...[
+          const SizedBox(height: 10),
+          Text(
+            'Apps in a group you picked share its limit.',
+            style: TextStyle(color: colors.onSurfaceVariant),
+          ),
+        ],
         const SizedBox(height: 28),
         Text('Daily limit', style: Theme.of(context).textTheme.titleMedium),
         const SizedBox(height: 10),
@@ -280,7 +322,7 @@ class _OnboardingState extends State<Onboarding> {
         ),
         const SizedBox(height: 12),
         Text(
-          _minutes == null ? 'Only blocked while you focus.' : 'Each one gets its own daily limit. You can change it later in Rules.',
+          _minutes == null ? 'Only blocked while you focus.' : 'Each app gets its own daily limit, and each group one limit for all its apps. You can change it later in Rules.',
           style: TextStyle(color: colors.onSurfaceVariant),
         ),
       ],
