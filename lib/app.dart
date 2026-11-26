@@ -596,6 +596,7 @@ class _HomeState extends State<_Home> {
                   await c.finishOnboarding();
                   if (mounted) setState(() => _page = 4);
                 }),
+          onHaveAccount: widget.cloud == null ? null : _signInFromOnboarding,
           signedIn: widget.cloud?.client.auth.currentUser != null,
           onDone: () => _run(c.finishOnboarding),
         );
@@ -617,6 +618,31 @@ class _HomeState extends State<_Home> {
       );
     },
   );
+
+  /// The account panel from Settings, closing once signed in.
+  Future<bool> _signInFromOnboarding() async {
+    final auth = widget.cloud!.client.auth;
+    await showDialog<void>(
+      context: context,
+      builder: (dialogContext) => Dialog(
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(maxWidth: 440),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: CloudPanel(
+              controller: c,
+              cloud: widget.cloud,
+              onChanged: () {
+                if (auth.currentUser != null) Navigator.pop(dialogContext);
+              },
+            ),
+          ),
+        ),
+      ),
+    );
+    if (mounted) setState(() {});
+    return auth.currentUser != null;
+  }
 
   Widget _secondaryPages(bool desktop) {
     final dark = Theme.of(context).brightness == Brightness.dark;

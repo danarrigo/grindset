@@ -18,6 +18,7 @@ class Onboarding extends StatefulWidget {
     this.onFocusHours,
     this.onBrowser,
     this.onSignIn,
+    this.onHaveAccount,
     this.signedIn = false,
   });
 
@@ -32,6 +33,10 @@ class Onboarding extends StatefulWidget {
 
   /// Finishes onboarding and opens sign-in.
   final VoidCallback? onSignIn;
+
+  /// Signs in to an existing account; true once signed in. Its rules come
+  /// from the account, so picking apps is skipped.
+  final Future<bool> Function()? onHaveAccount;
   final bool signedIn;
   final VoidCallback onDone;
 
@@ -87,6 +92,17 @@ class _OnboardingState extends State<Onboarding> {
             preset.sources.every(group.sources.contains),
       )
       .firstOrNull;
+
+  Future<void> _haveAccount() async {
+    setState(() => _saving = true);
+    try {
+      final signedIn = await widget.onHaveAccount!();
+      // Straight to permissions, which every device still needs.
+      if (signedIn && mounted) setState(() => _step = 2);
+    } finally {
+      if (mounted) setState(() => _saving = false);
+    }
+  }
 
   Future<void> _next() async {
     if (_screen == 1 && _picked.isNotEmpty) {
@@ -187,7 +203,12 @@ class _OnboardingState extends State<Onboarding> {
                   const SizedBox(height: 4),
                   SizedBox(
                     height: 44,
-                    child: _step == 0 || last
+                    child: _step == 0 && widget.onHaveAccount != null
+                        ? TextButton(
+                            onPressed: _saving ? null : _haveAccount,
+                            child: const Text('I already have an account'),
+                          )
+                        : _step == 0 || last
                         ? null
                         : TextButton(
                             onPressed: _saving

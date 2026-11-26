@@ -12,6 +12,7 @@ import 'package:lockin/data/cloud_sync.dart';
 import 'package:lockin/data/local_store.dart';
 import 'package:lockin/platform/native_tracker.dart';
 import 'package:lockin/ui/focus_screen.dart';
+import 'package:lockin/ui/onboarding.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 
@@ -1364,6 +1365,45 @@ void main() {
     expect(controller.onboarded, isTrue);
     expect(await store.setting('onboarded'), 'true');
     expect(find.text('Lock in'), findsOneWidget);
+  });
+
+  testWidgets('with an account, onboarding signs in and skips picking apps', (
+    tester,
+  ) async {
+    final (controller, _) = await open();
+    var asked = 0;
+    var signIn = false;
+    var done = false;
+    viewport(tester, const Size(390, 844));
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Onboarding(
+          controller: controller,
+          onTracking: () {},
+          onHaveAccount: () async {
+            asked++;
+            return signIn;
+          },
+          onDone: () => done = true,
+        ),
+      ),
+    );
+    // Closing sign-in without signing in stays on the welcome screen.
+    await tester.tap(find.text('I already have an account'));
+    await tester.pumpAndSettle();
+    expect(asked, 1);
+    expect(find.text('Less scrolling, more done.'), findsOneWidget);
+
+    signIn = true;
+    await tester.tap(find.text('I already have an account'));
+    await tester.pumpAndSettle();
+    // No permissions step in tests, so the extras come next.
+    expect(find.text('What pulls you away?'), findsNothing);
+    expect(find.text('A few extras'), findsOneWidget);
+    expect(controller.rules, isEmpty);
+    await tester.tap(find.text('Start focusing'));
+    await tester.pumpAndSettle();
+    expect(done, isTrue);
   });
 
   testWidgets(
