@@ -20,6 +20,11 @@ import 'package:timezone/data/latest_all.dart' as tzdata;
 class _WindowsTracker extends NativeTracker {
   @override
   bool get isWindows => true;
+  // No native side here: no installed app icons.
+  @override
+  Future<Map<String, ({String label, Uint8List icon})>> windowsAppDetails(
+    List<String> executables,
+  ) async => const {};
   @override
   Future<bool> setWindowsForegroundWatch(bool enabled) async => true;
   @override
@@ -1380,9 +1385,10 @@ void main() {
       now = DateTime.utc(2026, 11, 10, 10);
       await controller.refresh();
       await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('focus-eyebrow')), findsOneWidget);
+      expect(find.text('Focus hours'), findsOneWidget);
       expect(find.text('7:00:00'), findsOneWidget);
-      expect(find.text('until 5:00 PM · 1 rule blocked'), findsOneWidget);
+      expect(find.text('until 5:00 PM'), findsOneWidget);
+      expect(find.text('1 app or site shut'), findsOneWidget);
       expect(find.text('Lock in'), findsNothing);
       now = DateTime.utc(2026, 11, 10, 10, 0, 1);
       await controller.refresh();
@@ -1392,10 +1398,10 @@ void main() {
       // A break stops blocking here, so the status says so instead.
       await controller.recordUnlock('take a break', 'Lunch', takeBreak: true);
       await tester.pumpAndSettle();
-      expect(find.text('until 5:00 PM · on a break'), findsOneWidget);
+      expect(find.text('on a break'), findsOneWidget);
       await controller.endBreak();
       await tester.pumpAndSettle();
-      expect(find.text('until 5:00 PM · 1 rule blocked'), findsOneWidget);
+      expect(find.text('until 5:00 PM'), findsOneWidget);
 
       await tester.tap(find.text('YouTube: 4 min left today'));
       await tester.pumpAndSettle();

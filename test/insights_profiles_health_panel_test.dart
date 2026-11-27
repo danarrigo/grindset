@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lockin/app_controller.dart';
@@ -13,6 +15,11 @@ import 'package:timezone/data/latest_all.dart' as tzdata;
 class _Windows extends NativeTracker {
   @override
   bool get isWindows => true;
+  // No native side here: no installed app icons.
+  @override
+  Future<Map<String, ({String label, Uint8List icon})>> windowsAppDetails(
+    List<String> executables,
+  ) async => const {};
   @override
   bool get isAndroid => false;
   @override

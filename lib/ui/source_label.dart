@@ -113,3 +113,132 @@ class LetterTile extends StatelessWidget {
     );
   }
 }
+
+/// What a focus session keeps shut, one entry per app or site: the sources
+/// of every rule that blocks while focusing, joined by service. Apps that
+/// aren't on this device are left out; their websites are not.
+List<({String name, List<String> sources})> shutWhileFocusing(AppController c) {
+  final prefix = c.tracker.isAndroid
+      ? 'android:'
+      : c.tracker.isWindows
+      ? 'windows:'
+      : null;
+  final sources = {
+    for (final rule in c.rules)
+      if (rule.focusBlock) ...rule.sources,
+  };
+  c.requestAppDetails(sources);
+  final byName = <String, List<String>>{};
+  for (final source in sources) {
+    final web = source.startsWith('web:');
+    final installed = installedIcon(c, [source]) != null;
+    // An app counts once this device has said it is installed.
+    if (!web && !(prefix != null && source.startsWith(prefix) && installed)) {
+      continue;
+    }
+    final name = serviceFor(source)?.name ?? displayName(c, source);
+    (byName[name] ??= []).add(source);
+  }
+  return [
+    for (final MapEntry(:key, :value) in byName.entries)
+      (name: key, sources: value),
+  ];
+}
+
+/// Every app and site a session keeps shut, packed together. At most two
+/// rows; the last tile counts the rest.
+class ShutPile extends StatelessWidget {
+  const ShutPile({
+    super.key,
+    required this.controller,
+    required this.items,
+    this.locked = false,
+  });
+  final AppController controller;
+  final List<({String name, List<String> sources})> items;
+
+  /// Faded, with the count in green: they are shut now.
+  final bool locked;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = Theme.of(context).colorScheme;
+    const gap = 8.0;
+    final count = items.length;
+    return Semantics(
+      label:
+          '$count ${count == 1 ? 'app or site' : 'apps and sites'} '
+          '${locked ? 'shut' : 'stay shut while you focus'}: '
+          '${items.map((i) => i.name).join(', ')}',
+      child: ExcludeSemantics(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            LayoutBuilder(
+              builder: (context, box) {
+                final perRow = ((box.maxWidth + gap) / (36 + gap))
+                    .floor()
+                    .clamp(1, 12);
+                final size = ((box.maxWidth - gap * (perRow - 1)) / perRow)
+                    .clamp(28.0, 44.0);
+                final room = perRow * 2;
+                final shown = count > room ? room - 1 : count;
+                return Opacity(
+                  opacity: locked ? .55 : 1,
+                  child: Wrap(
+                    spacing: gap,
+                    runSpacing: gap,
+                    children: [
+                      for (final item in items.take(shown))
+                        SourceIcon(
+                          controller: controller,
+                          sources: item.sources,
+                          name: item.name,
+                          size: size,
+                        ),
+                      if (count > shown)
+                        Container(
+                          width: size,
+                          height: size,
+                          alignment: Alignment.center,
+                          decoration: BoxDecoration(
+                            color: colors.surfaceContainerHighest,
+                            borderRadius: BorderRadius.circular(size * .22),
+                          ),
+                          child: Text(
+                            '+${count - shown}',
+                            style: TextStyle(
+                              fontSize: size * .34,
+                              fontWeight: FontWeight.w600,
+                              color: colors.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                );
+              },
+            ),
+            if (locked) ...[
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  Icon(Icons.lock_rounded, size: 15, color: colors.primary),
+                  const SizedBox(width: 6),
+                  Text(
+                    '$count ${count == 1 ? 'app or site' : 'apps and sites'} shut',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: colors.primary,
+                    ),
+                  ),
+                ],
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}

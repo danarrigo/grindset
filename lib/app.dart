@@ -1004,6 +1004,25 @@ class _HomeState extends State<_Home> {
         onCancel: _cancelBreathing,
       );
     }
+    String at(DateTime time) =>
+        TimeOfDay.fromDateTime(tz.TZDateTime.from(time, c.location))
+            .format(context);
+    final hoursSpan = hoursMode
+        ? c.focusHours.map((w) => w.span(now, c.location)).nonNulls.firstOrNull
+        : null;
+    double part(DateTime from, DateTime until) =>
+        now.difference(from).inSeconds / until.difference(from).inSeconds;
+    final shut = shutWhileFocusing(c);
+    final dayStart = accountDay(now, c.location).$1;
+    final sessionsToday = c.history
+        .where(
+          (s) =>
+              s.phase == SessionPhase.focus &&
+              s.start.isBefore(now) &&
+              !s.start.isBefore(dayStart),
+        )
+        .length;
+    final focused = c.focusedToday;
     return FocusScreen(
       showBrand: !_desktopLayout,
       menuButtonKey: _focusMenuKey,
@@ -1022,15 +1041,64 @@ class _HomeState extends State<_Home> {
           : phase == SessionPhase.focus
           ? 'Lock in'
           : 'Start break',
-      eyebrow: hoursMode ? 'Focus hours' : null,
       showAction: !hoursMode,
-      status: hoursMode
-          ? 'until ${clock(hoursEnd)} · ${c.onBreak && !c.strictMode
-                ? 'on a break'
-                : focusBlocks == 0
-                ? 'no rules block yet'
-                : '$focusBlocks ${focusBlocks == 1 ? 'rule' : 'rules'} blocked'}'
-          : finished
+      minutes: running || hoursMode ? null : _minutes,
+      durations: phase == SessionPhase.focus
+          ? const [15, 25, 50, 90]
+          : const [5, 10, 15, 30],
+      onDuration: running || hoursMode || _busy
+          ? null
+          : (minutes) => _run(() async {
+              await c.setPreferredMinutes(_phase, minutes);
+              if (mounted) {
+                setState(() {
+                  _minutes = minutes;
+                  _configuringNext = true;
+                });
+              }
+            }),
+      progress: running
+          ? FocusProgress(
+              part: part(active!.start, active.end),
+              label: phase == SessionPhase.rest ? 'Break' : 'Focus session',
+              detail: 'ends ${at(active.end)}',
+            )
+          : hoursSpan != null
+          ? FocusProgress(
+              part: part(hoursSpan.$1, hoursSpan.$2),
+              label: 'Focus hours',
+              detail: c.onBreak && !c.strictMode
+                  ? 'on a break'
+                  : 'until ${at(hoursSpan.$2)}',
+            )
+          : null,
+      shut: phase == SessionPhase.rest && !hoursMode
+          ? null
+          : shut.isEmpty
+          ? TextButton(
+              style: TextButton.styleFrom(
+                alignment: Alignment.centerLeft,
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(48, 48),
+                textStyle: const TextStyle(
+                  fontFamily: 'Inter',
+                  fontSize: 15,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              onPressed: () => open(2),
+              child: const Text('Choose what stays shut while you focus'),
+            )
+          : ShutPile(
+              controller: c,
+              items: shut,
+              locked: hoursMode || (running && phase == SessionPhase.focus),
+            ),
+      today: focused == Duration.zero
+          ? 'No focus yet'
+          : '${durationLabel(focused)} focused · $sessionsToday '
+                '${sessionsToday == 1 ? 'session' : 'sessions'}',
+      status: finished
           ? (active.phase == SessionPhase.focus ? 'Focus done' : 'Break over')
           : null,
       focusHours: focusHours,

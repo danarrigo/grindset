@@ -1,5 +1,3 @@
-import 'dart:math' as math;
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
@@ -76,6 +74,24 @@ class FocusNotice {
   final bool warning;
 }
 
+/// How far through a running block, for the bar under the clock.
+class FocusProgress {
+  const FocusProgress({
+    required this.part,
+    required this.label,
+    required this.detail,
+  });
+
+  /// 0 to 1.
+  final double part;
+
+  /// What is running, as in "Focus session".
+  final String label;
+
+  /// When it ends, as in "ends 5:09 PM".
+  final String detail;
+}
+
 /// The working surface only. Session state and navigation belong to the app.
 class FocusScreen extends StatelessWidget {
   const FocusScreen({
@@ -88,12 +104,17 @@ class FocusScreen extends StatelessWidget {
     this.setupLabel,
     this.onSetup,
     this.status,
-    this.eyebrow,
     this.showAction = true,
     this.focusHours,
     this.notices = const [],
     this.showBrand = true,
     this.menuButtonKey,
+    this.minutes,
+    this.durations = const [],
+    this.onDuration,
+    this.progress,
+    this.shut,
+    this.today,
   });
 
   final Duration remaining;
@@ -107,15 +128,25 @@ class FocusScreen extends StatelessWidget {
   final VoidCallback? onSetup;
   final String? status;
 
-  /// A label above the clock, e.g. "Focus hours" when it counts down to them ending.
-  final String? eyebrow;
-
   /// False while Focus hours already block distractions: nothing to start.
   final bool showAction;
   final FocusHoursBanner? focusHours;
   final List<FocusNotice> notices;
   final bool showBrand;
   final Key? menuButtonKey;
+
+  /// The length picked for the next session, among [durations] to tap.
+  /// No choices while something runs.
+  final int? minutes;
+  final List<int> durations;
+  final ValueChanged<int>? onDuration;
+  final FocusProgress? progress;
+
+  /// What stays shut: the apps and sites, under the clock.
+  final Widget? shut;
+
+  /// Today's focus so far, as in "1 hr 25 min focused · 3 sessions".
+  final String? today;
 
   String get _clock {
     final seconds = (remaining.inMicroseconds / Duration.microsecondsPerSecond)
@@ -130,6 +161,10 @@ class FocusScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final p = FocusPalette.of(context);
+    final choices = [
+      ...durations,
+      if (minutes != null && !durations.contains(minutes)) minutes!,
+    ]..sort();
     return Padding(
       padding: const EdgeInsets.fromLTRB(24, 24, 24, 8),
       child: Column(
@@ -180,105 +215,179 @@ class FocusScreen extends StatelessWidget {
           Expanded(
             child: LayoutBuilder(
               builder: (context, constraints) => SingleChildScrollView(
-                padding: const EdgeInsets.symmetric(vertical: 24),
                 child: ConstrainedBox(
-                  constraints: BoxConstraints(
-                    minHeight: math.max(0, constraints.maxHeight - 48),
-                  ),
-                  child: Center(
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 430),
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          if (eyebrow != null) ...[
-                            Text(
-                              eyebrow!,
-                              key: const ValueKey('focus-eyebrow'),
-                              style: TextStyle(
-                                color: p.startInk,
-                                fontSize: 17,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                          ],
-                          Semantics(
-                            label: eyebrow != null
-                                ? '$eyebrow remaining'
-                                : running
-                                ? 'Time remaining'
-                                : 'Session duration',
-                            value: _clock,
-                            child: ExcludeSemantics(
-                              child: FittedBox(
-                                fit: BoxFit.scaleDown,
-                                child: Text(
-                                  _clock,
-                                  style: TextStyle(
-                                    color: p.clock,
-                                    fontSize: 88,
-                                    fontWeight: FontWeight.w200,
-                                    letterSpacing: -3,
-                                    fontFeatures: const [
-                                      FontFeature.tabularFigures(),
-                                    ],
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ),
-                          if (status != null) ...[
-                            const SizedBox(height: 12),
-                            Text(
-                              status!,
-                              textAlign: TextAlign.center,
-                              style: TextStyle(color: p.muted, fontSize: 13),
-                            ),
-                          ],
-                          if (showAction) ...[
-                            const SizedBox(height: 42),
-                            CupertinoButton(
-                              padding: EdgeInsets.zero,
-                              minimumSize: const Size(84, 84),
-                              onPressed: onAction,
-                              child: Column(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  Container(
-                                    width: 84,
-                                    height: 84,
-                                    decoration: BoxDecoration(
-                                      shape: BoxShape.circle,
-                                      color: running ? p.stop : p.start,
-                                    ),
-                                    child: Icon(
-                                      running
-                                          ? CupertinoIcons.stop_fill
-                                          : CupertinoIcons.play_fill,
-                                      semanticLabel: actionLabel,
-                                      color: running ? p.clock : p.startInk,
-                                      size: 28,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 13),
-                                  ExcludeSemantics(
+                  constraints: BoxConstraints(minHeight: constraints.maxHeight),
+                  // The clock sits in the room left above the bottom; with
+                  // little room everything scrolls instead of overflowing.
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const SizedBox(height: 24),
+                      Center(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 430),
+                          child: Column(
+                            mainAxisSize: MainAxisSize.min,
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              Semantics(
+                                label: progress != null
+                                    ? '${progress!.label} remaining'
+                                    : running
+                                    ? 'Time remaining'
+                                    : 'Session duration',
+                                value: _clock,
+                                child: ExcludeSemantics(
+                                  child: FittedBox(
+                                    fit: BoxFit.scaleDown,
+                                    alignment: Alignment.centerLeft,
                                     child: Text(
-                                      actionLabel,
+                                      _clock,
                                       style: TextStyle(
-                                        fontSize: 15,
-                                        fontWeight: FontWeight.w500,
-                                        color: running ? p.muted : p.startInk,
+                                        color: p.clock,
+                                        fontSize: 96,
+                                        fontWeight: FontWeight.w600,
+                                        letterSpacing: -4,
+                                        height: 1.1,
+                                        fontFeatures: const [
+                                          FontFeature.tabularFigures(),
+                                        ],
                                       ),
                                     ),
                                   ),
-                                ],
+                                ),
                               ),
-                            ),
-                          ],
-                        ],
+                              if (status != null) ...[
+                                const SizedBox(height: 4),
+                                Text(
+                                  status!,
+                                  style: TextStyle(
+                                    color: p.muted,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                              ],
+                              if (progress != null) ...[
+                                const SizedBox(height: 20),
+                                _Bar(part: progress!.part, palette: p),
+                                const SizedBox(height: 14),
+                                Wrap(
+                                  alignment: WrapAlignment.spaceBetween,
+                                  spacing: 12,
+                                  runSpacing: 4,
+                                  children: [
+                                    Text(
+                                      progress!.label,
+                                      style: TextStyle(
+                                        color: p.ink,
+                                        fontSize: 15,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                    ),
+                                    Text(
+                                      progress!.detail,
+                                      style: TextStyle(
+                                        color: p.muted,
+                                        fontSize: 15,
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ] else if (onDuration != null &&
+                                  choices.isNotEmpty) ...[
+                                const SizedBox(height: 20),
+                                Row(
+                                  children: [
+                                    for (final (i, choice)
+                                        in choices.indexed) ...[
+                                      if (i > 0) const SizedBox(width: 8),
+                                      Expanded(
+                                        child: _DurationChip(
+                                          minutes: choice,
+                                          selected: choice == minutes,
+                                          palette: p,
+                                          onTap: () => onDuration!(choice),
+                                        ),
+                                      ),
+                                    ],
+                                  ],
+                                ),
+                              ],
+                              if (shut != null) ...[
+                                const SizedBox(height: 28),
+                                shut!,
+                              ],
+                            ],
+                          ),
+                        ),
                       ),
-                    ),
+                      Padding(
+                        padding: const EdgeInsets.only(top: 32),
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 430),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.stretch,
+                            children: [
+                              if (today != null) ...[
+                                Text.rich(
+                                  TextSpan(
+                                    children: [
+                                      TextSpan(
+                                        text: 'Today  ',
+                                        style: TextStyle(
+                                          color: p.ink,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                      ),
+                                      TextSpan(text: today),
+                                    ],
+                                  ),
+                                  style: TextStyle(
+                                    color: p.muted,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                                const SizedBox(height: 14),
+                              ],
+                              if (showAction)
+                                running
+                                    ? SizedBox(
+                                        height: 54,
+                                        child: CupertinoButton(
+                                          padding: EdgeInsets.zero,
+                                          onPressed: onAction,
+                                          child: Text(
+                                            actionLabel,
+                                            style: TextStyle(
+                                              color: p.muted,
+                                              fontSize: 15,
+                                              fontWeight: FontWeight.w500,
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                    : CupertinoButton(
+                                        padding: EdgeInsets.zero,
+                                        minimumSize: const Size.fromHeight(54),
+                                        color: p.clock,
+                                        disabledColor: p.stop,
+                                        borderRadius: BorderRadius.circular(12),
+                                        onPressed: onAction,
+                                        child: Text(
+                                          actionLabel,
+                                          style: TextStyle(
+                                            color: p.background,
+                                            fontSize: 16,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                        ),
+                                      ),
+                              const SizedBox(height: 12),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
                 ),
               ),
@@ -323,6 +432,87 @@ class FocusScreen extends StatelessWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+class _DurationChip extends StatelessWidget {
+  const _DurationChip({
+    required this.minutes,
+    required this.selected,
+    required this.palette,
+    required this.onTap,
+  });
+  final int minutes;
+  final bool selected;
+  final FocusPalette palette;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) => Semantics(
+    button: true,
+    selected: selected,
+    child: GestureDetector(
+      onTap: onTap,
+      child: AnimatedContainer(
+        duration: const Duration(milliseconds: 180),
+        curve: Curves.easeOutCubic,
+        height: 48,
+        alignment: Alignment.center,
+        decoration: BoxDecoration(
+          color: selected ? palette.clock : Colors.transparent,
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: selected ? palette.clock : palette.stop,
+            width: 1.5,
+          ),
+        ),
+        child: FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            '$minutes min',
+            style: TextStyle(
+              color: selected ? palette.background : palette.ink,
+              fontSize: 15,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ),
+      ),
+    ),
+  );
+}
+
+/// How far through, drawn like the bar on the block screen.
+class _Bar extends StatelessWidget {
+  const _Bar({required this.part, required this.palette});
+  final double part;
+  final FocusPalette palette;
+
+  @override
+  Widget build(BuildContext context) {
+    final done = (part.clamp(0.0, 1.0) * 1000).round();
+    return Semantics(
+      label: '${(part * 100).round()} percent through',
+      child: SizedBox(
+        height: 10,
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (done > 0)
+              Expanded(
+                flex: done,
+                child: ColoredBox(color: palette.startInk),
+              ),
+            if (done > 0 && done < 1000) const SizedBox(width: 3),
+            if (done < 1000)
+              Expanded(
+                flex: 1000 - done,
+                child: ColoredBox(color: palette.stop),
+              ),
+          ],
+        ),
       ),
     );
   }
