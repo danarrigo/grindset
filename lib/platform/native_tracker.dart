@@ -197,6 +197,7 @@ class NativeTracker {
     required void Function() onDismiss,
     required Future<void> Function() onStopped,
     required void Function() onForegroundChanged,
+    required void Function(String source) onPassRequested,
   }) {
     channel.setMethodCallHandler((call) async {
       switch (call.method) {
@@ -206,6 +207,8 @@ class NativeTracker {
           await onStopped();
         case 'foregroundChanged':
           onForegroundChanged();
+        case 'passRequested':
+          onPassRequested(call.arguments as String);
         default:
           throw MissingPluginException(
             'Unknown Android callback: ${call.method}',
@@ -277,8 +280,21 @@ class NativeTracker {
   Future<String?> androidForegroundSource() => channel
       .invokeMethod<String>('foregroundSource')
       .timeout(const Duration(seconds: 20));
-  Future<void> showAndroidBlock(String source, String message) => channel
-      .invokeMethod<void>('showBlock', {'source': source, 'message': message});
+  Future<void> showAndroidBlock(
+    String source,
+    String message, {
+    bool askAi = false,
+  }) => channel.invokeMethod<void>('showBlock', {
+    'source': source,
+    'message': message,
+    'askAi': askAi,
+  });
+
+  /// Opens an Android app, as after the AI gave it time.
+  Future<void> openAndroidApp(String source) => channel.invokeMethod<void>(
+    'openApp',
+    {'package': source.substring('android:'.length)},
+  );
   Future<void> hideAndroidBlock() => channel.invokeMethod<void>('hideBlock');
 
   Future<List<UsageInterval>> androidHistory(

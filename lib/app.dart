@@ -207,6 +207,50 @@ class _HomeState extends State<_Home> {
     return true;
   }
 
+  /// Asks an AI for a few minutes in the blocked [source].
+  /// [theme] keeps the dialog dark over the dark block screen.
+  Future<void> _askForPass(String source, {ThemeData? theme}) async {
+    final name = displayName(c, source);
+    var minutes = 0;
+    final reason = await showDialog<String>(
+      context: context,
+      barrierDismissible: false,
+      builder: (_) => Theme(
+        data: theme ?? Theme.of(context),
+        child: UnlockPauseDialog(
+          what: 'open $name',
+          seconds: c.unlockPause,
+          because: c.blockedBecause(source),
+          judge: (reason) async {
+            final verdict = await c.requestPass(
+              source,
+              name: name,
+              reason: reason,
+            );
+            if (verdict.allow) minutes = verdict.minutes!;
+            return verdict;
+          },
+        ),
+      ),
+    );
+    if (reason == null || !mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          '$name is open for $minutes min.'
+          '${c.tracker.isWindows ? ' Switch back to it.' : ''}',
+        ),
+      ),
+    );
+    if (c.tracker.isAndroid && source.startsWith('android:')) {
+      try {
+        await c.tracker.openAndroidApp(source);
+      } catch (_) {
+        // It stays open to the pass; the person can open it themselves.
+      }
+    }
+  }
+
   Future<void> _enableTracking() async {
     final allowed = await showDialog<bool>(
       context: context,
@@ -580,6 +624,12 @@ class _HomeState extends State<_Home> {
         widget.changes ??
         Listenable.merge([c, if (widget.cloud != null) widget.cloud!]),
     builder: (context, _) {
+      final asked = c.takePassRequest();
+      if (asked != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _askForPass(asked);
+        });
+      }
       if (c.tracker.isWindows && c.blockedSource != null) {
         return Theme(
           data: lockinTheme(Brightness.dark),
@@ -2224,6 +2274,14 @@ class _HomeState extends State<_Home> {
                         : 'Return to Grindset',
                   ),
                 ),
+                if (c.canAskForPass(c.blockedSource!)) ...[
+                  const SizedBox(height: 10),
+                  TextButton(
+                    onPressed: () =>
+                        _askForPass(c.blockedSource!, theme: Theme.of(context)),
+                    child: const Text('Ask AI for a few minutes'),
+                  ),
+                ],
                 const SizedBox(height: 20),
                 Text(
                   c.tracker.isWindows

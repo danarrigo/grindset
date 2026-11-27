@@ -81,6 +81,72 @@ void main() {
     },
   );
 
+  testWidgets('a blocked Windows app can get a few minutes from the AI', (
+    tester,
+  ) async {
+    viewport(tester, const Size(1280, 900));
+    final store = LocalStore.memory();
+    final controller = AppController(
+      store: store,
+      tracker: _WindowsTracker(),
+      clock: () => DateTime.utc(2026, 11, 10, 10),
+    );
+    await controller.initialize(poll: false);
+    controller.onboarded = true;
+    addTearDown(() async {
+      controller.dispose();
+      await store.close();
+    });
+    await controller.saveRule(
+      ActivityRule(id: 'chat', name: 'Chat', sources: ['windows:discord.exe']),
+    );
+    await controller.setFocusHours([
+      ScheduleWindow(
+        weekdays: [1, 2, 3, 4, 5, 6, 7],
+        startMinute: 0,
+        endMinute: 23 * 60 + 59,
+      ),
+    ]);
+    String? asked;
+    controller.askAi =
+        ({
+          required what,
+          required because,
+          required reason,
+          required localTime,
+          required unlocksToday,
+        }) async {
+          asked = '$what $because: $reason';
+          return (allow: true, message: 'Okay.', minutes: 5);
+        };
+    controller.blockedSource = 'windows:discord.exe';
+    controller.blockMessage = 'Focus hours';
+    await tester.pumpWidget(LockinApp(controller: controller));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Ask AI for a few minutes'));
+    await tester.pumpAndSettle();
+    await tester.enterText(
+      find.byKey(const ValueKey('unlock-reason')),
+      'Team call starts now',
+    );
+    await tester.pump();
+    await tester.tap(find.byKey(const ValueKey('unlock-continue')));
+    await tester.pumpAndSettle();
+    expect(
+      asked,
+      'open Discord for a few minutes during Focus hours: Team call starts now',
+    );
+    expect(
+      find.text('Discord is open for 5 min. Switch back to it.'),
+      findsOneWidget,
+    );
+    expect(find.text('Discord is restricted'), findsNothing);
+    expect(controller.restrictionForSource('windows:discord.exe'), isNull);
+    // Ends the pass's timer, which would otherwise outlive the test.
+    await tester.pumpWidget(const SizedBox());
+    controller.dispose();
+  });
+
   Future<(AppController, LocalStore)> open({DateTime Function()? clock}) async {
     final store = LocalStore.memory();
     final controller = AppController(

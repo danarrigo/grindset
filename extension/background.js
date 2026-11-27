@@ -6,14 +6,14 @@ const browser = navigator.userAgent.includes("Firefox/") ? "firefox" : navigator
 let syncing;
 let policyUpdate = Promise.resolve();
 
-async function request(path, body, paired = true) {
+async function request(path, body, paired = true, timeout = 4000) {
   const {token} = await chrome.storage.local.get("token");
   if (paired && !token) throw new Error("Pair this browser with Grindset first.");
   const response = await fetch(base + path, {
     method: body === undefined ? "GET" : "POST",
     headers: {"Content-Type": "application/json", ...(paired ? {Authorization: `Bearer ${token}`} : {})},
     body: body === undefined ? undefined : JSON.stringify(body),
-    cache: "no-store", signal: AbortSignal.timeout(4000),
+    cache: "no-store", signal: AbortSignal.timeout(timeout),
   });
   if (response.status === 401) await chrome.storage.local.remove("token");
   if (!response.ok) throw new Error(response.status === 401 ? "Pair this browser with Grindset again." : "Open Grindset and check the local connection or pairing code.");
@@ -30,7 +30,7 @@ function apply(config) {
     const window = tab ? await chrome.windows.get(tab.windowId) : null;
     const domain = hostFromUrl(tab?.url);
     if (window?.focused && restrictionForHost(config, domain)) {
-      await chrome.tabs.update(tab.id, {url: `${chrome.runtime.getURL("blocked.html")}#${encodeURIComponent(domain)}`});
+      await chrome.tabs.update(tab.id, {url: `${chrome.runtime.getURL("blocked.html")}#${encodeURIComponent(domain)}|${tab.url}`});
     }
   });
   return policyUpdate;
@@ -75,6 +75,16 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     }
     if (sender.url?.startsWith(chrome.runtime.getURL("blocked.html")) && message.type === "refresh") {
       return {ok: true, config: await refresh()};
+    }
+    if (sender.url?.startsWith(chrome.runtime.getURL("blocked.html")) && message.type === "pass") {
+      // The AI can take up to half a minute.
+      const verdict = await request("/pass", {domain: message.domain, reason: message.reason}, true, 35000);
+      if (verdict.allow) {
+        // A refresh already under way may predate the pass.
+        await syncing?.catch(() => {});
+        await refresh();
+      }
+      return {ok: true, verdict};
     }
     throw new Error("Unsupported Grindset request.");
   })().then(reply, error => reply({ok: false, error: error.message}));

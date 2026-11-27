@@ -115,6 +115,8 @@ void main() {
       now: () => now,
       trackingEnabled: () => controller.trackingEnabled,
       restrictions: controller.websiteRestrictions,
+      askForPass: (host, reason) =>
+          controller.requestPass('web:$host', name: host, reason: reason),
     );
     await bridge.start(port: 0);
     controller.browserBridge = bridge;
@@ -127,6 +129,89 @@ void main() {
     await store.close();
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(NativeTracker.windowsChannel, null);
+  });
+
+  test('the blocked page asks an AI for a few minutes on that site', () async {
+    await pair();
+    await controller.saveRule(
+      ActivityRule(
+        id: 'video',
+        name: 'Video',
+        sources: ['web:youtube.com'],
+        schedules: [
+          ScheduleWindow(
+            weekdays: [1, 2, 3, 4, 5, 6, 7],
+            startMinute: 0,
+            endMinute: 23 * 60 + 59,
+          ),
+        ],
+      ),
+    );
+    var rules = (await request('/v1/rules')).$2;
+    expect(rules['askAi'], isFalse);
+    expect(rules['blocked'], hasLength(1));
+
+    final reasons = <String>[];
+    controller.askAi =
+        ({
+          required what,
+          required because,
+          required reason,
+          required localTime,
+          required unlocksToday,
+        }) async {
+          reasons.add(reason);
+          if (reason == 'fail') {
+            throw const _Failed('Sign in to use the AI check.');
+          }
+          return (allow: true, message: 'Okay.', minutes: 20);
+        };
+    rules = (await request('/v1/rules')).$2;
+    expect(rules['askAi'], isTrue);
+    expect(rules['pause'], 0);
+
+    // Hosts and a short reason only.
+    expect(
+      (await request(
+        '/v1/pass',
+        body: {'domain': 'https://youtube.com/watch', 'reason': 'Lecture'},
+      )).$1,
+      400,
+    );
+    expect(
+      (await request(
+        '/v1/pass',
+        body: {'domain': 'youtube.com', 'reason': 'x' * 121},
+      )).$1,
+      400,
+    );
+    expect(
+      (await request(
+        '/v1/pass',
+        body: {'domain': 'youtube.com', 'reason': 'Lecture'},
+        authorized: false,
+      )).$1,
+      401,
+    );
+    // The AI check's own errors reach the page.
+    final failed = await request(
+      '/v1/pass',
+      body: {'domain': 'youtube.com', 'reason': 'fail'},
+    );
+    expect(failed.$2, {
+      'allow': false,
+      'message': 'Sign in to use the AI check.',
+    });
+
+    final allowed = await request(
+      '/v1/pass',
+      body: {'domain': 'youtube.com', 'reason': 'Lecture for class'},
+    );
+    expect(allowed.$2, {'allow': true, 'message': 'Okay.', 'minutes': 20});
+    expect(reasons, ['fail', 'Lecture for class']);
+    expect((await request('/v1/rules')).$2['blocked'], isEmpty);
+    now = now.add(const Duration(minutes: 20));
+    expect((await request('/v1/rules')).$2['blocked'], hasLength(1));
   });
 
   test('health records only authenticated successful policy requests and resets on disconnect', () async {
@@ -423,4 +508,11 @@ void main() {
       expect(controller.restrictionForSource(source), isNull);
     },
   );
+}
+
+class _Failed implements Exception {
+  const _Failed(this.message);
+  final String message;
+  @override
+  String toString() => message;
 }

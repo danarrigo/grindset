@@ -24,6 +24,17 @@ export function buildRules(config, blockedPage) {
   const blocked = [...new Set((config.blocked ?? []).map(entry => websiteHost(entry.domain)).filter(Boolean))].sort();
   let id = 1;
   return [
-    ...blocked.map(domain => ({id: id++, priority: 1, action: {type: "redirect", redirect: {url: `${blockedPage}#${encodeURIComponent(domain)}`}}, condition: {requestDomains: [domain], resourceTypes: ["main_frame"]}})),
+    // The blocked page keeps the address, to go back to if an AI allows a few minutes.
+    ...blocked.map(domain => ({id: id++, priority: 1, action: {type: "redirect", redirect: {regexSubstitution: `${blockedPage}#${encodeURIComponent(domain)}|\\0`}}, condition: {regexFilter: "^https?://.*$", requestDomains: [domain], resourceTypes: ["main_frame"]}})),
   ];
+}
+
+/** The blocked page's hash: the site, then the address it was going to. */
+export function blockedTarget(hash) {
+  const split = hash.indexOf("|");
+  const domain = websiteHost(decodeURIComponent(split < 0 ? hash : hash.slice(0, split)));
+  const wanted = split < 0 ? null : hash.slice(split + 1);
+  // Only ever back to the blocked site itself.
+  const same = domain && restrictionForHost({enabled: true, blocked: [{domain}]}, hostFromUrl(wanted));
+  return {domain, back: same ? wanted : domain ? `https://${domain}/` : null};
 }

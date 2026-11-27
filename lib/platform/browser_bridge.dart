@@ -24,11 +24,19 @@ class BrowserBridge {
     required this.now,
     required this.trackingEnabled,
     required this.restrictions,
+    this.askForPass,
   });
   final LocalStore store;
   final DateTime Function() now;
   final bool Function() trackingEnabled;
   final Map<String, Object> Function() restrictions;
+
+  /// Asks an AI for a few minutes on a blocked site, with a reason.
+  final Future<({bool allow, String message, int? minutes})> Function(
+    String host,
+    String reason,
+  )?
+  askForPass;
   HttpServer? _server;
   final _requests = <Future<void>>{};
   final _random = Random.secure();
@@ -241,6 +249,31 @@ class BrowserBridge {
           _observations.remove(browserSource);
         }
         _reply(request, 200, {'enabled': trackingEnabled()});
+      } else if (request.uri.path == '/v1/pass' &&
+          request.method == 'POST' &&
+          askForPass != null) {
+        final body = await _body(request);
+        final domain = body['domain'];
+        final reason = body['reason'];
+        if (body.keys.any((key) => key != 'domain' && key != 'reason') ||
+            domain is! String ||
+            websiteHost(domain) == null ||
+            reason is! String ||
+            reason.trim().isEmpty ||
+            reason.length > 120) {
+          throw const FormatException('Invalid request.');
+        }
+        try {
+          final verdict = await askForPass!(websiteHost(domain)!, reason);
+          _reply(request, 200, {
+            'allow': verdict.allow,
+            'message': verdict.message,
+            'minutes': ?verdict.minutes,
+          });
+        } on Exception catch (error) {
+          // The AI check's own errors are written for people.
+          _reply(request, 200, {'allow': false, 'message': '$error'});
+        }
       } else {
         _reply(request, 404, {'error': 'Unknown browser request.'});
       }

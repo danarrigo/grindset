@@ -276,7 +276,13 @@ object TrackingRuntime {
                     }
                 }
                 "showBlock" -> {
-                    AppBlocker.showBlock(context, checkNotNull(call.argument<String>("source")), call.argument<String>("message") ?: "An activity rule is active.")
+                    AppBlocker.showBlock(context, checkNotNull(call.argument<String>("source")), call.argument<String>("message") ?: "An activity rule is active.", call.argument<Boolean>("askAi") == true)
+                    result.success(null)
+                }
+                "openApp" -> {
+                    val pkg = checkNotNull(call.argument<String>("package"))
+                    val launch = checkNotNull(context.packageManager.getLaunchIntentForPackage(pkg)) { "This app can't be opened." }
+                    context.startActivity(launch.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
                     result.success(null)
                 }
                 "hideBlock" -> {
@@ -317,6 +323,11 @@ object TrackingRuntime {
         } catch (error: Exception) {
             result.error("ANDROID_RUNTIME_FAILED", error.message, null)
         }
+    }
+
+    /** The block screen of [source] asked Grindset to ask an AI for time. */
+    fun passRequested(source: String) {
+        channel?.invokeMethod("passRequested", source)
     }
 
     fun dismissRequested() {

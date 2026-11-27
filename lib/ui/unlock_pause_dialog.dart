@@ -29,7 +29,10 @@ class UnlockPauseDialog extends StatefulWidget {
 
   /// Asks an AI whether the reason is good enough. Null when not used. May
   /// throw an exception whose message is for people.
-  final Future<({bool allow, String message})> Function(String reason)? judge;
+  final Future<({bool allow, String message, int? minutes})> Function(
+    String reason,
+  )?
+  judge;
 
   @override
   State<UnlockPauseDialog> createState() => _UnlockPauseDialogState();
@@ -113,40 +116,44 @@ class _UnlockPauseDialogState extends State<UnlockPauseDialog>
     return AlertDialog(
       scrollable: true,
       title: const Text('Why do you need this?'),
-      content: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            'Blocking is on ${widget.because}. Before you ${widget.what}, '
-            'say why and take a moment. Leaving Grindset starts the wait again.'
-            '${widget.judge == null ? '' : ' An AI reads your reason and decides.'}',
-            style: theme.textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            key: const ValueKey('unlock-reason'),
-            controller: _reason,
-            autofocus: true,
-            maxLength: 120,
-            textCapitalization: TextCapitalization.sentences,
-            decoration: const InputDecoration(
-              labelText: 'Reason',
-              hintText: 'For example: a tutorial for work',
-              counterText: '',
+      // Narrow enough to read on a wide desktop window.
+      content: SizedBox(
+        width: 420,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Text(
+              'Blocking is on ${widget.because}. Before you ${widget.what}, '
+              'say why and take a moment. Leaving Grindset starts the wait again.'
+              '${widget.judge == null ? '' : ' An AI reads your reason and decides.'}',
+              style: theme.textTheme.bodyMedium,
             ),
-            onChanged: (_) => setState(() {}),
-          ),
-          if (_verdict != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 12),
-              child: Text(
-                _verdict!,
-                key: const ValueKey('unlock-verdict'),
-                style: TextStyle(color: theme.colorScheme.error),
+            const SizedBox(height: 16),
+            TextField(
+              key: const ValueKey('unlock-reason'),
+              controller: _reason,
+              autofocus: true,
+              maxLength: 120,
+              textCapitalization: TextCapitalization.sentences,
+              decoration: const InputDecoration(
+                labelText: 'Reason',
+                hintText: 'For example: a tutorial for work',
+                counterText: '',
               ),
+              onChanged: (_) => setState(() {}),
             ),
-        ],
+            if (_verdict != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: Text(
+                  _verdict!,
+                  key: const ValueKey('unlock-verdict'),
+                  style: TextStyle(color: theme.colorScheme.error),
+                ),
+              ),
+          ],
+        ),
       ),
       actions: [
         TextButton(

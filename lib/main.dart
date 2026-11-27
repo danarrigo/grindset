@@ -85,6 +85,7 @@ Future<void> main(List<String> args) async {
           onDownloaded: controller.reloadSharedState,
         );
         controller.onSharedChange = cloud.requestSync;
+        controller.askAi = cloud.checkUnlock;
       } catch (error) {
         startupWarning =
             'Cloud setup failed; local mode remains available. $error';
@@ -156,6 +157,8 @@ Future<void> main(List<String> args) async {
         now: () => controller.now,
         trackingEnabled: () => controller.trackingEnabled,
         restrictions: controller.websiteRestrictions,
+        askForPass: (host, reason) =>
+            controller.requestPass('web:$host', name: host, reason: reason),
       );
       try {
         await bridge.start();

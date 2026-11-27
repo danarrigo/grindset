@@ -124,6 +124,98 @@ void main() {
     expect(controller.restrictionForSource('web:game.test'), 'Focus hours');
   });
 
+  test(
+    'an AI can open one blocked site for a few minutes, even in strict mode',
+    () async {
+      await controller.saveRule(
+        ActivityRule(
+          id: 'social',
+          name: 'Social',
+          sources: ['web:linkedin.com', 'web:youtube.com'],
+        ),
+      );
+      await controller.setStrictMode(true);
+      final asked = <String>[];
+      UnlockVerdict answer = (
+        allow: false,
+        message: 'That can wait.',
+        minutes: null,
+      );
+      UnlockVerdict? verdict;
+      Future<UnlockVerdict> ask(String reason) => controller.requestPass(
+        'web:linkedin.com',
+        name: 'linkedin.com',
+        reason: reason,
+      );
+
+      // Without an AI there is no way in.
+      expect(controller.canAskForPass('web:linkedin.com'), isFalse);
+      verdict = await ask('A recruiter messaged me');
+      expect(verdict.allow, isFalse);
+
+      controller.askAi =
+          ({
+            required what,
+            required because,
+            required reason,
+            required localTime,
+            required unlocksToday,
+          }) async {
+            asked.add('$what / $because / $reason / $localTime');
+            return answer;
+          };
+      verdict = await ask('Bored');
+      expect(verdict.message, 'That can wait.');
+      expect(
+        controller.restrictionForSource('web:linkedin.com'),
+        'Focus hours',
+      );
+
+      answer = (allow: true, message: 'Okay.', minutes: 90);
+      verdict = await ask('A recruiter messaged me');
+      expect(asked.last, contains('open linkedin.com for a few minutes'));
+      expect(asked.last, contains('during Focus hours'));
+      expect(asked.last, contains('Tue 10:00'));
+      // Never longer than 30 minutes, whatever the AI says.
+      expect(verdict.minutes, 30);
+      expect(controller.restrictionForSource('web:linkedin.com'), isNull);
+      expect(controller.restrictionForSource('web:www.linkedin.com'), isNull);
+      // Only that site: the rest of the rule, and other rules, stay blocked.
+      expect(controller.restrictionForSource('web:youtube.com'), 'Focus hours');
+      expect(controller.restrictionForSource('web:game.test'), 'Focus hours');
+      controller.trackingEnabled = true;
+      expect(
+        (controller.websiteRestrictions()['blocked'] as List).map(
+          (e) => (e as Map)['domain'],
+        ),
+        unorderedEquals(['youtube.com', 'game.test']),
+      );
+      expect(
+        controller.unlocksToday.first.what,
+        'open linkedin.com for 30 min',
+      );
+
+      // It survives a restart, then ends on time.
+      final reopened = AppController(
+        store: store,
+        tracker: NativeTracker(),
+        clock: () => now,
+      );
+      await reopened.initialize(poll: false);
+      expect(reopened.restrictionForSource('web:linkedin.com'), isNull);
+      reopened.dispose();
+      now = now.add(const Duration(minutes: 30));
+      expect(
+        controller.restrictionForSource('web:linkedin.com'),
+        'Focus hours',
+      );
+
+      // Nothing to ask for once nothing blocks it.
+      now = DateTime.utc(2026, 11, 10, 18);
+      expect(controller.canAskForPass('web:linkedin.com'), isFalse);
+    },
+  );
+
   test('shortening the pause while blocking needs the pause too', () async {
     await controller.setUnlockPause(300);
     await expectLater(
@@ -190,8 +282,16 @@ void main() {
                   judge: (reason) async {
                     asked.add(reason);
                     return allow
-                        ? (allow: true, message: 'Okay, go ahead.')
-                        : (allow: false, message: 'A video can wait.');
+                        ? (
+                            allow: true,
+                            message: 'Okay, go ahead.',
+                            minutes: null,
+                          )
+                        : (
+                            allow: false,
+                            message: 'A video can wait.',
+                            minutes: null,
+                          );
                   },
                 ),
               );

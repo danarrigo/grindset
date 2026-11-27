@@ -208,7 +208,7 @@ object AppBlocker {
         TrackingRuntime.dismissRequested()
     }
 
-    fun showBlock(context: Context, target: String, message: String) {
+    fun showBlock(context: Context, target: String, message: String, askAi: Boolean = false) {
         require(target.startsWith("android:")) { "Only Android apps can be blocked here." }
         check(permitted(context)) { "Allow Grindset to display over other apps to block apps." }
         if (lastSource != target) return
@@ -254,7 +254,16 @@ object AppBlocker {
             TrackingRuntime.dismissRequested()
             app.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         })
-        content.addView(text("This app stays blocked until your rule ends.", 13f))
+        if (askAi) {
+            content.addView(action("Ask AI for a few minutes", false) {
+                // Grindset asks for the reason; opening it hides this screen.
+                TrackingRuntime.passRequested(target)
+                app.packageManager.getLaunchIntentForPackage(app.packageName)?.let {
+                    app.startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                }
+            })
+        }
+        content.addView(text(if (askAi) "Otherwise this app stays blocked until your rule ends." else "This app stays blocked until your rule ends.", 13f))
         val type = if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else {
             @Suppress("DEPRECATION")
             WindowManager.LayoutParams.TYPE_PHONE

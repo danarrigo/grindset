@@ -296,15 +296,17 @@ void main() {
   test(
     'the AI unlock check sends the reason and returns the verdict',
     () async {
-      Future<({bool allow, String message})> ask() => sync.checkUnlock(
-        what: 'end this focus session early',
-        because: 'during your focus session',
-        reason: 'Teacher needs the YouTube link',
-        localTime: 'Tue 10:05 AM',
-        unlocksToday: 1,
-      );
+      Future<({bool allow, String message, int? minutes})> ask() =>
+          sync.checkUnlock(
+            what: 'end this focus session early',
+            because: 'during your focus session',
+            reason: 'Teacher needs the YouTube link',
+            localTime: 'Tue 10:05 AM',
+            unlocksToday: 1,
+          );
       final allowed = await ask();
       expect(allowed.allow, isTrue);
+      expect(allowed.minutes, isNull);
       expect(server.unlockRequests.single, {
         'what': 'end this focus session early',
         'because': 'during your focus session',
@@ -312,6 +314,9 @@ void main() {
         'localTime': 'Tue 10:05 AM',
         'unlocksToday': 1,
       });
+
+      server.unlockResponse = {'allow': true, 'message': 'Okay.', 'minutes': 3};
+      expect((await ask()).minutes, 3);
 
       server.unlockResponse = {'allow': false, 'message': 'That can wait.'};
       final denied = await ask();
@@ -338,7 +343,7 @@ void main() {
 
       await client.auth.signOut();
       await expectLater(ask(), throwsA(isA<UnlockCheckFailed>()));
-      expect(server.unlockRequests, hasLength(3));
+      expect(server.unlockRequests, hasLength(4));
     },
   );
 

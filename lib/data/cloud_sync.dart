@@ -405,7 +405,7 @@ class CloudSync extends ChangeNotifier {
 
   /// Asks the server's AI whether [reason] is good enough to loosen a block.
   /// Throws [UnlockCheckFailed] when there is no answer.
-  Future<({bool allow, String message})> checkUnlock({
+  Future<({bool allow, String message, int? minutes})> checkUnlock({
     required String what,
     required String because,
     required String reason,
@@ -436,6 +436,7 @@ class CloudSync extends ChangeNotifier {
       return (
         allow: data['allow'] as bool,
         message: data['message'] is String ? data['message'] as String : '',
+        minutes: data['minutes'] is int ? data['minutes'] as int : null,
       );
     } on FunctionException catch (error) {
       final details = error.details;

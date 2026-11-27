@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import {websiteHost, hostFromUrl, buildRules, restrictionForHost} from "./policy.js";
+import {websiteHost, hostFromUrl, buildRules, restrictionForHost, blockedTarget} from "./policy.js";
 
 test("only host identifiers leave URL parsing", () => {
   assert.equal(hostFromUrl("https://www.Example.com/private/path?secret=value#fragment"), "example.com");
@@ -29,4 +29,13 @@ test("an already-open subdomain is restricted without matching an unrelated suff
 
 test("disconnecting or disabling tracking clears all website rules", () => {
   assert.deepEqual(buildRules({enabled: false, blocked: [{domain: "example.com"}], allowed: ["example.com"]}, "unused"), []);
+});
+
+test("the blocked page goes back only to the blocked site's address", () => {
+  const [rule] = buildRules({enabled: true, blocked: [{domain: "youtube.com"}]}, "chrome-extension://fixture/blocked.html");
+  assert.equal(rule.action.redirect.regexSubstitution, "chrome-extension://fixture/blocked.html#youtube.com|\\0");
+  assert.deepEqual(blockedTarget("youtube.com|https://www.youtube.com/watch?v=abc#t=1"), {domain: "youtube.com", back: "https://www.youtube.com/watch?v=abc#t=1"});
+  assert.deepEqual(blockedTarget("m.youtube.com"), {domain: "m.youtube.com", back: "https://m.youtube.com/"});
+  assert.equal(blockedTarget("youtube.com|https://evil.test/").back, "https://youtube.com/");
+  assert.equal(blockedTarget("youtube.com|javascript:alert(1)").back, "https://youtube.com/");
 });

@@ -40,6 +40,20 @@ class UnlockPauseNeeded implements Exception {
 /// One time the unlock pause was passed on this device.
 typedef UnlockRecord = ({DateTime at, String what, String reason});
 
+/// An AI's answer to a reason to unlock. [minutes] is how long it allows
+/// one app or site for, when asked about one.
+typedef UnlockVerdict = ({bool allow, String message, int? minutes});
+
+/// Asks an AI whether [reason] is good enough to [what] while blocking is
+/// on [because]. May throw an exception whose message is for people.
+typedef UnlockJudge = Future<UnlockVerdict> Function({
+  required String what,
+  required String because,
+  required String reason,
+  required String localTime,
+  required int unlocksToday,
+});
+
 class AppController extends ChangeNotifier {
   AppController({
     required this.store,
@@ -205,6 +219,132 @@ class AppController extends ChangeNotifier {
   /// After the pause is passed, the change it was for may go ahead.
   DateTime? _unlockedForChange;
 
+  /// The AI that judges reasons, when this device can reach one.
+  UnlockJudge? askAi;
+
+  /// Time an AI allowed in one blocked app or site, by source, until when.
+  /// It lifts that source's rules, even in strict mode.
+  Map<String, DateTime> passes = const {};
+  static const maxPass = Duration(minutes: 30);
+  Timer? _passTimer;
+
+  /// A blocked app whose block screen asked for time, for the app to ask
+  /// about. Cleared by [takePassRequest].
+  String? passRequest;
+
+  void requestPassFor(String source) {
+    passRequest = source;
+    _changed();
+  }
+
+  String? takePassRequest() {
+    final source = passRequest;
+    passRequest = null;
+    return source;
+  }
+
+  /// When [source]'s pass ends, or null without one.
+  DateTime? passUntil(String source) {
+    for (final pass in passes.entries) {
+      if (now.isBefore(pass.value) && matchesSource(pass.key, source)) {
+        return pass.value;
+      }
+    }
+    return null;
+  }
+
+  /// Whether an AI can give [source] time now: it is blocked by a rule, not
+  /// by strict mode's own lock.
+  bool canAskForPass(String source) {
+    if (askAi == null) return false;
+    final reason = restrictionForSource(source);
+    return reason != null && !reason.startsWith('Strict mode');
+  }
+
+  /// Why [source] is blocked, as in "during Focus hours".
+  String blockedBecause(String source) =>
+      switch (restrictionForSource(source)) {
+        'Focus hours' => 'during Focus hours',
+        'Focus session in progress' => 'during your focus session',
+        'Daily budget reached' => 'because its daily limit is reached',
+        'Scheduled restriction' => 'during a scheduled block',
+        _ => 'right now',
+      };
+
+  /// Asks the AI for time in [source], called [name] for people. When it
+  /// agrees, [source] opens for the minutes it gave.
+  Future<UnlockVerdict> requestPass(
+    String source, {
+    required String name,
+    required String reason,
+  }) async {
+    final judge = askAi;
+    final trimmed = reason.trim();
+    if (trimmed.isEmpty) throw ArgumentError('Give a reason.');
+    if (judge == null || !canAskForPass(source)) {
+      return (
+        allow: false,
+        message: judge == null
+            ? 'The AI check isn\'t available here.'
+            : '$name isn\'t blocked by a rule right now.',
+        minutes: null,
+      );
+    }
+    final local = tz.TZDateTime.from(now, location);
+    final verdict = await judge(
+      what: 'open $name for a few minutes',
+      because: blockedBecause(source),
+      reason: trimmed,
+      localTime:
+          '${const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][local.weekday - 1]} '
+          '${local.hour.toString().padLeft(2, '0')}:${local.minute.toString().padLeft(2, '0')}',
+      unlocksToday: unlocksToday.length,
+    );
+    if (!verdict.allow) return verdict;
+    final minutes = (verdict.minutes ?? 5).clamp(1, maxPass.inMinutes);
+    final at = now;
+    await _logUnlock(at, 'open $name for $minutes min', trimmed);
+    passes = Map.unmodifiable({
+      for (final pass in passes.entries)
+        if (at.isBefore(pass.value) && pass.key != source) pass.key: pass.value,
+      source: at.add(Duration(minutes: minutes)),
+    });
+    await _savePasses();
+    if (blockedSource != null && restrictionForSource(blockedSource!) == null) {
+      dismissBlock();
+    }
+    _changed();
+    requestForegroundCheck();
+    return (allow: true, message: verdict.message, minutes: minutes);
+  }
+
+  Future<void> _savePasses() async {
+    await store.saveSetting(
+      'unlock_passes',
+      jsonEncode({
+        for (final pass in passes.entries)
+          pass.key: pass.value.toIso8601String(),
+      }),
+    );
+    _schedulePassEnd();
+  }
+
+  /// Checks the front app again when the next pass ends, so its block
+  /// comes back on time.
+  void _schedulePassEnd() {
+    _passTimer?.cancel();
+    final ends = passes.values.where(now.isBefore).toList()..sort();
+    if (ends.isEmpty || _disposed) return;
+    _passTimer = Timer(
+      ends.first.difference(now) + const Duration(seconds: 1),
+      () {
+        _changed();
+        requestForegroundCheck();
+        _schedulePassEnd();
+      },
+    );
+  }
+
   /// A break: blocking is off on this device until then.
   DateTime? breakUntil;
   static const breakLength = Duration(minutes: 15);
@@ -251,8 +391,20 @@ class AppController extends ChangeNotifier {
     final trimmed = reason.trim();
     if (trimmed.isEmpty) throw ArgumentError('Give a reason.');
     final at = now;
+    await _logUnlock(at, what, trimmed);
+    if (takeBreak) {
+      breakUntil = at.add(breakLength);
+      await store.saveSetting('break_until', breakUntil!.toIso8601String());
+    } else {
+      _unlockedForChange = at.add(const Duration(minutes: 2));
+    }
+    _changed();
+    if (takeBreak) requestForegroundCheck();
+  }
+
+  Future<void> _logUnlock(DateTime at, String what, String reason) async {
     final kept = [
-      (at: at, what: what, reason: trimmed),
+      (at: at, what: what, reason: reason),
       for (final u in unlocks)
         if (at.difference(u.at) < const Duration(days: 8)) u,
     ];
@@ -263,15 +415,7 @@ class AppController extends ChangeNotifier {
           {'at': u.at.toIso8601String(), 'what': u.what, 'reason': u.reason},
       ]),
     );
-    if (takeBreak) {
-      breakUntil = at.add(breakLength);
-      await store.saveSetting('break_until', breakUntil!.toIso8601String());
-    } else {
-      _unlockedForChange = at.add(const Duration(minutes: 2));
-    }
     unlocks = List.unmodifiable(kept);
-    _changed();
-    if (takeBreak) requestForegroundCheck();
   }
 
   /// Ends a break early: blocking is back on now.
@@ -300,6 +444,17 @@ class AppController extends ChangeNotifier {
     } on Object {
       unlocks = const [];
     }
+    try {
+      final saved =
+          jsonDecode(await store.setting('unlock_passes') ?? '{}') as Map;
+      passes = Map.unmodifiable({
+        for (final pass in saved.entries)
+          pass.key as String: DateTime.parse(pass.value as String),
+      });
+    } on Object {
+      passes = const {};
+    }
+    _schedulePassEnd();
   }
 
   /// Minute of the day the current Focus hours end, or null outside them.
@@ -550,6 +705,9 @@ class AppController extends ChangeNotifier {
         onDismiss: dismissBlock,
         onStopped: () => disableTracking(notifyNative: false),
         onForegroundChanged: requestForegroundCheck,
+        onPassRequested: (source) {
+          if (canAskForPass(source)) requestPassFor(source);
+        },
       );
       try {
         await _adoptAndroidStatus(
@@ -564,6 +722,7 @@ class AppController extends ChangeNotifier {
           await tracker.showAndroidBlock(
             source,
             blockMessage ?? 'An activity rule is active.',
+            askAi: canAskForPass(source),
           );
         }
       };
@@ -1441,7 +1600,14 @@ class AppController extends ChangeNotifier {
         blocked.add({'domain': host, 'reason': reason});
       }
     }
-    return {'enabled': trackingEnabled, 'blocked': blocked};
+    return {
+      'enabled': trackingEnabled,
+      'blocked': blocked,
+      // The blocked page can then ask an AI for a few minutes, after the
+      // same pause as in the app.
+      'askAi': askAi != null,
+      'pause': unlockPause,
+    };
   }
 
   /// Why [source] is blocked now, or null. [reasons] remembers each rule's
@@ -1462,6 +1628,8 @@ class AppController extends ChangeNotifier {
           ? 'Strict mode: turn on the Grindset extension in this browser to use it $lock.'
           : 'Strict mode: Grindset can\'t check websites in this browser. Use Chrome, Edge, Firefox or Zen $lock.';
     }
+    // Time an AI allowed for this one app or site, even in strict mode.
+    if (passUntil(source) != null) return null;
     // A break turns rules off here; strict mode never allows one.
     if (onBreak && !strictMode) return null;
     String? reason;
@@ -1519,6 +1687,7 @@ class AppController extends ChangeNotifier {
     if (_disposed) return;
     _disposed = true;
     _timer?.cancel();
+    _passTimer?.cancel();
     if (tracker.isAndroid) NativeTracker.channel.setMethodCallHandler(null);
     if (tracker.isWindows) {
       tracker.bindWindowsForeground(null);
