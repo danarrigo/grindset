@@ -168,7 +168,6 @@ void main() {
         };
     rules = (await request('/v1/rules')).$2;
     expect(rules['askAi'], isTrue);
-    expect(rules['pause'], 0);
 
     // Hosts and a short reason only.
     expect(

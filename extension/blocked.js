@@ -2,21 +2,15 @@ import {blockedTarget, restrictionForHost} from "./policy.js";
 const {domain, back} = blockedTarget(location.hash.slice(1));
 const $ = id => document.querySelector(`#${id}`);
 let entry;
-let pause = 0;
-let left = null;
 let asking = false;
 
-// The same pause as in the app: it starts again when this page is hidden.
-function wait() { left = pause; update(); }
 function update() {
-  const ready = left <= 0 && $("why").value.trim() && !asking;
-  $("send").disabled = !ready;
-  $("send").textContent = asking ? "Asking AI…" : left > 0 ? `Wait ${Math.floor(left / 60)}:${String(left % 60).padStart(2, "0")}` : "Ask AI";
+  $("send").disabled = !$("why").value.trim() || asking;
+  $("send").textContent = asking ? "Asking AI…" : "Ask AI";
 }
-setInterval(() => { if (left > 0 && document.visibilityState === "visible") { left--; update(); } }, 1000);
-document.addEventListener("visibilitychange", () => { if (document.visibilityState === "hidden" && left !== null) wait(); });
+update();
 $("why").addEventListener("input", update);
-$("need").addEventListener("click", () => { $("need").hidden = true; $("ask").hidden = false; wait(); $("why").focus(); });
+$("need").addEventListener("click", () => { $("need").hidden = true; $("ask").hidden = false; $("why").focus(); });
 // Once the block is over, the same button opens the site instead.
 let ended = false;
 $("back").addEventListener("click", () => ended ? location.replace(back) : chrome.runtime.sendMessage({type: "close"}));
@@ -29,7 +23,6 @@ $("ask").addEventListener("submit", async event => {
     if (!result.ok) throw new Error(result.error);
     if (result.verdict.allow) { location.replace(back); return; }
     $("verdict").textContent = result.verdict.message || "Not this time.";
-    wait();
   } catch (error) { $("verdict").textContent = error.message; }
   finally { asking = false; update(); }
 });
@@ -68,7 +61,6 @@ async function refresh() {
   $("status").textContent = "";
   entry = restrictionForHost(result.config, domain);
   const canAsk = Boolean(entry && result.config.askAi);
-  if (canAsk) pause = result.config.pause ?? 0;
   if (!canAsk) { $("need").hidden = true; $("ask").hidden = true; }
   else if ($("ask").hidden) $("need").hidden = false;
   ended = !entry;

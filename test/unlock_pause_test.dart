@@ -290,19 +290,6 @@ void main() {
     expect(reopened.unlocks, hasLength(2));
   });
 
-  test('turning off the AI check while blocking needs the pause', () async {
-    await controller.setUnlockPause(30);
-    await controller.setAiUnlock(true);
-    await expectLater(
-      controller.setAiUnlock(false),
-      throwsA(isA<UnlockPauseNeeded>()),
-    );
-    expect(controller.aiUnlock, isTrue);
-    now = DateTime.utc(2026, 11, 10, 18);
-    await controller.setAiUnlock(false);
-    expect(controller.aiUnlock, isFalse);
-  });
-
   testWidgets('the AI says no with a reason, then yes after another wait', (
     tester,
   ) async {

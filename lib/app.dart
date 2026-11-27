@@ -187,20 +187,6 @@ class _HomeState extends State<_Home> {
         seconds: c.unlockPause,
         because: c.blockingNow ?? 'right now',
         action: action,
-        judge: c.aiUnlock && widget.cloud != null
-            ? (reason) {
-                final local = tz.TZDateTime.from(c.now, c.location);
-                return widget.cloud!.checkUnlock(
-                  what: what,
-                  because: c.blockingNow ?? 'right now',
-                  reason: reason,
-                  localTime:
-                      '${const ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'][local.weekday - 1]} '
-                      '${TimeOfDay.fromDateTime(local).format(context)}',
-                  unlocksToday: c.unlocksToday.length,
-                );
-              }
-            : null,
       ),
     );
     if (reason == null || !mounted) return false;
@@ -220,7 +206,8 @@ class _HomeState extends State<_Home> {
         data: theme ?? Theme.of(context),
         child: UnlockPauseDialog(
           what: 'open $name',
-          seconds: c.unlockPause,
+          // The AI is the check here; no wait on top of it.
+          seconds: 0,
           because: c.blockedBecause(source),
           judge: (reason) async {
             final verdict = await c.requestPass(
@@ -2165,26 +2152,6 @@ class _HomeState extends State<_Home> {
                   : (value) => _run(() => c.setUnlockPause(value.single)),
             ),
           ),
-          if (widget.cloud != null) ...[
-            const SizedBox(height: 8),
-            SwitchListTile(
-              key: const ValueKey('unlock-ai'),
-              contentPadding: EdgeInsets.zero,
-              title: const Text('Ask AI first'),
-              subtitle: Text(
-                widget.cloud!.signedIn
-                    ? 'An AI (DeepSeek) reads your reason and only unlocks for a real need. Needs internet: without an answer, blocks stay on. Reasons go to DeepSeek and aren\'t stored.'
-                    : 'Sign in to have an AI check your reasons.',
-              ),
-              value: c.aiUnlock,
-              onChanged:
-                  _busy ||
-                      c.unlockPause == 0 ||
-                      (!widget.cloud!.signedIn && !c.aiUnlock)
-                  ? null
-                  : (value) => _run(() => c.setAiUnlock(value)),
-            ),
-          ],
         ],
       ),
     ),

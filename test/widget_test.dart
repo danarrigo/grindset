@@ -108,6 +108,8 @@ void main() {
         endMinute: 23 * 60 + 59,
       ),
     ]);
+    // The pause guards settings; the block screen's ask doesn't wait.
+    await controller.setUnlockPause(300);
     String? asked;
     controller.askAi =
         ({
