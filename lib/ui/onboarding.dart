@@ -185,18 +185,33 @@ class _OnboardingState extends State<Onboarding> {
                       ),
                     ),
                   Expanded(
-                    child: SingleChildScrollView(
-                      key: ValueKey('onboarding-$_step'),
-                      padding: EdgeInsets.only(
-                        top: _step == 0 ? 20 : 36,
-                        bottom: 24,
+                    // Content scrolling under the button fades out instead
+                    // of being cut off mid-line.
+                    child: ShaderMask(
+                      blendMode: BlendMode.dstIn,
+                      shaderCallback: (bounds) => const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        stops: [0, .94, 1],
+                        colors: [
+                          Colors.black,
+                          Colors.black,
+                          Colors.transparent,
+                        ],
+                      ).createShader(bounds),
+                      child: SingleChildScrollView(
+                        key: ValueKey('onboarding-$_step'),
+                        padding: EdgeInsets.only(
+                          top: _step == 0 ? 20 : 36,
+                          bottom: 24,
+                        ),
+                        child: switch (_screen) {
+                          0 => _welcome(context),
+                          1 => _distractions(context),
+                          2 => _permissions(context),
+                          _ => _extras(context),
+                        },
                       ),
-                      child: switch (_screen) {
-                        0 => _welcome(context),
-                        1 => _distractions(context),
-                        2 => _permissions(context),
-                        _ => _extras(context),
-                      },
                     ),
                   ),
                   FilledButton(
