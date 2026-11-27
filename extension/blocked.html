@@ -1,5 +1,14 @@
 <!doctype html>
-<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Website restricted - Grindset</title><link rel="stylesheet" href="styles.css"></head>
-<body><main><h1>Website restricted</h1><p id="domain"></p><p id="reason">One of your Grindset rules is active.</p><p id="status" role="status"></p>
-<form id="ask" hidden><label for="why">Need it for something specific?</label><input id="why" class="text" maxlength="120" autocomplete="off" placeholder="For example: a lecture video for class"><button id="send" type="submit" disabled>Ask AI for a few minutes</button><p id="verdict" role="status"></p></form>
-<p class="secondary" id="stays">This website stays blocked until your rule ends.</p><a href="setup.html">Connection settings</a></main><script type="module" src="blocked.js"></script></body></html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Not now - Grindset</title><link rel="stylesheet" href="styles.css"></head>
+<body class="wall"><main>
+<div class="spacer top"></div>
+<h1 id="title">Not now.</h1>
+<div id="span" hidden><div class="bar" role="img" id="bar"><span id="done"></span><span id="rest"></span></div><p class="row"><strong id="label"></strong><span id="detail"></span></p></div>
+<p id="reason" class="secondary"></p>
+<p id="status" role="status"></p>
+<div class="spacer bottom"></div>
+<button id="back" type="button">Back to work</button>
+<button id="need" class="link" type="button" hidden>Need it? Ask AI for a few minutes</button>
+<form id="ask" hidden><label for="why">Why do you need it?</label><input id="why" class="text" maxlength="120" autocomplete="off" placeholder="For example: a lecture video for class"><button id="send" type="submit" disabled>Ask AI</button><p id="verdict" role="status"></p></form>
+<a class="setup" href="setup.html">Connection settings</a>
+</main><script type="module" src="blocked.js"></script></body></html>

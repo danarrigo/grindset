@@ -76,6 +76,10 @@ chrome.runtime.onMessage.addListener((message, sender, reply) => {
     if (sender.url?.startsWith(chrome.runtime.getURL("blocked.html")) && message.type === "refresh") {
       return {ok: true, config: await refresh()};
     }
+    if (sender.url?.startsWith(chrome.runtime.getURL("blocked.html")) && message.type === "close" && sender.tab) {
+      await chrome.tabs.remove(sender.tab.id);
+      return {ok: true};
+    }
     if (sender.url?.startsWith(chrome.runtime.getURL("blocked.html")) && message.type === "pass") {
       // The AI can take up to half a minute.
       const verdict = await request("/pass", {domain: message.domain, reason: message.reason}, true, 35000);

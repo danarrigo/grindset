@@ -13,6 +13,7 @@ import 'core/rule_presets.dart';
 import 'core/service_catalog.dart';
 import 'data/cloud_sync.dart';
 import 'ui/appearance.dart';
+import 'ui/block_screen.dart';
 import 'ui/cloud_panel.dart';
 import 'ui/duration_dialog.dart';
 import 'ui/desktop_shell.dart';
@@ -2237,64 +2238,14 @@ class _HomeState extends State<_Home> {
   ];
 
   Widget _blocked(BuildContext context) {
-    final colors = Theme.of(context).colorScheme;
-    return Material(
-      color: Theme.of(context).scaffoldBackgroundColor,
-      child: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(28),
-          child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 380),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(
-                  Icons.lock_outline_rounded,
-                  size: 28,
-                  color: colors.onSurfaceVariant,
-                ),
-                const SizedBox(height: 22),
-                Text(
-                  '${displayName(c, c.blockedSource!)} is restricted',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.headlineSmall,
-                ),
-                const SizedBox(height: 14),
-                Text(
-                  c.blockMessage ?? 'An active rule is blocking this app.',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodyMedium,
-                ),
-                const SizedBox(height: 28),
-                FilledButton(
-                  onPressed: c.dismissBlock,
-                  child: Text(
-                    c.tracker.isWindows
-                        ? 'Use other apps'
-                        : 'Return to Grindset',
-                  ),
-                ),
-                if (c.canAskForPass(c.blockedSource!)) ...[
-                  const SizedBox(height: 10),
-                  TextButton(
-                    onPressed: () =>
-                        _askForPass(c.blockedSource!, theme: Theme.of(context)),
-                    child: const Text('Ask AI for a few minutes'),
-                  ),
-                ],
-                const SizedBox(height: 20),
-                Text(
-                  c.tracker.isWindows
-                      ? 'Restricted apps stay minimized. Other apps and Windows controls remain available.'
-                      : 'Tracking stays on. Other restrictions remain active.',
-                  textAlign: TextAlign.center,
-                  style: Theme.of(context).textTheme.bodySmall,
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
+    final source = c.blockedSource!;
+    return BlockScreen(
+      controller: c,
+      source: source,
+      onBack: c.dismissBlock,
+      onAskAi: c.canAskForPass(source)
+          ? () => _askForPass(source, theme: Theme.of(context))
+          : null,
     );
   }
 

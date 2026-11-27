@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show SemanticsProperties;
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lockin/app.dart';
@@ -72,10 +73,10 @@ void main() {
       controller.blockMessage = 'Focus session in progress';
       await tester.pumpWidget(LockinApp(controller: controller));
       await tester.pumpAndSettle();
-      expect(find.text('Discord is restricted'), findsOneWidget);
+      expect(find.text('Not now,\nDiscord.'), findsOneWidget);
       expect(find.byKey(const ValueKey('nav-3')), findsNothing);
       expect(tester.getSize(find.byType(Scaffold)), const Size(1280, 900));
-      await tester.tap(find.text('Use other apps'));
+      await tester.tap(find.text('Back to work'));
       await tester.pumpAndSettle();
       expect(find.byKey(const ValueKey('nav-3')), findsOneWidget);
     },
@@ -123,7 +124,7 @@ void main() {
     controller.blockMessage = 'Focus hours';
     await tester.pumpWidget(LockinApp(controller: controller));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Ask AI for a few minutes'));
+    await tester.tap(find.text('Need it? Ask AI for a few minutes'));
     await tester.pumpAndSettle();
     await tester.enterText(
       find.byKey(const ValueKey('unlock-reason')),
@@ -140,7 +141,7 @@ void main() {
       find.text('Discord is open for 5 min. Switch back to it.'),
       findsOneWidget,
     );
-    expect(find.text('Discord is restricted'), findsNothing);
+    expect(find.text('Not now,\nDiscord.'), findsNothing);
     expect(controller.restrictionForSource('windows:discord.exe'), isNull);
     // Ends the pass's timer, which would otherwise outlive the test.
     await tester.pumpWidget(const SizedBox());
@@ -594,11 +595,7 @@ void main() {
     await tester.pumpWidget(LockinApp(controller: controller));
     expect(find.text('Daily budget reached.'), findsOneWidget);
     expect(find.textContaining('5 minutes'), findsNothing);
-    await tester.tap(
-      find.text(
-        controller.tracker.isWindows ? 'Use other apps' : 'Return to Grindset',
-      ),
-    );
+    await tester.tap(find.text('Back to work'));
     await tester.pumpAndSettle();
     expect(controller.blockedSource, isNull);
     expect(controller.rules.single.dailyMinutes, 1);
@@ -1410,12 +1407,14 @@ void main() {
     viewport(tester, const Size(390, 844));
     await tester.pumpWidget(LockinApp(controller: controller));
     await tester.pumpAndSettle();
-    expect(find.text('Less scrolling, more done.'), findsOneWidget);
+    expect(find.text('Less scrolling.\nMore done.'), findsOneWidget);
     await tester.tap(find.text('Get started'));
     await tester.pumpAndSettle();
     await tester.tap(find.text('YouTube'));
     await tester.tap(find.text('Reddit'));
-    await tester.tap(find.text('1 hour'));
+    await tester.ensureVisible(find.text('1 hr'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('1 hr'));
     await tester.pumpAndSettle();
     await tester.pumpAndSettle();
     await tester.tap(find.byKey(const ValueKey('onboarding-next')));
@@ -1425,7 +1424,7 @@ void main() {
       unorderedEquals([('YouTube', 60, true), ('Reddit', 60, true)]),
     );
     // No permissions step here: tests do not run on Windows or Android.
-    expect(find.text('3 of 3'), findsOneWidget);
+    expect(find.bySemanticsLabel('Step 3 of 3'), findsOneWidget);
     await tester.tap(find.text('Start focusing'));
     await tester.pumpAndSettle();
     expect(controller.onboarded, isTrue);
@@ -1458,7 +1457,7 @@ void main() {
     await tester.tap(find.text('I already have an account'));
     await tester.pumpAndSettle();
     expect(asked, 1);
-    expect(find.text('Less scrolling, more done.'), findsOneWidget);
+    expect(find.text('Less scrolling.\nMore done.'), findsOneWidget);
 
     signIn = true;
     await tester.tap(find.text('I already have an account'));
@@ -1487,8 +1486,16 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Get started'));
       await tester.pumpAndSettle();
-      FilterChip chip(String name) =>
-          tester.widget(find.widgetWithText(FilterChip, name));
+      SemanticsProperties pick(String name) => tester
+          .widget<Semantics>(
+            find
+                .descendant(
+                  of: find.byKey(ValueKey('pick-$name')),
+                  matching: find.byType(Semantics),
+                )
+                .first,
+          )
+          .properties;
 
       await tester.tap(find.text('Instagram'));
       await tester.tap(find.text('YouTube'));
@@ -1496,10 +1503,11 @@ void main() {
       await tester.tap(find.text('Social media'));
       await tester.pumpAndSettle();
       // Instagram is part of Social media now: shown included, not a second rule.
-      expect(chip('Instagram').selected, isTrue);
-      expect(chip('Instagram').onSelected, isNull);
-      expect(chip('TikTok').selected, isTrue);
-      expect(chip('YouTube').onSelected, isNotNull);
+      expect(pick('Instagram').selected, isTrue);
+      expect(pick('Instagram').enabled, isFalse);
+      expect(pick('TikTok').selected, isTrue);
+      expect(pick('YouTube').enabled, isTrue);
+      expect(find.text('Limit 1 group and 1 app'), findsOneWidget);
       expect(
         find.text('Apps in a group you picked share its limit.'),
         findsOneWidget,

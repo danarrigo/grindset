@@ -261,6 +261,52 @@ class AppController extends ChangeNotifier {
     return reason != null && !reason.startsWith('Strict mode');
   }
 
+  /// What blocks [source] now and from when until when, for its block
+  /// screen. [from] is null for a daily limit, which ends at midnight. Null
+  /// when nothing does, or when it is strict mode's own lock.
+  ({String label, DateTime? from, DateTime until})? blockSpan(String source) {
+    (DateTime, DateTime)? latest(Iterable<ScheduleWindow> windows) {
+      (DateTime, DateTime)? found;
+      for (final window in windows) {
+        final span = window.span(now, location);
+        if (span != null && (found == null || span.$2.isAfter(found.$2))) {
+          found = span;
+        }
+      }
+      return found;
+    }
+
+    switch (restrictionForSource(source)) {
+      case 'Focus session in progress':
+        final current = session!;
+        return (
+          label: 'Focus session',
+          from: current.start,
+          until: current.end,
+        );
+      case 'Focus hours':
+        final span = latest(focusHours);
+        if (span == null) return null;
+        return (label: 'Focus hours', from: span.$1, until: span.$2);
+      case 'Scheduled restriction':
+        final span = latest([
+          for (final rule in rules)
+            if (rule.sources.any((s) => matchesSource(s, source)))
+              ...rule.schedules,
+        ]);
+        if (span == null) return null;
+        return (label: 'Scheduled block', from: span.$1, until: span.$2);
+      case 'Daily budget reached':
+        return (
+          label: 'Daily limit reached',
+          from: null,
+          until: accountDay(now, location).$2,
+        );
+      default:
+        return null;
+    }
+  }
+
   /// Why [source] is blocked, as in "during Focus hours".
   String blockedBecause(String source) =>
       switch (restrictionForSource(source)) {
@@ -719,10 +765,15 @@ class AppController extends ChangeNotifier {
       showBlock = () async {
         final source = blockedSource;
         if (source != null) {
+          final span = blockSpan(source);
           await tracker.showAndroidBlock(
             source,
             blockMessage ?? 'An activity rule is active.',
             askAi: canAskForPass(source),
+            name: appDetails[source]?.label ?? sourceName(source),
+            label: span?.label,
+            from: span?.from,
+            until: span?.until,
           );
         }
       };
@@ -1597,7 +1648,16 @@ class AppController extends ChangeNotifier {
       if (host == null) continue;
       final reason = restrictionForSource('web:$host', reasons: reasons);
       if (trackingEnabled && reason != null) {
-        blocked.add({'domain': host, 'reason': reason});
+        final span = blockSpan('web:$host');
+        blocked.add({
+          'domain': host,
+          'reason': reason,
+          'name': sourceName('web:$host'),
+          // The blocked page draws how far through the block it is.
+          if (span != null) 'label': span.label,
+          if (span?.from != null) 'from': span!.from!.toIso8601String(),
+          if (span != null) 'until': span.until.toIso8601String(),
+        });
       }
     }
     return {

@@ -280,14 +280,25 @@ class NativeTracker {
   Future<String?> androidForegroundSource() => channel
       .invokeMethod<String>('foregroundSource')
       .timeout(const Duration(seconds: 20));
+
+  /// [label], [from] and [until] say what blocks it over which span; [from]
+  /// is null for a daily limit.
   Future<void> showAndroidBlock(
     String source,
     String message, {
     bool askAi = false,
+    String? name,
+    String? label,
+    DateTime? from,
+    DateTime? until,
   }) => channel.invokeMethod<void>('showBlock', {
     'source': source,
     'message': message,
     'askAi': askAi,
+    'name': ?name,
+    'label': ?label,
+    'from': ?from?.millisecondsSinceEpoch,
+    'until': ?until?.millisecondsSinceEpoch,
   });
 
   /// Opens an Android app, as after the AI gave it time.

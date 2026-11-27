@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:lockin/app_controller.dart';
 import 'package:lockin/core/activity.dart';
+import 'package:lockin/core/focus_session.dart';
 import 'package:lockin/data/local_store.dart';
 import 'package:lockin/platform/native_tracker.dart';
 import 'package:lockin/ui/unlock_pause_dialog.dart';
@@ -215,6 +216,46 @@ void main() {
       expect(controller.canAskForPass('web:linkedin.com'), isFalse);
     },
   );
+
+  test('the block screen knows what blocks it and until when', () async {
+    // Focus hours 9:00-17:00 (UTC here), and it is 10:00.
+    final hoursSpan = controller.blockSpan('web:game.test')!;
+    expect(hoursSpan.label, 'Focus hours');
+    expect(hoursSpan.from, DateTime.utc(2026, 11, 10, 9));
+    expect(hoursSpan.until, DateTime.utc(2026, 11, 10, 17));
+
+    // Overnight 22:00-06:00, seen after midnight, began the day before.
+    final night = ScheduleWindow(
+      weekdays: [1, 2, 3, 4, 5, 6, 7],
+      startMinute: 22 * 60,
+      endMinute: 6 * 60,
+    );
+    expect(night.span(DateTime.utc(2026, 11, 11, 2), controller.location), (
+      DateTime.utc(2026, 11, 10, 22),
+      DateTime.utc(2026, 11, 11, 6),
+    ));
+    expect(night.span(DateTime.utc(2026, 11, 10, 23), controller.location), (
+      DateTime.utc(2026, 11, 10, 22),
+      DateTime.utc(2026, 11, 11, 6),
+    ));
+    expect(
+      night.span(DateTime.utc(2026, 11, 10, 12), controller.location),
+      isNull,
+    );
+
+    // A focus session wins over Focus hours while it runs.
+    await controller.startSession(
+      const Duration(minutes: 25),
+      SessionPhase.focus,
+    );
+    final sessionSpan = controller.blockSpan('web:game.test')!;
+    expect(sessionSpan.label, 'Focus session');
+    expect(sessionSpan.until, now.add(const Duration(minutes: 25)));
+
+    // Nothing blocks it in the evening.
+    now = DateTime.utc(2026, 11, 10, 18);
+    expect(controller.blockSpan('web:game.test'), isNull);
+  });
 
   test('shortening the pause while blocking needs the pause too', () async {
     await controller.setUnlockPause(300);

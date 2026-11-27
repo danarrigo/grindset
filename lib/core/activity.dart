@@ -181,6 +181,33 @@ class ScheduleWindow {
         (minute < endMinute && weekdays.contains(previousDay));
   }
 
+  /// When the occurrence of this window that contains [instant] starts and
+  /// ends, or null outside it.
+  (DateTime, DateTime)? span(DateTime instant, tz.Location location) {
+    if (!contains(instant, location)) return null;
+    final local = tz.TZDateTime.from(instant, location);
+    final minute = local.hour * 60 + local.minute;
+    // An overnight window seen after midnight began the day before.
+    final day = startMinute > endMinute && minute < endMinute ? -1 : 0;
+    final start = tz.TZDateTime(
+      location,
+      local.year,
+      local.month,
+      local.day + day,
+      0,
+      startMinute,
+    );
+    final end = tz.TZDateTime(
+      location,
+      local.year,
+      local.month,
+      local.day + day + (startMinute > endMinute ? 1 : 0),
+      0,
+      endMinute,
+    );
+    return (start.toUtc(), end.toUtc());
+  }
+
   Map<String, Object> toJson() => {
     'weekdays': weekdays.toList(),
     'start_minute': startMinute,

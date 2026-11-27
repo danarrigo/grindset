@@ -1,12 +1,15 @@
-html { color-scheme: dark; background: #09090a; color: #e5e5ea; font: 16px/1.5 system-ui, sans-serif; }
+@font-face { font-family: Inter; src: url("fonts/Inter.ttf") format("truetype"); font-weight: 100 900; font-display: block; }
+:root { --ground: #09090a; --ink: #f5f5f7; --secondary: #b1b1b7; --line: #303034; --green: #30d158; }
+html { color-scheme: dark; background: var(--ground); color: #e5e5ea; font: 16px/1.5 Inter, system-ui, sans-serif; }
+::selection { background: rgba(48, 209, 88, .35); color: var(--ink); }
 body { margin: 0; padding: 48px 24px; }
 main { max-width: 400px; margin: 10vh auto; }
 h1 { font-size: 26px; font-weight: 600; letter-spacing: -.6px; }
 p { margin: 20px 0; }
 label { display: block; margin-bottom: 8px; }
 input, button { box-sizing: border-box; min-height: 48px; width: 100%; padding: 12px 16px; font: inherit; border: 1px solid #48484a; border-radius: 12px; }
-input { background: #1c1c1e; color: white; letter-spacing: 8px; font-size: 24px; }
-button { margin-top: 16px; cursor: pointer; background: #073b1d; color: #30d158; border: none; font-weight: 500; }
+input { background: #1c1c1e; color: white; caret-color: var(--green); letter-spacing: 8px; font-size: 24px; }
+button { margin-top: 16px; cursor: pointer; background: #073b1d; color: var(--green); border: none; font-weight: 500; }
 button:disabled { opacity: .5; cursor: wait; }
 a { color: #ff9f0a; }
 .secondary { color: #a7a7ad; font-size: 13px; }
@@ -14,3 +17,30 @@ a { color: #ff9f0a; }
 input.text { letter-spacing: normal; font-size: 16px; }
 form { margin: 28px 0; }
 #verdict { color: #ff9f0a; margin: 12px 0 0; }
+
+/* The block page: "Not now, YouTube.", how far through, the way back. */
+body.wall { padding: 0; }
+.wall main { box-sizing: border-box; min-height: 100vh; max-width: 440px; margin: 0 auto; padding: 28px 24px 20px; display: flex; flex-direction: column; }
+.wall .spacer.top { flex: 3; }
+.wall .spacer.bottom { flex: 4; min-height: 40px; }
+.wall h1 { margin: 0; white-space: pre-line; font-size: 48px; font-weight: 700; letter-spacing: -1.8px; line-height: 1.04; color: var(--ink); overflow-wrap: anywhere; }
+.wall h1.long { font-size: 38px; letter-spacing: -1.3px; }
+.wall #span { margin-top: 32px; }
+.wall .bar { display: flex; gap: 3px; height: 10px; }
+.wall .bar.whole { gap: 0; }
+.wall .bar span { flex: 0 0 0; min-width: 0; }
+.wall #done { background: var(--green); }
+.wall #rest { background: var(--line); }
+.wall .row { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 4px 12px; margin: 14px 0 0; font-size: 15px; }
+.wall .row strong { font-weight: 600; color: var(--ink); }
+.wall .row span { color: var(--secondary); }
+.wall #reason { margin: 32px 0 0; font-size: 15px; color: var(--secondary); }
+.wall #status:empty { display: none; }
+.wall #back { margin-top: 0; min-height: 54px; background: var(--ink); color: #1d1d1f; font-size: 16px; font-weight: 600; border-radius: 11px; }
+.wall #back:hover { background: #fff; }
+.wall button.link { margin-top: 6px; background: none; color: var(--secondary); font-size: 14px; font-weight: 400; }
+.wall button.link:hover { color: var(--ink); }
+.wall form { margin: 12px 0 0; }
+.wall label { font-size: 14px; color: var(--secondary); }
+.wall #send { margin-top: 10px; background: #1c1c1e; color: var(--ink); }
+.wall .setup { align-self: center; margin-top: 18px; font-size: 13px; color: var(--secondary); text-underline-offset: 3px; }

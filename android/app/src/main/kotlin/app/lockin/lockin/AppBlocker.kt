@@ -208,42 +208,128 @@ object AppBlocker {
         TrackingRuntime.dismissRequested()
     }
 
-    fun showBlock(context: Context, target: String, message: String, askAi: Boolean = false) {
+    /**
+     * Covers [target] with the block screen: "Not now, [name].", how far
+     * through the block it is ([label], from [from] until [until], epoch
+     * milliseconds; [from] is -1 for a daily limit, which ends at midnight),
+     * and the way back. Without a span, [message] says why instead.
+     */
+    fun showBlock(
+        context: Context, target: String, message: String, askAi: Boolean = false,
+        name: String? = null, label: String? = null, from: Long = -1L, until: Long = -1L,
+    ) {
         require(target.startsWith("android:")) { "Only Android apps can be blocked here." }
         check(permitted(context)) { "Allow Grindset to display over other apps to block apps." }
         if (lastSource != target) return
         if (overlay != null && blocked == target) return
         hideBlock(context)
         val app = context.applicationContext
+        val pkg = target.removePrefix("android:")
         val density = app.resources.displayMetrics.density
-        val padding = (24 * density).toInt()
-        val font = try { Typeface.createFromAsset(app.assets, "flutter_assets/assets/fonts/Inter.ttf") } catch (_: Exception) { Typeface.DEFAULT }
+        fun dp(value: Number) = (value.toFloat() * density).toInt()
+        val inter = try { Typeface.createFromAsset(app.assets, "flutter_assets/assets/fonts/Inter.ttf") } catch (_: Exception) { Typeface.DEFAULT }
+        fun font(weight: Int) = if (Build.VERSION.SDK_INT >= 28) Typeface.create(inter, weight, false) else if (weight >= 600) Typeface.create(inter, Typeface.BOLD) else inter
+        val ink = Color.rgb(245, 245, 247)
+        val secondary = Color.rgb(177, 177, 183)
+        val green = Color.rgb(48, 209, 88)
         val content = LinearLayout(app).apply {
             orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
-            setPadding(padding, padding, padding, padding)
+            setPadding(dp(24), dp(28), dp(24), dp(20))
             setBackgroundColor(Color.rgb(9, 9, 10))
         }
-        fun text(value: String, size: Float) = TextView(app).apply {
-            text = value; textSize = size; setTextColor(Color.WHITE); typeface = font
-            gravity = Gravity.CENTER; setPadding(0, padding / 2, 0, padding / 2)
+        fun space(weight: Float) = View(app).apply {
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, weight)
         }
-        content.addView(text("App restricted", 26f))
-        content.addView(text(message, 16f))
+        fun text(value: String, size: Float, color: Int, weight: Int = 400) = TextView(app).apply {
+            text = value; textSize = size; setTextColor(color); typeface = font(weight)
+        }
+        // Grows with the screen; the column itself stays phone-width.
+        val column = LinearLayout(app).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, 0, 1f)
+        }
+        column.addView(space(3f))
+        try {
+            val icon = android.widget.ImageView(app).apply {
+                setImageDrawable(app.packageManager.getApplicationIcon(pkg))
+                layoutParams = LinearLayout.LayoutParams(dp(52), dp(52)).apply { bottomMargin = dp(28) }
+            }
+            column.addView(icon)
+        } catch (_: Exception) {
+            // No icon: the name says which app it is.
+        }
+        val appName = name ?: try {
+            app.packageManager.getApplicationLabel(app.packageManager.getApplicationInfo(pkg, 0)).toString()
+        } catch (_: Exception) { pkg }
+        val long = appName.length > 14
+        column.addView(text("Not now,\n$appName.", if (long) 38f else 48f, ink, 700).apply {
+            letterSpacing = if (long) -0.034f else -0.037f
+            setLineSpacing(0f, 0.95f)
+            maxLines = 4
+        })
+        var update: (() -> Unit)? = null
+        if (label != null && until > 0L) {
+            val bar = LinearLayout(app).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, dp(10)).apply { topMargin = dp(32) }
+            }
+            val done = View(app).apply { setBackgroundColor(green) }
+            val gap = View(app)
+            val rest = View(app).apply { setBackgroundColor(Color.rgb(48, 48, 52)) }
+            bar.addView(done); bar.addView(gap); bar.addView(rest)
+            column.addView(bar)
+            val row = LinearLayout(app).apply {
+                orientation = LinearLayout.HORIZONTAL
+                layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(14) }
+            }
+            row.addView(text(label, 15f, ink, 600).apply {
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
+            val detail = text("", 15f, secondary).apply { gravity = Gravity.END }
+            row.addView(detail)
+            column.addView(row)
+            val ends = android.text.format.DateFormat.getTimeFormat(app).format(java.util.Date(until))
+            val refresh = {
+                val now = System.currentTimeMillis()
+                val part = if (from < 0L) 1f else ((now - from).toFloat() / (until - from).coerceAtLeast(1L)).coerceIn(0f, 1f)
+                done.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, part)
+                gap.layoutParams = LinearLayout.LayoutParams(if (part in 0.001f..0.999f) dp(3) else 0, LinearLayout.LayoutParams.MATCH_PARENT)
+                rest.layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.MATCH_PARENT, 1f - part)
+                val minutes = ((until - now) / 60_000L).toInt()
+                detail.text = when {
+                    from < 0L -> "Opens again tomorrow"
+                    minutes < 1 -> "Under a minute left · ends $ends"
+                    minutes < 60 -> "$minutes min left · ends $ends"
+                    minutes % 60 == 0 -> "${minutes / 60} hr left · ends $ends"
+                    else -> "${minutes / 60} hr ${minutes % 60} min left · ends $ends"
+                }
+                bar.requestLayout()
+            }
+            refresh()
+            update = refresh
+        } else {
+            column.addView(text(message, 15f, secondary).apply {
+                setLineSpacing(0f, 1.3f)
+                setPadding(0, dp(32), 0, 0)
+            })
+        }
+        column.addView(space(4f))
         fun action(label: String, primary: Boolean, click: () -> Unit) = Button(app).apply {
-            text = label; typeface = font; textSize = 16f; isAllCaps = false
-            minHeight = (48 * density).toInt()
-            setPadding((16 * density).toInt(), (12 * density).toInt(), (16 * density).toInt(), (12 * density).toInt())
-            setTextColor(if (primary) Color.rgb(48, 209, 88) else Color.rgb(229, 229, 234))
+            text = label; typeface = font(if (primary) 600 else 400); isAllCaps = false
+            textSize = if (primary) 16f else 14f
+            minHeight = dp(if (primary) 54 else 48)
+            stateListAnimator = null
+            setTextColor(if (primary) Color.rgb(29, 29, 31) else secondary)
             backgroundTintList = null
-            background = RippleDrawable(ColorStateList.valueOf(Color.argb(40, 255, 255, 255)), GradientDrawable().apply {
-                cornerRadius = 12 * density
-                setColor(if (primary) Color.rgb(7, 59, 29) else Color.rgb(28, 28, 30))
-            }, null)
-            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = (8 * density).toInt() }
+            background = RippleDrawable(
+                ColorStateList.valueOf(if (primary) Color.argb(40, 0, 0, 0) else Color.argb(30, 255, 255, 255)),
+                if (primary) GradientDrawable().apply { cornerRadius = dp(11).toFloat(); setColor(ink) } else null,
+                GradientDrawable().apply { cornerRadius = dp(11).toFloat(); setColor(Color.WHITE) },
+            )
+            layoutParams = LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT).apply { topMargin = dp(6) }
             setOnClickListener { click() }
         }
-        content.addView(action("Go home", false) {
+        column.addView(action("Back to work", true) {
             hideBlock(app)
             // Usage history and checks already under way still describe the
             // blocked app; neither may bring the block back over home.
@@ -254,16 +340,14 @@ object AppBlocker {
             TrackingRuntime.dismissRequested()
             app.startActivity(Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
         })
-        if (askAi) {
-            content.addView(action("Ask AI for a few minutes", false) {
-                // Grindset asks for the reason; opening it hides this screen.
-                TrackingRuntime.passRequested(target)
-                app.packageManager.getLaunchIntentForPackage(app.packageName)?.let {
-                    app.startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
-                }
-            })
-        }
-        content.addView(text(if (askAi) "Otherwise this app stays blocked until your rule ends." else "This app stays blocked until your rule ends.", 13f))
+        column.addView(if (askAi) action("Need it? Ask AI for a few minutes", false) {
+            // Grindset asks for the reason; opening it hides this screen.
+            TrackingRuntime.passRequested(target)
+            app.packageManager.getLaunchIntentForPackage(app.packageName)?.let {
+                app.startActivity(it.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+            }
+        } else View(app).apply { layoutParams = LinearLayout.LayoutParams(1, dp(54)) })
+        content.addView(column)
         val type = if (Build.VERSION.SDK_INT >= 26) WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY else {
             @Suppress("DEPRECATION")
             WindowManager.LayoutParams.TYPE_PHONE
@@ -276,6 +360,16 @@ object AppBlocker {
         blocked = target
         blockedSince = System.currentTimeMillis()
         overlay = content
+        update?.let { refresh ->
+            val tick = object : Runnable {
+                override fun run() {
+                    if (overlay !== content) return
+                    refresh()
+                    content.postDelayed(this, 15_000L)
+                }
+            }
+            content.postDelayed(tick, 15_000L)
+        }
     }
 
     fun hideBlock(context: Context) {

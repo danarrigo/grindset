@@ -276,7 +276,15 @@ object TrackingRuntime {
                     }
                 }
                 "showBlock" -> {
-                    AppBlocker.showBlock(context, checkNotNull(call.argument<String>("source")), call.argument<String>("message") ?: "An activity rule is active.", call.argument<Boolean>("askAi") == true)
+                    AppBlocker.showBlock(
+                        context, checkNotNull(call.argument<String>("source")),
+                        call.argument<String>("message") ?: "An activity rule is active.",
+                        askAi = call.argument<Boolean>("askAi") == true,
+                        name = call.argument<String>("name"),
+                        label = call.argument<String>("label"),
+                        from = call.argument<Number>("from")?.toLong() ?: -1L,
+                        until = call.argument<Number>("until")?.toLong() ?: -1L,
+                    )
                     result.success(null)
                 }
                 "openApp" -> {
