@@ -453,7 +453,7 @@ void main() {
     },
   );
 
-  test('two devices share rules, timezone and timer without copying a focus blocklist', () async {
+  test('two devices share rules, timezone and timer, and a new rule blocks during focus on both', () async {
     var clock = since.add(const Duration(hours: 10));
     final desktop = AppController(
       store: store,
@@ -507,6 +507,27 @@ void main() {
     expect(phone.session!.id, desktop.session!.id);
     expect(phone.timezone, 'America/New_York');
     expect(phone.rules.single.name, 'Video');
+    // A rule new to a device blocks while focusing there, as when made there.
+    expect(phone.rules.single.focusBlock, isTrue);
+    expect(desktop.rules.single.focusBlock, isTrue);
+    // Each device still chooses for itself: off here stays off here.
+    await phone.saveRule(
+      ActivityRule.fromJson({
+        ...phone.rules.single.toJson(),
+        'focus_block': false,
+      }),
+    );
+    await phoneSync.synchronize(
+      deviceId: phone.deviceId,
+      platform: 'Android',
+      since: since,
+    );
+    await sync.synchronize(
+      deviceId: desktop.deviceId,
+      platform: 'Windows',
+      since: since,
+    );
+    await desktop.reloadSharedState();
     expect(phone.rules.single.focusBlock, isFalse);
     expect(desktop.rules.single.focusBlock, isTrue);
     expect(phoneSync.conflicts, isEmpty);

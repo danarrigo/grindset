@@ -143,4 +143,63 @@ void main() {
       );
     },
   );
+
+  test(
+    'rules that arrived without blocking during focus are repaired once',
+    () async {
+      // As left by earlier versions: the account's rules arrived switched off
+      // during focus, never chosen on this device. One is a choice made here.
+      final repairStore = LocalStore.memory();
+      addTearDown(repairStore.close);
+      await repairStore.saveRules([
+        ActivityRule(
+          id: 'arrived',
+          name: 'Social media',
+          sources: ['web:reddit.com'],
+          focusBlock: false,
+          dailyMinutes: 60,
+        ),
+        ActivityRule(
+          id: 'chosen',
+          name: 'Games',
+          sources: ['web:steampowered.com'],
+          focusBlock: false,
+        ),
+      ]);
+      await repairStore.saveSetting(
+        'focus_flags',
+        '{"chosen":false,"gone":false}',
+      );
+      final repaired = AppController(
+        store: repairStore,
+        tracker: NativeTracker(),
+        clock: () => at,
+      );
+      addTearDown(repaired.dispose);
+      await repaired.initialize(poll: false);
+      bool blocks(String id) =>
+          repaired.rules.singleWhere((r) => r.id == id).focusBlock;
+      expect(blocks('arrived'), isTrue);
+      expect(blocks('chosen'), isFalse);
+
+      // Once: turning it off afterwards sticks across restarts.
+      await repaired.saveRule(
+        ActivityRule.fromJson({
+          ...repaired.rules.singleWhere((r) => r.id == 'arrived').toJson(),
+          'focus_block': false,
+        }),
+      );
+      final again = AppController(
+        store: repairStore,
+        tracker: NativeTracker(),
+        clock: () => at,
+      );
+      addTearDown(again.dispose);
+      await again.initialize(poll: false);
+      expect(
+        again.rules.singleWhere((r) => r.id == 'arrived').focusBlock,
+        isFalse,
+      );
+    },
+  );
 }

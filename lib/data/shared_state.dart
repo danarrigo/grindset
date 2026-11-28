@@ -358,7 +358,9 @@ class SharedState {
           next.add(
             ActivityRule.fromJson({
               ...value,
-              'focus_block': previous?.focusBlock ?? flags?[id] == true,
+              // New here, it blocks while focusing, as a rule made here does.
+              'focus_block':
+                  previous?.focusBlock ?? (flags?[id] as bool?) ?? true,
             }),
           );
         }

@@ -700,6 +700,7 @@ class AppController extends ChangeNotifier {
           1,
           1440,
         );
+    await _repairFocusFlags();
     rules = await store.rules();
     final profiles = await store.setting('focus_profiles');
     focusProfiles = profiles == null
@@ -1152,6 +1153,30 @@ class AppController extends ChangeNotifier {
     } else {
       await refresh();
     }
+  }
+
+  /// Up to 1.6.20, rules that came from the account arrived not blocking
+  /// while focusing, unlike rules made on the device. Once, those never
+  /// chosen here are switched on; choices made here are kept.
+  Future<void> _repairFocusFlags() async {
+    if (await store.setting('focus_flags_repaired') == 'true') return;
+    await store.transaction(() async {
+      final flags = Map<String, dynamic>.from(
+        jsonDecode(await store.setting('focus_flags') ?? '{}') as Map,
+      );
+      final current = await store.rules();
+      final next = [
+        for (final rule in current)
+          rule.focusBlock || flags.containsKey(rule.id)
+              ? rule
+              : ActivityRule.fromJson({...rule.toJson(), 'focus_block': true}),
+      ];
+      await store.saveRules(next);
+      for (final rule in next) {
+        await sharedState.rememberFocusFlag(rule);
+      }
+      await store.saveSetting('focus_flags_repaired', 'true');
+    });
   }
 
   Future<void> checkTrackingHealth() async {
