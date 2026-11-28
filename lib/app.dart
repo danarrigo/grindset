@@ -1891,376 +1891,385 @@ class _HomeState extends State<_Home> {
     return '${local.day} ${_months[local.month - 1]} at ${_time(instant)}';
   }
 
-  Widget _settings() => Column(
-    crossAxisAlignment: CrossAxisAlignment.stretch,
-    children: [
-      _heading('Settings'),
-      _Section(
-        padding: const EdgeInsets.all(20),
-        child: TrackingHealthPanel(
-          controller: c,
-          onTracking: _busy || !c.tracker.supported ? null : _enableTracking,
-          onBrowser: c.tracker.isWindows && c.browserBridge?.isListening == true
-              ? _pairBrowser
-              : null,
-          onAppBlocking: c.tracker.isAndroid ? _enableAndroidBlocking : null,
-          onInstantBlocking: c.tracker.isAndroid
-              ? _enableInstantBlocking
-              : null,
-          onRules: () => setState(() => _page = 2),
-          onStartup: _busy || widget.enableStartup == null
-              ? null
-              : () => _run(widget.enableStartup!),
+  Widget _settings() {
+    final tracking = c.trackingEnabled || !c.tracker.supported;
+    final browser = c.tracker.isWindows && c.browserBridge != null;
+    return Align(
+      alignment: Alignment.topLeft,
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 760),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _heading('Settings'),
+            _Section(
+              padding: const EdgeInsets.all(20),
+              child: TrackingHealthPanel(
+                controller: c,
+                onTracking: _busy || !c.tracker.supported
+                    ? null
+                    : _enableTracking,
+                onBrowser:
+                    c.tracker.isWindows && c.browserBridge?.isListening == true
+                    ? _pairBrowser
+                    : null,
+                onAppBlocking: c.tracker.isAndroid
+                    ? _enableAndroidBlocking
+                    : null,
+                onInstantBlocking: c.tracker.isAndroid
+                    ? _enableInstantBlocking
+                    : null,
+                onRules: () => setState(() => _page = 2),
+                onStartup: _busy || widget.enableStartup == null
+                    ? null
+                    : () => _run(widget.enableStartup!),
+              ),
+            ),
+            // While tracking is off, the setup checklist above covers
+            // turning it on.
+            if (tracking || browser)
+              _settingsCard('Tracking', [
+                if (tracking)
+                  _settingRow(
+                    'Activity tracking',
+                    !c.tracker.supported
+                        ? 'Tracking needs Windows or Android.'
+                        : !c.trackingEnabled
+                        ? 'Off. Nothing is recorded.'
+                        : !c.accessGranted
+                        ? 'Waiting for permission.'
+                        : c.tracker.isAndroid && !c.backgroundTrackingRunning
+                        ? 'Stopped. Turn it on again to resume.'
+                        : 'On. Grindset records which app is open and for how long, never your screen, what you type, or page contents.',
+                    control: Wrap(
+                      spacing: 8,
+                      children: [
+                        if (c.trackingEnabled)
+                          TextButton(
+                            onPressed: _busy
+                                ? null
+                                : () => _run(() => c.disableTracking()),
+                            child: const Text('Stop tracking'),
+                          ),
+                        OutlinedButton(
+                          onPressed: _busy || !c.tracker.supported
+                              ? null
+                              : _enableTracking,
+                          child: Text(
+                            c.trackingEnabled
+                                ? 'Permissions'
+                                : 'Turn on tracking',
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                if (browser)
+                  _settingRow(
+                    'Browser extension',
+                    'Pair Chrome, Edge or Firefox to track and block websites. Only the site name is shared, never full addresses or page titles.',
+                    control: Wrap(
+                      spacing: 8,
+                      children: [
+                        TextButton(
+                          onPressed: _busy
+                              ? null
+                              : () => _run(c.browserBridge!.disconnect),
+                          child: const Text('Disconnect'),
+                        ),
+                        OutlinedButton(
+                          onPressed: _busy ? null : _pairBrowser,
+                          child: const Text('Pair'),
+                        ),
+                      ],
+                    ),
+                  ),
+              ]),
+            _settingsCard('Blocking', [
+              _switchRow(
+                'Strict mode',
+                c.strictLock != null
+                    ? 'Locked ${c.strictLock}. Until then rules can only get stricter, and Grindset keeps running.'
+                    : 'While you focus, during Focus hours, or once a limit is reached: no ending early, loosening rules, or stopping Grindset. On all your devices.',
+                value: c.strictMode,
+                onChanged: _busy || c.strictLock != null
+                    ? null
+                    : (value) => _run(() => c.setStrictMode(value)),
+              ),
+              _settingRow(
+                'Pause before unlocking',
+                'Without strict mode: before ending early, loosening a rule or taking a break while blocking is on, say why and wait. On this device.',
+                below: SegmentedButton<int>(
+                  key: const ValueKey('unlock-pause'),
+                  showSelectedIcon: false,
+                  segments: [
+                    for (final seconds in AppController.unlockPauses)
+                      ButtonSegment(
+                        value: seconds,
+                        label: Text(
+                          seconds == 0
+                              ? 'Off'
+                              : seconds < 60
+                              ? '$seconds sec'
+                              : '${seconds ~/ 60} min',
+                        ),
+                      ),
+                  ],
+                  selected: {c.unlockPause},
+                  onSelectionChanged: _busy
+                      ? null
+                      : (value) => _run(() => c.setUnlockPause(value.single)),
+                ),
+              ),
+            ]),
+            _settingsCard('Notifications', [
+              _switchRow(
+                'Budget warnings',
+                'A heads-up once a day when an app reaches 80% of its daily limit.',
+                value: c.budgetWarningsEnabled,
+                onChanged: _busy
+                    ? null
+                    : (value) => _run(() => c.setBudgetWarningsEnabled(value)),
+                notice: c.budgetWarningsNotice,
+              ),
+              if (c.completionAlerts != null)
+                _switchRow(
+                  'Timer notifications',
+                  'Notify me when a focus or break timer ends.',
+                  value: c.completionAlertsEnabled,
+                  onChanged: _busy
+                      ? null
+                      : (value) =>
+                            _run(() => c.setCompletionAlertsEnabled(value)),
+                  notice: c.completionAlertsNotice,
+                  action: c.completionAlertsEnabled
+                      ? TextButton(
+                          style: TextButton.styleFrom(
+                            padding: EdgeInsets.zero,
+                            visualDensity: VisualDensity.compact,
+                          ),
+                          onPressed: _busy
+                              ? null
+                              : () => _run(
+                                  () => c.setCompletionAlertsEnabled(true),
+                                ),
+                          child: const Text('Notification permission'),
+                        )
+                      : null,
+                ),
+            ]),
+            _settingsCard('General', [
+              _settingRow(
+                'Appearance',
+                'Follow the system, or always light or dark.',
+                control: SizedBox(
+                  width: 300,
+                  child: SegmentedButton<ThemeMode>(
+                    showSelectedIcon: false,
+                    segments: const [
+                      ButtonSegment(
+                        value: ThemeMode.system,
+                        label: Text('System'),
+                      ),
+                      ButtonSegment(
+                        value: ThemeMode.light,
+                        label: Text('Light'),
+                      ),
+                      ButtonSegment(value: ThemeMode.dark, label: Text('Dark')),
+                    ],
+                    selected: {c.themeMode},
+                    onSelectionChanged: (value) =>
+                        _run(() => c.setThemeMode(value.single)),
+                  ),
+                ),
+              ),
+              _settingRow(
+                'Timezone',
+                'Daily limits reset at midnight here. Schedules use it too.',
+                control: DropdownMenu<String>(
+                  width: 300,
+                  initialSelection: c.timezone,
+                  enableFilter: true,
+                  requestFocusOnTap: true,
+                  menuHeight: 280,
+                  dropdownMenuEntries: [
+                    for (final zone
+                        in (tz.timeZoneDatabase.locations.keys.toList()
+                          ..sort()))
+                      DropdownMenuEntry(value: zone, label: zone),
+                  ],
+                  onSelected: (zone) {
+                    if (zone != null) _run(() => c.setTimezone(zone));
+                  },
+                ),
+              ),
+            ]),
+            const SizedBox(height: 16),
+            _Section(
+              padding: const EdgeInsets.all(20),
+              child: CloudPanel(
+                controller: c,
+                cloud: widget.cloud,
+                onChanged: () => setState(() {}),
+                resetDevice: widget.resetDevice == null ? null : _performReset,
+              ),
+            ),
+            _settingsCard('Data on this device', [
+              _settingRow(
+                'Keep a copy',
+                'A copy of your history and rules. To switch accounts, export first, then reset.',
+                control: OutlinedButton.icon(
+                  onPressed: _busy || widget.exportData == null
+                      ? null
+                      : _exportData,
+                  icon: const Icon(Icons.download_outlined, size: 18),
+                  label: const Text('Export data'),
+                ),
+              ),
+              _settingRow(
+                'Start over',
+                'Erase everything Grindset keeps on this device.',
+                control: OutlinedButton(
+                  onPressed: _busy || widget.resetDevice == null
+                      ? null
+                      : _resetDevice,
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: colors.error,
+                    side: BorderSide(color: colors.error.withValues(alpha: .5)),
+                  ),
+                  child: const Text('Reset this device'),
+                ),
+              ),
+            ]),
+            const SizedBox(height: 16),
+            const _Section(padding: EdgeInsets.all(20), child: UpdatesPanel()),
+            const SizedBox(height: 24),
+            _notice(
+              'Blocking helps you keep your own rules. It is not a lock: you can always turn it off, and your phone or PC may stop Grindset in the background.',
+            ),
+          ],
         ),
       ),
-      const SizedBox(height: 20),
-      LayoutBuilder(
+    );
+  }
+
+  /// A titled group of settings, one row each, with lines between them.
+  Widget _settingsCard(String title, List<Widget> rows) => Padding(
+    padding: const EdgeInsets.only(top: 16),
+    child: _Section(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Text(title, style: Theme.of(context).textTheme.titleLarge),
+          const SizedBox(height: 4),
+          for (final (i, row) in rows.indexed) ...[
+            if (i > 0) Divider(height: 1, color: colors.outlineVariant),
+            row,
+          ],
+        ],
+      ),
+    ),
+  );
+
+  /// One setting: its name and what it does, its control beside them when
+  /// there is room, and [below] under them.
+  Widget _settingRow(
+    String title,
+    String description, {
+    Widget? control,
+    Widget? below,
+    String? notice,
+    Widget? action,
+    bool small = false,
+  }) {
+    final text = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w600),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          description,
+          style: TextStyle(
+            fontSize: 13,
+            height: 1.5,
+            color: colors.onSurfaceVariant,
+          ),
+        ),
+        if (notice != null) ...[
+          const SizedBox(height: 6),
+          Text(
+            notice,
+            style: TextStyle(fontSize: 13, height: 1.5, color: colors.error),
+          ),
+        ],
+        if (action != null) ...[
+          const SizedBox(height: 4),
+          Align(alignment: Alignment.centerLeft, child: action),
+        ],
+      ],
+    );
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 16),
+      child: LayoutBuilder(
         builder: (context, constraints) {
-          final columns =
-              constraints.maxWidth >=
-                  800 *
-                      math.max(
-                        1,
-                        MediaQuery.textScalerOf(context).scale(14) / 14,
-                      )
-              ? 2
-              : 1;
-          final width = (constraints.maxWidth - 20 * (columns - 1)) / columns;
-          return Wrap(
-            spacing: 20,
-            runSpacing: 20,
+          // A small control such as a switch always fits beside.
+          final beside =
+              control != null &&
+              (small ||
+                  constraints.maxWidth >=
+                      560 * MediaQuery.textScalerOf(context).scale(14) / 14);
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              for (final card in _settingsCards())
-                SizedBox(width: width, child: card),
+              if (beside)
+                Row(
+                  children: [
+                    Expanded(child: text),
+                    const SizedBox(width: 24),
+                    control,
+                  ],
+                )
+              else ...[
+                text,
+                if (control != null) ...[
+                  const SizedBox(height: 12),
+                  Align(alignment: Alignment.centerLeft, child: control),
+                ],
+              ],
+              if (below != null) ...[const SizedBox(height: 14), below],
             ],
           );
         },
       ),
-      const SizedBox(height: 24),
-      _notice(
-        'Blocking helps you keep your own rules. It is not a lock: you can always turn it off, and your phone or PC may stop Grindset in the background.',
-      ),
-    ],
-  );
+    );
+  }
 
-  List<Widget> _settingsCards() => [
-    // While tracking is off, the setup checklist above covers turning it on.
-    if (c.trackingEnabled || !c.tracker.supported)
-      _Section(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Activity tracking',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 12),
-            Text(
-              !c.tracker.supported
-                  ? 'Tracking needs Windows or Android.'
-                  : !c.trackingEnabled
-                  ? 'Off. Nothing is recorded.'
-                  : !c.accessGranted
-                  ? 'Waiting for permission.'
-                  : c.tracker.isAndroid && !c.backgroundTrackingRunning
-                  ? 'Stopped. Turn it on again to resume.'
-                  : 'On. Grindset records which app is open and for how long.',
-              style: Theme.of(context).textTheme.bodyMedium,
-            ),
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 12,
-              runSpacing: 8,
-              children: [
-                OutlinedButton(
-                  onPressed: _busy || !c.tracker.supported
-                      ? null
-                      : _enableTracking,
-                  child: Text(
-                    c.trackingEnabled ? 'Permissions' : 'Turn on tracking',
-                  ),
-                ),
-                if (c.trackingEnabled)
-                  TextButton(
-                    onPressed: _busy
-                        ? null
-                        : () => _run(() => c.disableTracking()),
-                    child: const Text('Stop tracking'),
-                  ),
-              ],
-            ),
-            const SizedBox(height: 12),
-            Text(
-              'Grindset never sees your screen, what you type, or page contents.',
-              style: Theme.of(context).textTheme.bodySmall,
-            ),
-          ],
-        ),
-      ),
-    _Section(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(
-              'Budget warnings',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            value: c.budgetWarningsEnabled,
-            onChanged: _busy
-                ? null
-                : (value) => _run(() => c.setBudgetWarningsEnabled(value)),
-          ),
-          const Text(
-            'A heads-up once a day when an app reaches 80% of its daily limit.',
-          ),
-          if (c.budgetWarningsNotice != null)
-            Text(
-              c.budgetWarningsNotice!,
-              style: TextStyle(color: colors.error),
-            ),
-        ],
+  /// A setting that is on or off; the whole row toggles it.
+  Widget _switchRow(
+    String title,
+    String description, {
+    required bool value,
+    required ValueChanged<bool>? onChanged,
+    String? notice,
+    Widget? action,
+  }) => MergeSemantics(
+    child: InkWell(
+      onTap: onChanged == null ? null : () => onChanged(!value),
+      borderRadius: BorderRadius.circular(8),
+      child: _settingRow(
+        title,
+        description,
+        notice: notice,
+        action: action,
+        control: Switch(value: value, onChanged: onChanged),
+        small: true,
       ),
     ),
-    if (c.completionAlerts != null) ...[
-      _Section(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            SwitchListTile(
-              contentPadding: EdgeInsets.zero,
-              title: Text(
-                'Timer notifications',
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              value: c.completionAlertsEnabled,
-              onChanged: _busy
-                  ? null
-                  : (value) => _run(() => c.setCompletionAlertsEnabled(value)),
-            ),
-            const Text('Notify me when a focus or break timer ends.'),
-            if (c.completionAlertsNotice != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                c.completionAlertsNotice!,
-                style: TextStyle(color: colors.tertiary),
-              ),
-            ],
-            if (c.completionAlertsEnabled) ...[
-              const SizedBox(height: 12),
-              OutlinedButton(
-                onPressed: _busy
-                    ? null
-                    : () => _run(() => c.setCompletionAlertsEnabled(true)),
-                child: const Text('Notification permission'),
-              ),
-            ],
-          ],
-        ),
-      ),
-    ],
-    if (c.tracker.isWindows && c.browserBridge != null) ...[
-      _Section(
-        padding: const EdgeInsets.all(20),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'Browser extension',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            const SizedBox(height: 12),
-            const Text(
-              'Pair Chrome or Edge to track and block websites. Only the site name is shared, never full addresses or page titles.',
-            ),
-            const SizedBox(height: 14),
-            Wrap(
-              spacing: 12,
-              runSpacing: 8,
-              children: [
-                OutlinedButton(
-                  onPressed: _busy ? null : _pairBrowser,
-                  child: const Text('Pair browser extension'),
-                ),
-                TextButton(
-                  onPressed: _busy
-                      ? null
-                      : () => _run(c.browserBridge!.disconnect),
-                  child: const Text('Disconnect browsers'),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    ],
-    _Section(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Timezone', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 10),
-          Text(
-            'Daily limits reset at midnight in this timezone. Schedules use it too.',
-            style: Theme.of(context).textTheme.bodySmall,
-          ),
-          const SizedBox(height: 16),
-          LayoutBuilder(
-            builder: (context, constraints) => DropdownMenu<String>(
-              width: math.min(420, constraints.maxWidth),
-              initialSelection: c.timezone,
-              enableFilter: true,
-              requestFocusOnTap: true,
-              menuHeight: 280,
-              label: const Text('Timezone'),
-              dropdownMenuEntries: [
-                for (final zone
-                    in (tz.timeZoneDatabase.locations.keys.toList()..sort()))
-                  DropdownMenuEntry(value: zone, label: zone),
-              ],
-              onSelected: (zone) {
-                if (zone != null) _run(() => c.setTimezone(zone));
-              },
-            ),
-          ),
-        ],
-      ),
-    ),
-    _Section(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text('Appearance', style: Theme.of(context).textTheme.titleLarge),
-          const SizedBox(height: 14),
-          SizedBox(
-            width: double.infinity,
-            child: SegmentedButton<ThemeMode>(
-              showSelectedIcon: false,
-              segments: const [
-                ButtonSegment(value: ThemeMode.system, label: Text('System')),
-                ButtonSegment(value: ThemeMode.light, label: Text('Light')),
-                ButtonSegment(value: ThemeMode.dark, label: Text('Dark')),
-              ],
-              selected: {c.themeMode},
-              onSelectionChanged: (value) =>
-                  _run(() => c.setThemeMode(value.single)),
-            ),
-          ),
-        ],
-      ),
-    ),
-    _Section(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SwitchListTile(
-            contentPadding: EdgeInsets.zero,
-            title: Text(
-              'Strict mode',
-              style: Theme.of(context).textTheme.titleLarge,
-            ),
-            value: c.strictMode,
-            onChanged: _busy || c.strictLock != null
-                ? null
-                : (value) => _run(() => c.setStrictMode(value)),
-          ),
-          Text(
-            c.strictLock != null
-                ? 'Locked ${c.strictLock}. Until then rules can only get stricter, and Grindset keeps running.'
-                : 'While you focus, during Focus hours, or once a limit is reached: no ending early, loosening rules, or stopping Grindset. On all your devices.',
-          ),
-          const SizedBox(height: 20),
-          Text(
-            'Pause before unlocking',
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 6),
-          const Text(
-            'Without strict mode: before ending early, loosening a rule or taking a break while blocking is on, say why and wait. On this device.',
-          ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: SegmentedButton<int>(
-              key: const ValueKey('unlock-pause'),
-              showSelectedIcon: false,
-              segments: [
-                for (final seconds in AppController.unlockPauses)
-                  ButtonSegment(
-                    value: seconds,
-                    label: Text(
-                      seconds == 0
-                          ? 'Off'
-                          : seconds < 60
-                          ? '$seconds sec'
-                          : '${seconds ~/ 60} min',
-                    ),
-                  ),
-              ],
-              selected: {c.unlockPause},
-              onSelectionChanged: _busy
-                  ? null
-                  : (value) => _run(() => c.setUnlockPause(value.single)),
-            ),
-          ),
-        ],
-      ),
-    ),
-    _Section(
-      padding: const EdgeInsets.all(20),
-      child: CloudPanel(
-        controller: c,
-        cloud: widget.cloud,
-        onChanged: () => setState(() {}),
-        resetDevice: widget.resetDevice == null ? null : _performReset,
-      ),
-    ),
-    _Section(
-      padding: const EdgeInsets.all(20),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Data on this device',
-            style: Theme.of(context).textTheme.titleLarge,
-          ),
-          const SizedBox(height: 12),
-          const Text(
-            'Export a copy of your history and rules, or erase everything on this device. To switch accounts, export first, then reset.',
-          ),
-          const SizedBox(height: 14),
-          Wrap(
-            spacing: 12,
-            runSpacing: 8,
-            children: [
-              OutlinedButton.icon(
-                onPressed: _busy || widget.exportData == null
-                    ? null
-                    : _exportData,
-                icon: const Icon(Icons.download_outlined),
-                label: const Text('Export data'),
-              ),
-              TextButton(
-                onPressed: _busy || widget.resetDevice == null
-                    ? null
-                    : _resetDevice,
-                style: TextButton.styleFrom(foregroundColor: colors.error),
-                child: const Text('Reset this device'),
-              ),
-            ],
-          ),
-        ],
-      ),
-    ),
-    const _Section(padding: EdgeInsets.all(20), child: UpdatesPanel()),
-  ];
+  );
 
   Widget _blocked(BuildContext context) {
     final source = c.blockedSource!;
