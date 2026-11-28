@@ -52,13 +52,17 @@ class SiteLogos {
       // Not cached yet.
     }
     await _slot();
+    var reached = false;
     try {
       // A slow or stalling site gives up quickly and keeps its letter tile.
-      logo = await _fetch(host)
-          .timeout(const Duration(seconds: 20), onTimeout: () => null);
+      (logo, reached) = await _fetch(host)
+          .timeout(const Duration(seconds: 20), onTimeout: () => (null, false));
     } finally {
       _release();
     }
+    // Offline or the site did not answer: try again next time Grindset
+    // starts, not in a few days.
+    if (logo == null && !reached) return _memory[host] = null;
     try {
       await directory.create(recursive: true);
       // An empty file remembers "no logo" so the site is not asked again
@@ -90,14 +94,19 @@ class SiteLogos {
     }
   }
 
-  Future<Uint8List?> _fetch(String host) async {
+  /// The logo, and whether the site answered at all.
+  Future<(Uint8List?, bool)> _fetch(String host) async {
     final client = HttpClient()
       ..connectionTimeout = const Duration(seconds: 8)
       ..userAgent = 'Mozilla/5.0 (compatible; Grindset)';
+    var reached = false;
+    Future<(Uint8List, Uri)?> get(Uri uri, {bool start = false}) =>
+        _get(client, uri, start: start, answered: () => reached = true);
     try {
       final home = Uri.https(host, '/');
       final candidates = <Uri>[];
-      final page = await _get(client, home);
+      // The icons are declared near the top, so a big page's start is enough.
+      final page = await get(home, start: true);
       if (page != null) {
         candidates.addAll(
           _iconLinks(utf8.decode(page.$1, allowMalformed: true), page.$2),
@@ -115,7 +124,7 @@ class SiteLogos {
         if (uri.scheme != 'https' || !tried.add(uri) || tried.length > 6) {
           continue;
         }
-        final body = await _get(client, uri);
+        final body = await get(uri);
         if (body == null) continue;
         final width = await _width(body.$1);
         if (width > bestWidth) {
@@ -124,16 +133,23 @@ class SiteLogos {
         }
         if (bestWidth >= 96) break;
       }
-      return bestWidth >= 16 ? best : null;
+      return (bestWidth >= 16 ? best : null, reached);
     } catch (_) {
-      return null;
+      return (null, reached);
     } finally {
       client.close(force: true);
     }
   }
 
-  /// The body and final address of a successful small response.
-  Future<(Uint8List, Uri)?> _get(HttpClient client, Uri uri) async {
+  /// The body and final address of a successful small response, or with
+  /// [start] the first [_maxBytes] of a bigger one. [answered] is called
+  /// once the site responds, whatever the status.
+  Future<(Uint8List, Uri)?> _get(
+    HttpClient client,
+    Uri uri, {
+    bool start = false,
+    required void Function() answered,
+  }) async {
     try {
       final request = await client
           .getUrl(uri)
@@ -141,14 +157,19 @@ class SiteLogos {
       final response = await request.close().timeout(
         const Duration(seconds: 10),
       );
-      if (response.statusCode != 200 || response.contentLength > _maxBytes) {
+      answered();
+      if (response.statusCode != 200 ||
+          (!start && response.contentLength > _maxBytes)) {
         await response.drain<void>().catchError((_) {});
         return null;
       }
       final bytes = BytesBuilder(copy: false);
       await for (final chunk in response.timeout(const Duration(seconds: 10))) {
         bytes.add(chunk);
-        if (bytes.length > _maxBytes) return null;
+        if (bytes.length > _maxBytes) {
+          if (!start) return null;
+          break;
+        }
       }
       final redirects = response.redirects;
       final at = redirects.isEmpty
