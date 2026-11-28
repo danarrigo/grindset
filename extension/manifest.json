@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Grindset",
-  "version": "1.5.1",
+  "version": "1.6.21",
   "description": "Pair with the local Grindset app to track foreground website domains and apply your focus rules. Works in Chrome, Edge and Firefox-based browsers such as Zen.",
   "permissions": [
     "tabs",
