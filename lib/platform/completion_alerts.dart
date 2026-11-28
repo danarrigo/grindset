@@ -89,6 +89,19 @@ class CompletionAlerts {
     return null;
   }
 
+  /// Windows: tracking stopped working, so rules may not apply.
+  Future<void> showTrackingProblem(String error) async {
+    await _initialize();
+    await _plugin.show(
+      id: 4305,
+      title: 'Grindset tracking stopped',
+      body: '$error Rules may not block until it works again.',
+      notificationDetails: const NotificationDetails(
+        windows: WindowsNotificationDetails(),
+      ),
+    );
+  }
+
   /// Windows, without the browser extension: a blocked site's tab was closed.
   Future<void> showSiteClosed(String host, String reason) async {
     await _initialize();

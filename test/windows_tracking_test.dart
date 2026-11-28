@@ -5,11 +5,20 @@ import 'package:lockin/app_controller.dart';
 import 'package:lockin/core/activity.dart';
 import 'package:lockin/core/focus_session.dart';
 import 'package:lockin/data/local_store.dart';
+import 'package:lockin/platform/completion_alerts.dart';
 import 'package:lockin/platform/native_tracker.dart';
 import 'package:timezone/data/latest_all.dart' as tzdata;
 
+class _Alerts extends CompletionAlerts {
+  _Alerts() : super(android: false);
+  final problems = <String>[];
+  @override
+  Future<void> showTrackingProblem(String error) async => problems.add(error);
+}
+
 class _Windows extends NativeTracker {
   String source = 'windows:player.exe';
+  Object? fail;
   @override
   bool get isWindows => true;
   @override
@@ -17,8 +26,10 @@ class _Windows extends NativeTracker {
   @override
   bool get isAndroid => false;
   @override
-  ForegroundApp foreground() =>
-      ForegroundApp(source, 'Test foreground app', processId: 42);
+  ForegroundApp foreground() {
+    if (fail case final error?) throw error;
+    return ForegroundApp(source, 'Test foreground app', processId: 42);
+  }
 }
 
 void main() {
@@ -72,45 +83,46 @@ void main() {
     await controller.reloadUsage();
   }
 
-  test(
-    'restart records a persistent tracking gap without inventing activity',
-    () async {
-      await sample();
-      final recorded = controller.deviceUsage(controller.deviceId);
-      controller.dispose();
-      now = now.add(const Duration(minutes: 2));
-      controller = AppController(
-        store: store,
-        tracker: _Windows(),
-        clock: () => now,
-      );
-      await controller.initialize(poll: false);
-      await controller.refresh();
-      expect(
-        controller.trackingInterruption,
-        contains('No activity was estimated'),
-      );
-      expect(controller.deviceUsage(controller.deviceId), recorded);
-      final notice = controller.trackingInterruption;
-      controller.dispose();
-      controller = AppController(
-        store: store,
-        tracker: _Windows(),
-        clock: () => now,
-      );
-      await controller.initialize(poll: false);
-      expect(controller.trackingInterruption, notice);
-      await controller.dismissTrackingInterruption();
-      controller.dispose();
-      controller = AppController(
-        store: store,
-        tracker: _Windows(),
-        clock: () => now,
-      );
-      await controller.initialize(poll: false);
-      expect(controller.trackingInterruption, isNull);
-    },
-  );
+  test('a restart does not invent activity for the gap', () async {
+    await sample();
+    final recorded = controller.deviceUsage(controller.deviceId);
+    controller.dispose();
+    now = now.add(const Duration(minutes: 2));
+    controller = AppController(
+      store: store,
+      tracker: _Windows(),
+      clock: () => now,
+    );
+    await controller.initialize(poll: false);
+    await controller.refresh();
+    expect(controller.deviceUsage(controller.deviceId), recorded);
+  });
+
+  test('a tracking problem is one notification when it starts', () async {
+    controller.dispose();
+    final tracker = _Windows();
+    final alerts = _Alerts();
+    controller = AppController(
+      store: store,
+      tracker: tracker,
+      clock: () => now,
+      completionAlerts: alerts,
+    );
+    await controller.initialize(poll: false);
+    await controller.refresh();
+    expect(alerts.problems, isEmpty);
+    tracker.fail = StateError('no foreground window');
+    await controller.refresh();
+    await controller.refresh();
+    expect(alerts.problems, hasLength(1));
+    expect(alerts.problems.single, contains('no foreground window'));
+    tracker.fail = null;
+    await controller.refresh();
+    expect(controller.trackingError, isNull);
+    tracker.fail = StateError('again');
+    await controller.refresh();
+    expect(alerts.problems, hasLength(2));
+  });
 
   test(
     'returning to a blocked desktop app shows the interruption again',

@@ -603,8 +603,7 @@ class AppController extends ChangeNotifier {
   bool instantBlockingEnabled = false;
   DateTime? _lastAndroidImport;
   String? trackingError;
-  String? trackingInterruption;
-  DateTime? _lastWindowsCheck;
+  String? _notifiedTrackingError;
   String? blockedSource;
   String? blockMessage;
   Future<void> Function()? showBlock;
@@ -683,13 +682,6 @@ class AppController extends ChangeNotifier {
     ); // Invalid persisted zones must not silently reset days.
     await store.saveSetting('timezone', timezone);
     trackingEnabled = await store.setting('tracking_enabled') == 'true';
-    _lastWindowsCheck = DateTime.tryParse(
-      await store.setting('tracking_heartbeat') ?? '',
-    );
-    final interruption = await store.setting('tracking_interruption');
-    trackingInterruption = interruption == null || interruption.isEmpty
-        ? null
-        : interruption;
     _focusMinutes =
         (int.tryParse(await store.setting('preset_focus') ?? '') ?? 25).clamp(
           1,
@@ -1294,10 +1286,6 @@ class AppController extends ChangeNotifier {
     if (!tracker.supported) {
       throw StateError('Native tracking requires Windows or Android.');
     }
-    if (tracker.isWindows && !trackingEnabled) {
-      _lastWindowsCheck = null;
-      await store.saveSetting('tracking_heartbeat', '');
-    }
     if (tracker.isWindows) {
       windowsForegroundEventsActive = await tracker.setWindowsForegroundWatch(
         true,
@@ -1330,8 +1318,6 @@ class AppController extends ChangeNotifier {
     if (tracker.isWindows) {
       await tracker.setWindowsForegroundWatch(false);
       windowsForegroundEventsActive = false;
-      _lastWindowsCheck = null;
-      await store.saveSetting('tracking_heartbeat', '');
     }
     _openInterval = null;
     _previousObservation = null;
@@ -1366,28 +1352,6 @@ class AppController extends ChangeNotifier {
     blockedSource = null;
     blockMessage = null;
     _changed();
-  }
-
-  Future<void> dismissTrackingInterruption() async {
-    await store.saveSetting('tracking_interruption', '');
-    trackingInterruption = null;
-    _changed();
-  }
-
-  Future<void> _recordWindowsCheck() async {
-    final checkedAt = now;
-    final previous = _lastWindowsCheck;
-    if (previous != null &&
-        checkedAt.difference(previous) > const Duration(seconds: 5)) {
-      String time(DateTime value) =>
-          '${value.toUtc().toIso8601String().split('.').first.replaceFirst('T', ' ')} UTC';
-      trackingInterruption =
-          'Tracking could not be confirmed between ${time(previous)} and ${time(checkedAt)}. No activity was estimated for this gap.';
-      await store.saveSetting('tracking_interruption', trackingInterruption!);
-    }
-    await store.saveSetting('tracking_heartbeat', checkedAt.toIso8601String());
-    _lastWindowsCheck = checkedAt;
-    runtimeCheckedAt = checkedAt;
   }
 
   Future<void> prepareForReset() async {
@@ -1571,7 +1535,7 @@ class AppController extends ChangeNotifier {
       }
       if (tick % 5 == 0) await reloadUsage();
       await _checkBudgetWarnings();
-      if (tracker.isWindows && trackingEnabled) await _recordWindowsCheck();
+      if (tracker.isWindows && trackingEnabled) runtimeCheckedAt = now;
       trackingError = android?.error;
     } catch (error) {
       trackingError = 'Tracking interrupted: $error';
@@ -1751,6 +1715,15 @@ class AppController extends ChangeNotifier {
   }
 
   void _changed() {
+    // On Windows a tracking problem is a notification, once when it starts,
+    // not a notice on every page.
+    final error = trackingError;
+    if (tracker.isWindows && error != null && _notifiedTrackingError == null) {
+      unawaited(
+        completionAlerts?.showTrackingProblem(error).catchError((_) {}),
+      );
+    }
+    _notifiedTrackingError = error;
     if (!_disposed) notifyListeners();
   }
 

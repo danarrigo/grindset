@@ -741,7 +741,8 @@ class _HomeState extends State<_Home> {
                                         _notice(widget.startupWarning!),
                                         const SizedBox(height: 20),
                                       ],
-                                      if (c.trackingError != null) ...[
+                                      if (c.trackingError != null &&
+                                          !c.tracker.isWindows) ...[
                                         _notice(c.trackingError!),
                                         const SizedBox(height: 20),
                                       ],
@@ -966,10 +967,9 @@ class _HomeState extends State<_Home> {
           onTap: () => open(2),
         ),
       if (widget.startupWarning != null) FocusNotice(widget.startupWarning!),
-      if (c.trackingError != null)
-        FocusNotice(c.trackingError!, onTap: () => open(4))
-      else if (c.trackingInterruption != null)
-        FocusNotice('Tracking was interrupted.', onTap: () => open(4)),
+      // Windows shows tracking problems as a notification instead.
+      if (c.trackingError != null && !c.tracker.isWindows)
+        FocusNotice(c.trackingError!, onTap: () => open(4)),
     ];
     String clock(int minute) =>
         TimeOfDay(hour: minute ~/ 60, minute: minute % 60).format(context);
@@ -1968,16 +1968,6 @@ class _HomeState extends State<_Home> {
                   : 'On. Grindset records which app is open and for how long.',
               style: Theme.of(context).textTheme.bodyMedium,
             ),
-            if (c.trackingInterruption != null) ...[
-              const SizedBox(height: 12),
-              Text(c.trackingInterruption!),
-              TextButton(
-                onPressed: _busy
-                    ? null
-                    : () => _run(c.dismissTrackingInterruption),
-                child: const Text('Dismiss'),
-              ),
-            ],
             const SizedBox(height: 14),
             Wrap(
               spacing: 12,
