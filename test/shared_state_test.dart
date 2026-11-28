@@ -69,7 +69,8 @@ void main() {
     await shared.receive(
       record('rule', 'new', 3, {...rule('New remote rule'), 'id': 'new'}),
     );
-    expect((await store.rules()).last.focusBlock, isFalse);
+    // New to this device, it blocks while focusing, as a rule made here does.
+    expect((await store.rules()).last.focusBlock, isTrue);
   });
 
   test('an acknowledgement cannot erase an edit made while the old upload was in flight', () async {
