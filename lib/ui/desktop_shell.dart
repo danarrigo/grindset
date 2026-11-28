@@ -9,12 +9,16 @@ class DesktopShell extends StatelessWidget {
     required this.onSelected,
     required this.destinations,
     required this.child,
+    this.attention,
   });
 
   final int selected;
   final ValueChanged<int> onSelected;
   final List<({String label, IconData icon})> destinations;
   final Widget child;
+
+  /// The destination that needs a look, marked with a dot.
+  final int? attention;
 
   @override
   Widget build(BuildContext context) {
@@ -71,7 +75,7 @@ class DesktopShell extends StatelessWidget {
                                   selected: selected == i,
                                   child: Tooltip(
                                     message:
-                                        '${destinations[i].label} (Ctrl+${i + 1})',
+                                        '${destinations[i].label}${attention == i ? ', needs attention' : ''} (Ctrl+${i + 1})',
                                     child: TextButton.icon(
                                       key: ValueKey('nav-$i'),
                                       onPressed: () => onSelected(i),
@@ -79,7 +83,25 @@ class DesktopShell extends StatelessWidget {
                                         destinations[i].icon,
                                         size: 21,
                                       ),
-                                      label: Text(destinations[i].label),
+                                      label: Row(
+                                        children: [
+                                          Expanded(
+                                            child: Text(destinations[i].label),
+                                          ),
+                                          if (attention == i)
+                                            Container(
+                                              key: const ValueKey(
+                                                'nav-attention',
+                                              ),
+                                              width: 8,
+                                              height: 8,
+                                              decoration: BoxDecoration(
+                                                color: colors.error,
+                                                shape: BoxShape.circle,
+                                              ),
+                                            ),
+                                        ],
+                                      ),
                                       style: TextButton.styleFrom(
                                         alignment: Alignment.centerLeft,
                                         padding: const EdgeInsets.symmetric(

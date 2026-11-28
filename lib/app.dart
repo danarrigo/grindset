@@ -661,6 +661,7 @@ class _HomeState extends State<_Home> {
             for (var i = 0; i < _pages.length; i++)
               (label: _pages[i], icon: _icons[i]),
           ],
+          attention: setupSteps(c).any((s) => s.broken) ? 4 : null,
           child: workspace,
         ),
       );

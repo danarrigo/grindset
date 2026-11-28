@@ -30,6 +30,13 @@ class _Windows extends NativeTracker {
   ForegroundApp? foreground() => null;
 }
 
+class _Android extends NativeTracker {
+  @override
+  bool get isAndroid => true;
+  @override
+  bool get isWindows => false;
+}
+
 void main() {
   setUpAll(tzdata.initializeTimeZones);
   late LocalStore store;
@@ -95,6 +102,63 @@ void main() {
       expect(c.completionAlertsEnabled, isFalse);
     },
   );
+
+  testWidgets('a finished checklist folds to one line until opened', (
+    tester,
+  ) async {
+    final phone = AppController(
+      store: store,
+      tracker: _Android(),
+      clock: () => now,
+    );
+    addTearDown(phone.dispose);
+    phone
+      ..trackingEnabled = true
+      ..accessGranted = true
+      ..backgroundTrackingRunning = true
+      ..androidBlockingEnabled = true;
+    await phone.saveRule(
+      ActivityRule(
+        id: 'social',
+        name: 'Social',
+        sources: ['android:com.discord'],
+        dailyMinutes: 30,
+      ),
+    );
+    await show(tester, TrackingHealthPanel(controller: phone));
+    expect(find.text('All set'), findsOneWidget);
+    expect(find.text('App blocking'), findsNothing);
+    await tester.tap(find.text('Show all'));
+    await tester.pumpAndSettle();
+    expect(find.text('App blocking'), findsOneWidget);
+    await tester.tap(find.text('Hide'));
+    await tester.pumpAndSettle();
+    expect(find.text('App blocking'), findsNothing);
+    // Something breaking opens it again.
+    phone.backgroundTrackingRunning = false;
+    await show(tester, TrackingHealthPanel(controller: phone));
+    expect(find.text('Show all'), findsNothing);
+    expect(find.text('App blocking'), findsOneWidget);
+  });
+
+  testWidgets('the desktop sidebar marks Settings when setup is broken', (
+    tester,
+  ) async {
+    tester.view.physicalSize = const Size(1120, 720);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    c
+      ..trackingEnabled = true
+      ..accessGranted = true;
+    await tester.pumpWidget(LockinApp(controller: c));
+    await tester.pumpAndSettle();
+    // Without a browser bridge, the extension step is broken.
+    expect(find.byKey(const ValueKey('nav-attention')), findsOneWidget);
+    expect(
+      find.byTooltip('Settings, needs attention (Ctrl+5)'),
+      findsOneWidget,
+    );
+  });
 
   testWidgets(
     'setup checklist shows off, ready and broken steps in plain words',

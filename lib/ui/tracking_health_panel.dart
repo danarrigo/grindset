@@ -160,6 +160,7 @@ class TrackingHealthPanel extends StatefulWidget {
 
 class _TrackingHealthPanelState extends State<TrackingHealthPanel> {
   bool _checking = false;
+  bool _open = false;
   String? _error;
 
   Future<void> _check() async {
@@ -194,6 +195,10 @@ class _TrackingHealthPanelState extends State<TrackingHealthPanel> {
       final done = steps.where((s) => s.done).length;
       // Only the first unfinished step gets the prominent button.
       final next = steps.indexWhere((s) => !s.done && s.action != null);
+      // Once everything works the list folds to one line; it opens again by
+      // itself when a step breaks.
+      final allDone = steps.isNotEmpty && done == steps.length;
+      final shown = allDone && !_open ? const <SetupStep>[] : steps;
       return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -209,6 +214,11 @@ class _TrackingHealthPanelState extends State<TrackingHealthPanel> {
                   style: Theme.of(context).textTheme.titleLarge,
                 ),
               ),
+              if (allDone)
+                TextButton(
+                  onPressed: () => setState(() => _open = !_open),
+                  child: Text(_open ? 'Hide' : 'Show all'),
+                ),
               IconButton(
                 tooltip: 'Check now',
                 onPressed: _checking ? null : _check,
@@ -221,7 +231,7 @@ class _TrackingHealthPanelState extends State<TrackingHealthPanel> {
               padding: EdgeInsets.only(top: 8),
               child: Text('Tracking and blocking need Windows or Android.'),
             ),
-          for (final (i, step) in steps.indexed)
+          for (final (i, step) in shown.indexed)
             Padding(
               padding: const EdgeInsets.only(top: 14),
               child: Row(
